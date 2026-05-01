@@ -1,40 +1,27 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import {
-  Network,
-  Mail,
-  Lock,
-  User,
-  UserPlus,
-  IdCard,
-  ArrowLeft,
-} from "lucide-react";
+import { Network, Mail, Lock, UserPlus, IdCard, ArrowLeft } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
 import { toast } from "sonner";
 
 export function SignUpPage() {
   const navigate = useNavigate();
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleInitial, setMiddleInitial] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [nameExtension, setNameExtension] = useState("");
   const [studentId, setStudentId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fullName || !email || !password || !confirmPassword || !role) {
+    if (!firstName || !lastName || !email || !password || !confirmPassword) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -78,19 +65,50 @@ export function SignUpPage() {
           {/* Sign Up Form */}
           <form onSubmit={handleSignUp} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName" className="text-gray-700">
-                Full Name
-              </Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input
-                  id="fullName"
-                  type="text"
-                  placeholder="Enter Full Name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="pl-10 h-11 border-gray-300 focus:border-blue-500"
-                />
+              <Label className="text-gray-700">Full Name</Label>
+              <div className="grid grid-cols-8 gap-3">
+                {/* First Name - wider */}
+                <div className="col-span-3">
+                  <Input
+                    type="text"
+                    placeholder="First Name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="h-11 bg-gray-100 border-gray-300 focus:border-blue-500"
+                  />
+                </div>
+                {/* Middle Initial - smaller */}
+                <div className="col-span-1">
+                  <Input
+                    type="text"
+                    placeholder="M.I."
+                    maxLength={1}
+                    value={middleInitial}
+                    onChange={(e) => setMiddleInitial(e.target.value)}
+                    className="h-11 bg-gray-100 border-gray-300 focus:border-blue-500"
+                  />
+                </div>
+                {/* Last Name - wider */}
+                <div className="col-span-3">
+                  <Input
+                    type="text"
+                    placeholder="Last Name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="h-11 bg-gray-100 border-gray-300 focus:border-blue-500"
+                  />
+                </div>
+                {/* Name Extension - smaller */}
+                <div className="col-span-1">
+                  <Input
+                    type="text"
+                    placeholder="Ext."
+                    maxLength={5}
+                    value={nameExtension}
+                    onChange={(e) => setNameExtension(e.target.value)}
+                    className="h-11 bg-gray-100 border-gray-300 focus:border-blue-500"
+                  />
+                </div>
               </div>
             </div>
 
