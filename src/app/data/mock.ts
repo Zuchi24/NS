@@ -32,11 +32,11 @@ YEARS.forEach(year => {
     MOCK_STUDENTS[key] = [
       {
         id: `s1-${key}`,
-        name: 'Alex Rivera',
+        name: 'Keanne Labiano',
         studentId: '2024-00123',
-        email: 'alex.rivera@netsim.edu',
+        email: 'Keanne.Labiano@netsim.edu',
         status: 'Passed',
-        completionRate: 85,
+        completionRate: 25,
         completedActivities: 12,
         ongoingActivities: 2,
         year,
