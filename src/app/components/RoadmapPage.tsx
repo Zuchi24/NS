@@ -1,432 +1,480 @@
-import { Link, useNavigate } from "react-router";
+import { useState } from "react";
+import { useNavigate } from "react-router";
 import {
   Map,
   ArrowLeft,
-  Play,
   CheckCircle2,
-  Clock,
-  Cpu,
-  Network,
-  Cable,
-  Shield,
-  Wrench,
-  Cloud,
-  Layers,
-  Router,
-  Lock as LockIcon,
-  Server,
-  Wifi,
-  Globe,
-  Activity,
+  Lock,
+  FileText,
+  LogOut,
 } from "lucide-react";
-import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
+import { toast } from "sonner";
 
-interface Lesson {
+interface Material {
+  id: string;
+  type: "pdf" | "video" | "link";
+  title: string;
+  url: string;
+}
+
+interface RoadmapNode {
   id: number;
   title: string;
   description: string;
-  duration: string;
-  status: "completed" | "in-progress" | "not-started";
   category: string;
-  label: "Start Here" | "Recommended" | "Advanced" | "";
-  icon: any;
-  color: string;
+  position: "center" | "left" | "right";
+  materials: Material[];
+  completed: boolean;
 }
 
 export function RoadmapPage() {
   const navigate = useNavigate();
+  const [isAdmin] = useState(() => localStorage.getItem("userRole") === "admin");
 
-  const lessons: Lesson[] = [
-    // Fundamentals of Networking
+  const [roadmapNodes, setRoadmapNodes] = useState<RoadmapNode[]>([
+    // Start / Fundamentals
     {
       id: 1,
-      title: "Computer Hardware Components",
-      description: "Understand essential computer components including motherboard, CPU, RAM, and storage devices.",
-      duration: "50 min",
-      status: "completed",
-      category: "fundamentals",
-      label: "Start Here",
-      icon: Cpu,
-      color: "blue",
+      title: "Introduction to Networking",
+      description: "Learn the basics of computer networks, their purpose, and real-world applications.",
+      category: "Start / Fundamentals",
+      position: "center",
+      materials: [],
+      completed: true,
     },
     {
       id: 2,
-      title: "Connection Types & Communication",
-      description: "Explore various connection types including serial, parallel, USB, and network connections.",
-      duration: "35 min",
-      status: "completed",
-      category: "fundamentals",
-      label: "Start Here",
-      icon: Cable,
-      color: "blue",
+      title: "Types of Networks",
+      description: "Understand LAN, WAN, MAN, and their differences.",
+      category: "Start / Fundamentals",
+      position: "left",
+      materials: [],
+      completed: false,
     },
     {
       id: 3,
-      title: "Basics of Computer Networking",
-      description: "Master the fundamentals of computer networks and how they work in real-world applications.",
-      duration: "45 min",
-      status: "in-progress",
-      category: "fundamentals",
-      label: "Start Here",
-      icon: Network,
-      color: "blue",
+      title: "Network Topologies",
+      description: "Explore star, bus, ring, mesh, and hybrid topologies.",
+      category: "Start / Fundamentals",
+      position: "right",
+      materials: [],
+      completed: false,
     },
     {
       id: 4,
-      title: "Network Models & Architecture",
-      description: "Study OSI Model (7 Layers), TCP/IP Model, and understand data flow processes.",
-      duration: "60 min",
-      status: "not-started",
-      category: "fundamentals",
-      label: "Recommended",
-      icon: Layers,
-      color: "blue",
+      title: "OSI Model",
+      description: "Master the 7 layers of the OSI networking model.",
+      category: "Start / Fundamentals",
+      position: "center",
+      materials: [],
+      completed: false,
     },
     {
       id: 5,
-      title: "Network Topologies",
-      description: "Study star, bus, ring, mesh, and hybrid network topologies and their use cases.",
-      duration: "35 min",
-      status: "not-started",
-      category: "fundamentals",
-      label: "",
-      icon: Activity,
-      color: "blue",
+      title: "TCP/IP Model",
+      description: "Understand the TCP/IP protocol suite and layers.",
+      category: "Start / Fundamentals",
+      position: "center",
+      materials: [],
+      completed: false,
     },
 
-    // Network Devices & Communication
+    // Basic Networking Concepts
     {
       id: 6,
-      title: "Network Communication Technologies",
-      description: "Learn about Ethernet standards, fiber optics, wireless standards, and mobile networks.",
-      duration: "55 min",
-      status: "not-started",
-      category: "devices",
-      label: "Recommended",
-      icon: Wifi,
-      color: "purple",
+      title: "IP Addressing",
+      description: "Learn IPv4 and IPv6 addressing schemes.",
+      category: "Basic Networking Concepts",
+      position: "center",
+      materials: [],
+      completed: false,
     },
     {
       id: 7,
-      title: "Network Devices (Basic)",
-      description: "Explore routers, switches, hubs, repeaters, and other essential networking devices.",
-      duration: "40 min",
-      status: "not-started",
-      category: "devices",
-      label: "Recommended",
-      icon: Router,
-      color: "purple",
+      title: "Subnetting",
+      description: "Master subnet masks and network segmentation.",
+      category: "Basic Networking Concepts",
+      position: "left",
+      materials: [],
+      completed: false,
     },
     {
       id: 8,
-      title: "Advanced Network Devices",
-      description: "Understand firewalls, access points, modems, load balancers, and IDS/IPS systems.",
-      duration: "45 min",
-      status: "not-started",
-      category: "devices",
-      label: "Advanced",
-      icon: Server,
-      color: "purple",
+      title: "MAC Address",
+      description: "Understand physical addressing in networks.",
+      category: "Basic Networking Concepts",
+      position: "right",
+      materials: [],
+      completed: false,
     },
     {
       id: 9,
-      title: "Operating Systems",
-      description: "Learn about file systems, user roles, networking in OS, and remote access methods.",
-      duration: "50 min",
-      status: "not-started",
-      category: "devices",
-      label: "",
-      icon: Cpu,
-      color: "purple",
+      title: "DNS",
+      description: "Learn how Domain Name System works.",
+      category: "Basic Networking Concepts",
+      position: "center",
+      materials: [],
+      completed: false,
     },
-
-    // IP Addressing & Subnetting
     {
       id: 10,
-      title: "IP Addressing Basics",
-      description: "Understand IPv4 addressing, address classes, and private vs public IPs.",
-      duration: "60 min",
-      status: "not-started",
-      category: "ip-subnet",
-      label: "Recommended",
-      icon: Globe,
-      color: "orange",
+      title: "DHCP",
+      description: "Understand Dynamic Host Configuration Protocol.",
+      category: "Basic Networking Concepts",
+      position: "center",
+      materials: [],
+      completed: false,
     },
+
+    // Network Devices
     {
       id: 11,
-      title: "Basics of Subnetting",
-      description: "Master subnet masks, CIDR notation, and network segmentation fundamentals.",
-      duration: "55 min",
-      status: "not-started",
-      category: "ip-subnet",
-      label: "Recommended",
-      icon: Network,
-      color: "orange",
+      title: "Router",
+      description: "Learn how routers direct network traffic.",
+      category: "Network Devices",
+      position: "left",
+      materials: [],
+      completed: false,
     },
     {
       id: 12,
-      title: "IP Addressing & Routing",
-      description: "Learn static vs dynamic IP, routing basics, routing tables, and NAT in detail.",
-      duration: "65 min",
-      status: "not-started",
-      category: "ip-subnet",
-      label: "Advanced",
-      icon: Router,
-      color: "orange",
+      title: "Switch",
+      description: "Understand layer 2 and layer 3 switches.",
+      category: "Network Devices",
+      position: "center",
+      materials: [],
+      completed: false,
     },
-
-    // Network Security
     {
       id: 13,
-      title: "Network Security Basics",
-      description: "Explore firewalls, VPN, encryption, common attacks, and secure network practices.",
-      duration: "70 min",
-      status: "not-started",
-      category: "security",
-      label: "Recommended",
-      icon: Shield,
-      color: "red",
+      title: "Hub & Access Point",
+      description: "Learn about basic connectivity devices.",
+      category: "Network Devices",
+      position: "right",
+      materials: [],
+      completed: false,
     },
-
-    // Troubleshooting & Practical Skills
     {
       id: 14,
-      title: "Network Troubleshooting",
-      description: "Master troubleshooting tools and learn to diagnose connectivity issues effectively.",
-      duration: "50 min",
-      status: "not-started",
-      category: "practical",
-      label: "Recommended",
-      icon: Wrench,
-      color: "green",
+      title: "Firewall",
+      description: "Understand network security devices.",
+      category: "Network Devices",
+      position: "center",
+      materials: [],
+      completed: false,
     },
+
+    // Cabling and Connections
     {
       id: 15,
-      title: "Practical Networking Skills",
-      description: "Hands-on practice with LAN setup, router configuration, and cable crimping.",
-      duration: "90 min",
-      status: "not-started",
-      category: "practical",
-      label: "Advanced",
-      icon: Wrench,
-      color: "green",
+      title: "Straight-through Cable",
+      description: "Learn T568A/B wiring standards.",
+      category: "Cabling and Connections",
+      position: "left",
+      materials: [],
+      completed: false,
     },
-
-    // Emerging Technologies
     {
       id: 16,
-      title: "Emerging Technologies",
-      description: "Introduction to cloud networking, virtualization, SDN, and network automation.",
-      duration: "60 min",
-      status: "not-started",
-      category: "emerging",
-      label: "Advanced",
-      icon: Cloud,
-      color: "teal",
+      title: "Crossover Cable",
+      description: "Understand when to use crossover cables.",
+      category: "Cabling and Connections",
+      position: "center",
+      materials: [],
+      completed: false,
     },
-  ];
+    {
+      id: 17,
+      title: "Fiber Optics",
+      description: "Explore fiber optic cable technology.",
+      category: "Cabling and Connections",
+      position: "right",
+      materials: [],
+      completed: false,
+    },
 
-  const categories = [
-    { id: "fundamentals", name: "Fundamentals of Networking", color: "blue" },
-    { id: "devices", name: "Network Devices & Communication", color: "purple" },
-    { id: "ip-subnet", name: "IP Addressing & Subnetting", color: "orange" },
-    { id: "security", name: "Network Security", color: "red" },
-    { id: "practical", name: "Troubleshooting & Practical Skills", color: "green" },
-    { id: "emerging", name: "Emerging Technologies", color: "teal" },
-  ];
+    // Network Configuration
+    {
+      id: 18,
+      title: "Assigning IP Address",
+      description: "Configure static and dynamic IP addresses.",
+      category: "Network Configuration",
+      position: "center",
+      materials: [],
+      completed: false,
+    },
+    {
+      id: 19,
+      title: "Connecting Devices",
+      description: "Build basic network connections visually.",
+      category: "Network Configuration",
+      position: "left",
+      materials: [],
+      completed: false,
+    },
+    {
+      id: 20,
+      title: "Basic Troubleshooting",
+      description: "Diagnose common network issues.",
+      category: "Network Configuration",
+      position: "right",
+      materials: [],
+      completed: false,
+    },
 
-  const completedCount = lessons.filter((l) => l.status === "completed").length;
-  const totalCount = lessons.length;
+    // Protocols
+    {
+      id: 21,
+      title: "HTTP / HTTPS",
+      description: "Understand web communication protocols.",
+      category: "Protocols",
+      position: "left",
+      materials: [],
+      completed: false,
+    },
+    {
+      id: 22,
+      title: "FTP",
+      description: "Learn File Transfer Protocol.",
+      category: "Protocols",
+      position: "center",
+      materials: [],
+      completed: false,
+    },
+    {
+      id: 23,
+      title: "TCP vs UDP",
+      description: "Compare connection-oriented vs connectionless protocols.",
+      category: "Protocols",
+      position: "right",
+      materials: [],
+      completed: false,
+    },
+    {
+      id: 24,
+      title: "ICMP",
+      description: "Understand ping and network diagnostics.",
+      category: "Protocols",
+      position: "center",
+      materials: [],
+      completed: false,
+    },
+
+    // Intermediate Topics
+    {
+      id: 25,
+      title: "VLAN",
+      description: "Learn Virtual Local Area Networks.",
+      category: "Intermediate Topics",
+      position: "left",
+      materials: [],
+      completed: false,
+    },
+    {
+      id: 26,
+      title: "Routing Basics",
+      description: "Understand static and dynamic routing.",
+      category: "Intermediate Topics",
+      position: "center",
+      materials: [],
+      completed: false,
+    },
+    {
+      id: 27,
+      title: "NAT",
+      description: "Learn Network Address Translation.",
+      category: "Intermediate Topics",
+      position: "right",
+      materials: [],
+      completed: false,
+    },
+    {
+      id: 28,
+      title: "Network Security Basics",
+      description: "Understand fundamental security concepts.",
+      category: "Intermediate Topics",
+      position: "center",
+      materials: [],
+      completed: false,
+    },
+  ]);
+
+  const isNodeUnlocked = (nodeId: number) => {
+    if (nodeId === 1) return true;
+    const previousNode = roadmapNodes.find((n) => n.id === nodeId - 1);
+    return previousNode?.completed || false;
+  };
+
+  const handleNodeClick = (node: RoadmapNode) => {
+    if (!isNodeUnlocked(node.id)) {
+      toast.error("Complete previous topics to unlock this lesson");
+      return;
+    }
+    navigate(`/topic/${node.id}`);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("userRole");
+    toast.success("Logged out successfully");
+    navigate("/login");
+  };
+
+  const completedCount = roadmapNodes.filter((n) => n.completed).length;
+  const totalCount = roadmapNodes.length;
   const progressPercentage = Math.round((completedCount / totalCount) * 100);
 
-  const getColorClasses = (color: string, type: "bg" | "text" | "border" | "hover") => {
-    const colorMap: any = {
-      blue: { bg: "bg-blue-500", text: "text-blue-600", border: "border-blue-500", hover: "hover:border-blue-400" },
-      purple: { bg: "bg-purple-500", text: "text-purple-600", border: "border-purple-500", hover: "hover:border-purple-400" },
-      orange: { bg: "bg-orange-500", text: "text-orange-600", border: "border-orange-500", hover: "hover:border-orange-400" },
-      red: { bg: "bg-red-500", text: "text-red-600", border: "border-red-500", hover: "hover:border-red-400" },
-      green: { bg: "bg-green-500", text: "text-green-600", border: "border-green-500", hover: "hover:border-green-400" },
-      teal: { bg: "bg-teal-500", text: "text-teal-600", border: "border-teal-500", hover: "hover:border-teal-400" },
-    };
-    return colorMap[color]?.[type] || "";
-  };
+  const groupedNodes = roadmapNodes.reduce((acc, node) => {
+    if (!acc[node.category]) acc[node.category] = [];
+    acc[node.category].push(node);
+    return acc;
+  }, {} as Record<string, RoadmapNode[]>);
 
-  const getLabelColor = (label: string) => {
-    switch (label) {
-      case "Start Here":
-        return "bg-green-100 text-green-700 border-green-300";
-      case "Recommended":
-        return "bg-blue-100 text-blue-700 border-blue-300";
-      case "Advanced":
-        return "bg-orange-100 text-orange-700 border-orange-300";
-      default:
-        return "";
-    }
-  };
+  const categories = Object.keys(groupedNodes);
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{ fontFamily: 'Roboto, sans-serif' }}>
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="mb-4 text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
-          </Button>
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <Map className="w-8 h-8 text-blue-600" />
-                <h1 className="text-3xl font-bold text-gray-900">
-                  Networking Learning Roadmap
-                </h1>
-              </div>
-              <p className="text-gray-600">
-                Follow the recommended learning path or explore topics freely
-              </p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Top Progress Bar */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
+        <div className="max-w-5xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/dashboard")}
+                className="text-gray-600 hover:text-gray-900"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Dashboard
+              </Button>
+              <div className="h-6 w-px bg-gray-300" />
+              <h1 className="text-xl font-bold text-gray-900">Networking Roadmap</h1>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
           </div>
-
-          {/* Progress Summary Bar */}
-          <Card className="border border-gray-200 shadow-sm bg-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Your Progress</h3>
-                  <p className="text-sm text-gray-600">
-                    {completedCount} of {totalCount} topics completed
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-3xl font-bold text-blue-600">{progressPercentage}%</div>
-                </div>
-              </div>
-              <Progress value={progressPercentage} className="h-3" />
-            </CardContent>
-          </Card>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Progress value={progressPercentage} className="h-2.5" />
+            </div>
+            <span className="text-sm font-semibold text-gray-700">
+              {completedCount}/{totalCount} Complete
+            </span>
+            <span className="text-lg font-bold text-blue-600">{progressPercentage}%</span>
+          </div>
         </div>
+      </div>
 
-        {/* Categorized Lessons */}
-        <div className="space-y-10">
-          {categories.map((category) => {
-            const categoryLessons = lessons.filter((l) => l.category === category.id);
-            if (categoryLessons.length === 0) return null;
+      {/* Roadmap Content */}
+      <div className="max-w-5xl mx-auto px-6 py-12">
+        <div className="relative">
+          {/* Vertical Center Line */}
+          <div className="absolute left-1/2 transform -translate-x-1/2 top-0 bottom-0 w-1 bg-gray-200" />
 
-            return (
-              <div key={category.id}>
-                <h2 className={`text-xl font-bold mb-4 ${getColorClasses(category.color, "text")}`}>
-                  {category.name}
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {categoryLessons.map((lesson) => {
-                    const Icon = lesson.icon;
-                    const isCompleted = lesson.status === "completed";
-                    const isInProgress = lesson.status === "in-progress";
+          {/* Categories and Nodes */}
+          <div className="space-y-16">
+            {categories.map((category) => (
+              <div key={category} className="relative">
+                {/* Category Header */}
+                <div className="flex justify-center mb-8">
+                  <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-6 py-3 rounded-full shadow-lg z-10 relative">
+                    <h2 className="text-sm font-bold uppercase tracking-wide">{category}</h2>
+                  </div>
+                </div>
+
+                {/* Nodes */}
+                <div className="space-y-6">
+                  {groupedNodes[category].map((node) => {
+                    const isUnlocked = isNodeUnlocked(node.id);
+                    const isCompleted = node.completed;
 
                     return (
-                      <Card
-                        key={lesson.id}
-                        className="border border-gray-200 shadow-sm hover:shadow-lg hover:border-gray-300 transition-all cursor-pointer group"
+                      <div
+                        key={node.id}
+                        className={`relative flex ${
+                          node.position === "center"
+                            ? "justify-center"
+                            : node.position === "left"
+                            ? "justify-start pr-[55%]"
+                            : "justify-end pl-[55%]"
+                        }`}
                       >
-                        <CardContent className="p-0">
-                          {/* Top Image/Icon Section */}
-                          <div className={`h-32 ${getColorClasses(lesson.color, "bg")} rounded-t-lg flex items-center justify-center relative overflow-hidden`}>
-                            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
-                            <Icon className="w-16 h-16 text-white z-10" />
+                        {/* Connecting Line to Center */}
+                        {node.position !== "center" && (
+                          <svg
+                            className="absolute top-1/2 transform -translate-y-1/2"
+                            style={{
+                              left: node.position === "left" ? "calc(100% - 8%)" : "47%",
+                              width: node.position === "left" ? "calc(50% - 42%)" : "calc(53% - 47%)",
+                              height: "2px",
+                            }}
+                          >
+                            <line
+                              x1="0"
+                              y1="1"
+                              x2="100%"
+                              y2="1"
+                              stroke={isCompleted ? "#22c55e" : isUnlocked ? "#3b82f6" : "#d1d5db"}
+                              strokeWidth="2"
+                            />
+                          </svg>
+                        )}
+
+                        {/* Node Card */}
+                        <div
+                          onClick={() => handleNodeClick(node)}
+                          className={`relative bg-white rounded-xl shadow-md border-2 p-5 w-80 cursor-pointer transition-all ${
+                            isCompleted
+                              ? "border-green-500 hover:shadow-lg"
+                              : isUnlocked
+                              ? "border-blue-400 hover:border-blue-500 hover:shadow-lg"
+                              : "border-gray-200 opacity-60 cursor-not-allowed"
+                          }`}
+                        >
+                          {/* Status Icon */}
+                          <div className="absolute -right-3 -top-3">
+                            {isCompleted ? (
+                              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                                <CheckCircle2 className="w-5 h-5 text-white" />
+                              </div>
+                            ) : isUnlocked ? (
+                              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shadow-lg">
+                                <div className="w-3 h-3 bg-white rounded-full" />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center shadow-lg">
+                                <Lock className="w-4 h-4 text-white" />
+                              </div>
+                            )}
                           </div>
 
-                          {/* Content */}
-                          <div className="p-5">
-                            {/* Title */}
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
-                              {lesson.title}
-                            </h3>
+                          <h3 className="text-lg font-bold text-gray-900 mb-2 pr-6">{node.title}</h3>
+                          <p className="text-sm text-gray-600 leading-relaxed">{node.description}</p>
 
-                            {/* Description */}
-                            <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                              {lesson.description}
-                            </p>
-
-                            {/* Tags & Labels */}
-                            <div className="flex items-center gap-2 mb-4 flex-wrap">
-                              {lesson.label && (
-                                <span className={`text-xs font-medium px-2 py-1 rounded-full border ${getLabelColor(lesson.label)}`}>
-                                  {lesson.label}
-                                </span>
-                              )}
-                              {isCompleted && (
-                                <span className="flex items-center gap-1 text-xs text-green-600 font-medium bg-green-100 px-2 py-1 rounded-full">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  Completed
-                                </span>
-                              )}
-                              {isInProgress && (
-                                <span className="flex items-center gap-1 text-xs text-orange-600 font-medium bg-orange-100 px-2 py-1 rounded-full">
-                                  <Clock className="w-3 h-3" />
-                                  In Progress
-                                </span>
-                              )}
-                              {!isCompleted && !isInProgress && (
-                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                                  Not Started
-                                </span>
-                              )}
+                          {node.materials.length > 0 && (
+                            <div className="mt-3 flex items-center gap-2 text-xs text-blue-600">
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>{node.materials.length} material(s) available</span>
                             </div>
-
-                            {/* Duration & Button */}
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-500 flex items-center gap-1">
-                                <Clock className="w-3.5 h-3.5" />
-                                {lesson.duration}
-                              </span>
-                              <Link to={`/topic/${lesson.id}`}>
-                                <Button
-                                  size="sm"
-                                  className={`h-9 ${getColorClasses(lesson.color, "bg")} hover:opacity-90 text-white`}
-                                >
-                                  <Play className="w-4 h-4 mr-1" />
-                                  {isCompleted ? "Review" : isInProgress ? "Continue" : "Start Learning"}
-                                </Button>
-                              </Link>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
-
-        {/* Bottom Info Card */}
-        <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white shadow-sm mt-10">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Map className="w-7 h-7 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-gray-900 mb-1">
-                  Flexible Learning Experience
-                </h3>
-                <p className="text-sm text-gray-600">
-                  All topics are accessible at any time. Follow the recommended path for structured learning,
-                  or explore topics freely based on your interests and needs. Each lesson includes video resources
-                  and hands-on practice opportunities.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
