@@ -1,10 +1,24 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Network, Mail, Lock, User, UserPlus, IdCard, ArrowLeft } from "lucide-react";
+import {
+  Network,
+  Mail,
+  Lock,
+  User,
+  UserPlus,
+  IdCard,
+  ArrowLeft,
+} from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import { toast } from "sonner";
 
 export function SignUpPage() {
@@ -64,13 +78,15 @@ export function SignUpPage() {
           {/* Sign Up Form */}
           <form onSubmit={handleSignUp} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName" className="text-gray-700">Full Name</Label>
+              <Label htmlFor="fullName" className="text-gray-700">
+                Full Name
+              </Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
                   id="fullName"
                   type="text"
-                  placeholder="John Doe"
+                  placeholder="Enter Full Name"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   className="pl-10 h-11 border-gray-300 focus:border-blue-500"
@@ -80,14 +96,15 @@ export function SignUpPage() {
 
             <div className="space-y-2">
               <Label htmlFor="studentId" className="text-gray-700">
-                Student ID <span className="text-gray-400 text-xs">(optional)</span>
+                Student ID{" "}
+                <span className="text-gray-400 text-xs">(required)</span>
               </Label>
               <div className="relative">
                 <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
                   id="studentId"
                   type="text"
-                  placeholder="20230001"
+                  placeholder="202*******"
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value)}
                   className="pl-10 h-11 border-gray-300 focus:border-blue-500"
@@ -96,13 +113,15 @@ export function SignUpPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700">Email</Label>
+              <Label htmlFor="email" className="text-gray-700">
+                Email
+              </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
                   id="email"
                   type="email"
-                  placeholder="student@university.edu"
+                  placeholder="user@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 h-11 border-gray-300 focus:border-blue-500"
@@ -111,7 +130,9 @@ export function SignUpPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-700">Password</Label>
+              <Label htmlFor="password" className="text-gray-700">
+                Password
+              </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
@@ -126,7 +147,9 @@ export function SignUpPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-gray-700">Confirm Password</Label>
+              <Label htmlFor="confirmPassword" className="text-gray-700">
+                Confirm Password
+              </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
@@ -138,19 +161,6 @@ export function SignUpPage() {
                   className="pl-10 h-11 border-gray-300 focus:border-blue-500"
                 />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="role" className="text-gray-700">Role</Label>
-              <Select value={role} onValueChange={setRole}>
-                <SelectTrigger className="h-11 border-gray-300">
-                  <SelectValue placeholder="Select your role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="student">Student</SelectItem>
-                  <SelectItem value="instructor">Instructor</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             <Button
@@ -175,14 +185,20 @@ export function SignUpPage() {
           {/* Login Link */}
           <div className="text-center text-sm text-gray-600 border-t pt-6">
             Already have an account?{" "}
-            <Link to="/login" className="text-blue-600 font-semibold hover:text-blue-700">
+            <Link
+              to="/login"
+              className="text-blue-600 font-semibold hover:text-blue-700"
+            >
               Sign In
             </Link>
           </div>
 
           {/* Back to Home */}
           <div className="text-center pt-2">
-            <Link to="/" className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
               <ArrowLeft className="w-4 h-4" />
               Back to Home
             </Link>

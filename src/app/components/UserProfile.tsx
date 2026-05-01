@@ -1,10 +1,25 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { User, Mail, IdCard, Award, Calendar, ArrowLeft, Save, Edit2 } from "lucide-react";
+import {
+  User,
+  Mail,
+  IdCard,
+  Award,
+  Calendar,
+  ArrowLeft,
+  Save,
+  Edit2,
+} from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "./ui/card";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { toast } from "sonner";
@@ -14,7 +29,7 @@ export function UserProfile() {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState({
-    name: "John Doe",
+    name: "John BJ",
     email: "john.doe@university.edu",
     studentId: "2023001",
     role: "Student",
@@ -22,12 +37,36 @@ export function UserProfile() {
   });
 
   const achievements = [
-    { title: "First Simulation", description: "Completed your first simulation", earned: true },
-    { title: "Cable Expert", description: "Mastered all cable wiring exercises", earned: true },
-    { title: "Network Builder", description: "Built 10 network topologies", earned: true },
-    { title: "Challenge Master", description: "Completed 5 challenges", earned: false },
-    { title: "Perfect Score", description: "Achieved 100% on any exercise", earned: false },
-    { title: "Networking Pro", description: "Completed all modules", earned: false },
+    {
+      title: "First Simulation",
+      description: "Completed your first simulation",
+      earned: true,
+    },
+    {
+      title: "Cable Expert",
+      description: "Mastered all cable wiring exercises",
+      earned: true,
+    },
+    {
+      title: "Network Builder",
+      description: "Built 10 network topologies",
+      earned: true,
+    },
+    {
+      title: "Challenge Master",
+      description: "Completed 5 challenges",
+      earned: false,
+    },
+    {
+      title: "Perfect Score",
+      description: "Achieved 100% on any exercise",
+      earned: false,
+    },
+    {
+      title: "Networking Pro",
+      description: "Completed all modules",
+      earned: false,
+    },
   ];
 
   const stats = [
@@ -98,8 +137,12 @@ export function UserProfile() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="text-center">
-                    <h2 className="text-xl font-bold text-gray-900">{profile.name}</h2>
-                    <Badge className="mt-2 bg-blue-100 text-blue-700">{profile.role}</Badge>
+                    <h2 className="text-xl font-bold text-gray-900">
+                      {profile.name}
+                    </h2>
+                    <Badge className="mt-2 bg-blue-100 text-blue-700">
+                      {profile.role}
+                    </Badge>
                   </div>
                 </div>
               </CardHeader>
@@ -110,7 +153,9 @@ export function UserProfile() {
                       <Label>Full Name</Label>
                       <Input
                         value={profile.name}
-                        onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                        onChange={(e) =>
+                          setProfile({ ...profile, name: e.target.value })
+                        }
                       />
                     </div>
                     <div className="space-y-2">
@@ -118,14 +163,18 @@ export function UserProfile() {
                       <Input
                         type="email"
                         value={profile.email}
-                        onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                        onChange={(e) =>
+                          setProfile({ ...profile, email: e.target.value })
+                        }
                       />
                     </div>
                     <div className="space-y-2">
                       <Label>Student ID</Label>
                       <Input
                         value={profile.studentId}
-                        onChange={(e) => setProfile({ ...profile, studentId: e.target.value })}
+                        onChange={(e) =>
+                          setProfile({ ...profile, studentId: e.target.value })
+                        }
                       />
                     </div>
                   </>
@@ -137,11 +186,15 @@ export function UserProfile() {
                     </div>
                     <div className="flex items-center gap-3 text-sm">
                       <IdCard className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-600">ID: {profile.studentId}</span>
+                      <span className="text-gray-600">
+                        ID: {profile.studentId}
+                      </span>
                     </div>
                     <div className="flex items-center gap-3 text-sm">
                       <Calendar className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-600">Joined {profile.joinDate}</span>
+                      <span className="text-gray-600">
+                        Joined {profile.joinDate}
+                      </span>
                     </div>
                   </>
                 )}
@@ -156,9 +209,16 @@ export function UserProfile() {
               <CardContent>
                 <div className="space-y-4">
                   {stats.map((stat, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">{stat.label}</span>
-                      <span className="text-lg font-bold text-gray-900">{stat.value}</span>
+                    <div
+                      key={index}
+                      className="flex items-center justify-between"
+                    >
+                      <span className="text-sm text-gray-600">
+                        {stat.label}
+                      </span>
+                      <span className="text-lg font-bold text-gray-900">
+                        {stat.value}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -172,33 +232,43 @@ export function UserProfile() {
             <Card className="border-gray-200">
               <CardHeader>
                 <CardTitle>Learning Progress</CardTitle>
-                <CardDescription>Your progress across all modules</CardDescription>
+                <CardDescription>
+                  Your progress across all modules
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-gray-700">Cable Wiring</span>
+                    <span className="font-medium text-gray-700">
+                      Cable Wiring
+                    </span>
                     <span className="text-gray-900 font-semibold">100%</span>
                   </div>
                   <Progress value={100} className="h-2" />
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-gray-700">Device Connection</span>
+                    <span className="font-medium text-gray-700">
+                      Device Connection
+                    </span>
                     <span className="text-gray-900 font-semibold">75%</span>
                   </div>
                   <Progress value={75} className="h-2" />
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-gray-700">IP Configuration</span>
+                    <span className="font-medium text-gray-700">
+                      IP Configuration
+                    </span>
                     <span className="text-gray-900 font-semibold">60%</span>
                   </div>
                   <Progress value={60} className="h-2" />
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-gray-700">Router Setup</span>
+                    <span className="font-medium text-gray-700">
+                      Router Setup
+                    </span>
                     <span className="text-gray-900 font-semibold">40%</span>
                   </div>
                   <Progress value={40} className="h-2" />
@@ -213,7 +283,9 @@ export function UserProfile() {
                   <Award className="w-5 h-5 text-orange-600" />
                   Achievements
                 </CardTitle>
-                <CardDescription>Unlock badges by completing challenges</CardDescription>
+                <CardDescription>
+                  Unlock badges by completing challenges
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
@@ -238,7 +310,9 @@ export function UserProfile() {
                           <h4 className="font-semibold text-sm text-gray-900 mb-1">
                             {achievement.title}
                           </h4>
-                          <p className="text-xs text-gray-600">{achievement.description}</p>
+                          <p className="text-xs text-gray-600">
+                            {achievement.description}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -251,7 +325,9 @@ export function UserProfile() {
             <Card className="border-gray-200">
               <CardHeader>
                 <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>Your latest completed exercises</CardDescription>
+                <CardDescription>
+                  Your latest completed exercises
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -261,11 +337,15 @@ export function UserProfile() {
                       className="flex items-center justify-between border-b border-gray-100 pb-4 last:border-0 last:pb-0"
                     >
                       <div>
-                        <h4 className="font-semibold text-gray-900">{activity.title}</h4>
+                        <h4 className="font-semibold text-gray-900">
+                          {activity.title}
+                        </h4>
                         <p className="text-sm text-gray-500">{activity.date}</p>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-bold text-green-600">{activity.score}%</div>
+                        <div className="text-lg font-bold text-green-600">
+                          {activity.score}%
+                        </div>
                         <div className="text-xs text-gray-500">Score</div>
                       </div>
                     </div>
