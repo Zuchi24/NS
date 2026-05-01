@@ -25,9 +25,7 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   // ✅ NEW: role state
-  const [role, setRole] = useState<"student" | "admin">(
-    "student",
-  );
+  const [role, setRole] = useState<"student" | "admin">("student");
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,9 +40,7 @@ export function LoginPage() {
     setTimeout(() => {
       setLoading(false);
 
-      toast.success(
-        `Welcome back ${role === "admin" ? "Admin" : "Student"}!`,
-      );
+      toast.success(`Welcome back ${role === "admin" ? "Admin" : "Student"}!`);
 
       // ✅ role-based navigation (even if admin page not ready yet)
       if (role === "admin") {
@@ -82,17 +78,11 @@ export function LoginPage() {
               <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
                 <Network className="w-7 h-7 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">
-                NetSim
-              </span>
+              <span className="text-2xl font-bold text-gray-900">NetSim</span>
             </div>
 
-            <h2 className="text-2xl font-bold text-gray-900">
-              Welcome Back
-            </h2>
-            <p className="text-gray-600">
-              Sign in to continue your learning
-            </p>
+            <h2 className="text-2xl font-bold text-gray-900">Welcome Back</h2>
+            <p className="text-gray-600">Sign in to continue your learning</p>
 
             {/* ✅ ROLE SELECTOR (NEW) */}
             <div className="flex gap-2 bg-gray-100 p-1 rounded-lg mt-4">
@@ -134,7 +124,7 @@ export function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="student@university.edu"
+                  placeholder="gfdfdd@university.edu"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 h-11 border-gray-300 focus:border-blue-500"
@@ -144,10 +134,7 @@ export function LoginPage() {
 
             {/* Password */}
             <div className="space-y-2">
-              <Label
-                htmlFor="password"
-                className="text-gray-700"
-              >
+              <Label htmlFor="password" className="text-gray-700">
                 Password
               </Label>
               <div className="relative">
@@ -173,10 +160,7 @@ export function LoginPage() {
                     setRememberMe(checked as boolean)
                   }
                 />
-                <Label
-                  htmlFor="remember"
-                  className="text-sm text-gray-600"
-                >
+                <Label htmlFor="remember" className="text-sm text-gray-600">
                   Remember Me
                 </Label>
               </div>
@@ -212,10 +196,7 @@ export function LoginPage() {
           {/* Signup */}
           <div className="text-center text-sm text-gray-600 border-t pt-6">
             Don't have an account?{" "}
-            <Link
-              to="/signup"
-              className="text-blue-600 font-semibold"
-            >
+            <Link to="/signup" className="text-blue-600 font-semibold">
               Sign Up
             </Link>
           </div>
