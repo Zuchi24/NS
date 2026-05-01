@@ -7,9 +7,86 @@ import {
   ChevronRight,
   Play,
   ExternalLink,
+  FileText,
+  FileJson,
+  Image,
+  FileArchive,
+  Presentation,
+  Download,
+  Upload,
+  File,
 } from "lucide-react";
 import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
+
+// Type definitions for learning materials
+interface LearningMaterial {
+  id: number;
+  title: string;
+  type: "pdf" | "ppt" | "doc" | "img" | "zip";
+  uploadedBy: string;
+  uploadDate: string;
+  description?: string;
+  fileUrl: string;
+}
+
+// Sample learning materials data (to be replaced with API/Firebase/Supabase data)
+const learningMaterials: LearningMaterial[] = [
+  {
+    id: 1,
+    title: "Networking Basics.pdf",
+    type: "pdf",
+    uploadedBy: "Instructor",
+    uploadDate: "2024-01-15",
+    description: "Comprehensive guide to networking fundamentals",
+    fileUrl: "#",
+  },
+  {
+    id: 2,
+    title: "Network Topologies.ppt",
+    type: "ppt",
+    uploadedBy: "Admin",
+    uploadDate: "2024-01-20",
+    description: "Presentation on network topology types",
+    fileUrl: "#",
+  },
+];
+
+// Helper function to get icon based on file type
+const getFileIcon = (type: LearningMaterial["type"]) => {
+  switch (type) {
+    case "pdf":
+      return <FileText className="w-8 h-8 text-red-600" />;
+    case "ppt":
+      return <Presentation className="w-8 h-8 text-orange-600" />;
+    case "doc":
+      return <FileText className="w-8 h-8 text-blue-600" />;
+    case "img":
+      return <Image className="w-8 h-8 text-purple-600" />;
+    case "zip":
+      return <FileArchive className="w-8 h-8 text-yellow-600" />;
+    default:
+      return <File className="w-8 h-8 text-gray-600" />;
+  }
+};
+
+// Helper function to get button text based on file type
+const getButtonText = (type: LearningMaterial["type"]) => {
+  switch (type) {
+    case "pdf":
+      return "Open PDF";
+    case "ppt":
+      return "Open Presentation";
+    case "doc":
+      return "Open Document";
+    case "img":
+      return "View Image";
+    case "zip":
+      return "Download ZIP";
+    default:
+      return "Open File";
+  }
+};
 
 interface TopicData {
   id: number;
@@ -19,6 +96,20 @@ interface TopicData {
   videoUrl?: string;
   youtubeId?: string;
 }
+
+// ============================================================
+// ROLE-BASED ACCESS CONTROL
+// ============================================================
+// For this demo, we use a hardcoded role. In production, replace with:
+// - Firebase Auth: firebase.auth().currentUser?.getIdTokenResult()
+// - Supabase Auth: supabase.auth.getUser()
+// - JWT/API: fetch user role from authentication context
+// Example: const userRole = user?.role || "student";
+const userRole = "student";
+
+// ============================================================
+// END ROLE-BASED ACCESS CONTROL
+// ============================================================
 
 export function TopicDetailsPage() {
   const navigate = useNavigate();
@@ -82,6 +173,13 @@ export function TopicDetailsPage() {
     setIsCompleted(!isCompleted);
   };
 
+  // Handle file open/download
+  const handleFileAction = (fileUrl: string) => {
+    if (fileUrl && fileUrl !== "#") {
+      window.open(fileUrl, "_blank");
+    }
+  };
+
   return (
     <div
       className="min-h-screen bg-gray-50"
@@ -117,6 +215,78 @@ export function TopicDetailsPage() {
                 <p className="text-gray-700 leading-relaxed">
                   {currentTopic.overview}
                 </p>
+              </CardContent>
+            </Card>
+
+            {/* Learning Materials Section */}
+            <Card className="border border-gray-200 shadow-sm bg-white">
+              <CardContent className="p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">
+                  Learning Materials
+                </h2>
+
+                <div className="space-y-3">
+                  {/* Render file items if available */}
+                  {learningMaterials.length > 0 ? (
+                    learningMaterials.map((material) => (
+                      <div
+                        key={material.id}
+                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-blue-50 transition cursor-pointer"
+                        onClick={() => handleFileAction(material.fileUrl)}
+                      >
+                        <div className="flex items-center gap-3">
+                          {getFileIcon(material.type)}
+                          <div>
+                            <p className="font-semibold text-gray-800">
+                              {material.title}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {material.description ||
+                                `Uploaded by ${material.uploadedBy} on ${material.uploadDate}`}
+                            </p>
+                          </div>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleFileAction(material.fileUrl);
+                          }}
+                        >
+                          {material.type === "zip" ? (
+                            <Download className="w-4 h-4 mr-1" />
+                          ) : (
+                            <ExternalLink className="w-4 h-4 mr-1" />
+                          )}
+                          {getButtonText(material.type)}
+                        </Button>
+                      </div>
+                    ))
+                  ) : (
+                    /* Empty State */
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mt-4">
+                      <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-500">
+                        No learning materials uploaded yet.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload Placeholder for Admin - ONLY visible to admin/instructor */}
+                {userRole === "admin" && (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center mt-4 hover:border-blue-400 hover:bg-blue-50 transition cursor-pointer">
+                    <Upload className="w-6 h-6 text-gray-400 mx-auto mb-1" />
+                    <p className="text-sm text-gray-500">
+                      Click to upload learning materials
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      (PDF, PPT, DOC, ZIP supported)
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
