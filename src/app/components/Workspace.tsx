@@ -238,7 +238,7 @@ function DraggableDevice({ device, onDrag }: any) {
   );
 }
 
-function PlacedDevice({ device, isSelected, isConnecting, onClick, onPortClick, onDragEnd }: any) {
+function PlacedDevice({ device, isSelected, isConnecting, showPorts, onClick, onPortClick, onDragEnd }: any) {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: "placed-device",
     item: { id: device.id, initialX: device.x, initialY: device.y },
@@ -276,8 +276,8 @@ function PlacedDevice({ device, isSelected, isConnecting, onClick, onPortClick, 
         <div className="text-xs text-center text-gray-900 mt-1 font-medium">{device.label}</div>
       </div>
 
-      {/* Ports overlay when connecting */}
-      {isConnecting &&
+      {/* Ports overlay when ready to connect */}
+      {showPorts &&
         ports.map((port) => (
           <div
             key={port.id}
@@ -402,6 +402,8 @@ export function Workspace() {
   const [expandedSubcategories, setExpandedSubcategories] = useState<{ [key: string]: boolean }>({});
 
   const canvasRef = useRef<HTMLDivElement>(null);
+  const deviceTypeCounts = useRef<Record<string, number>>({});
+  const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
 
   const snapToGrid = (value: number) => Math.round(value / GRID_SIZE) * GRID_SIZE;
 
@@ -422,20 +424,24 @@ export function Workspace() {
 
       if (item.deviceType) {
         const uniqueId = `${item.deviceType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const deviceCount = devices.filter((d) => d.type === item.deviceType).length + 1;
 
-        const newDevice: Device = {
-          id: uniqueId,
-          type: item.deviceType,
-          label: `${item.label}${deviceCount}`,
-          x,
-          y,
-          model: item.model,
-          config: {},
-        };
+        setDevices((prevDevices) => {
+          const nextCount = (deviceTypeCounts.current[item.deviceType] ?? 0) + 1;
+          deviceTypeCounts.current[item.deviceType] = nextCount;
 
-        setDevices((prevDevices) => [...prevDevices, newDevice]);
-        toast.success(`${item.label} added to workspace`);
+          const newDevice: Device = {
+            id: uniqueId,
+            type: item.deviceType,
+            label: `${item.label}${nextCount}`,
+            x,
+            y,
+            model: item.model,
+            config: {},
+          };
+
+          toast.success(`${item.label} added to workspace`);
+          return [...prevDevices, newDevice];
+        });
       }
     },
   }));
@@ -455,12 +461,15 @@ export function Workspace() {
     if (!connectingFrom) {
       // Start connection
       setConnectingFrom({ deviceId: port.deviceId, portId: port.id, port });
+      setSelectedDevice(port.deviceId);
+      setMousePosition({ x: port.x, y: port.y });
       toast.info("Select target port to complete connection");
     } else {
       // Complete connection
       if (connectingFrom.deviceId === port.deviceId) {
         toast.error("Cannot connect device to itself");
         setConnectingFrom(null);
+        setMousePosition(null);
         return;
       }
 
@@ -477,6 +486,7 @@ export function Workspace() {
       toast.success("Connection established");
       setConnectingFrom(null);
       setSelectedDevice(null);
+      setMousePosition(null);
     }
   };
 
@@ -490,6 +500,8 @@ export function Workspace() {
     setConnections([]);
     setSelectedDevice(null);
     setConnectingFrom(null);
+    deviceTypeCounts.current = {};
+    setMousePosition(null);
     toast.success("Workspace cleared");
   };
 
@@ -637,7 +649,18 @@ export function Workspace() {
         </div>
 
         {/* Canvas Area */}
-        <div ref={drop} id="canvas" className="flex-1 relative bg-gray-50 overflow-hidden" style={{ backgroundImage: "radial-gradient(circle, #d1d5db 1px, transparent 1px)", backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px` }}>
+        <div
+          ref={drop}
+          id="canvas"
+          className="flex-1 relative bg-gray-50 overflow-hidden"
+          onMouseMove={(e) => {
+            if (!connectingFrom) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            setMousePosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+          }}
+          onMouseLeave={() => connectingFrom && setMousePosition(null)}
+          style={{ backgroundImage: "radial-gradient(circle, #d1d5db 1px, transparent 1px)", backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px` }}
+        >
           {/* SVG for connections */}
           <svg className="absolute inset-0 pointer-events-none" style={{ zIndex: 5, width: "100%", height: "100%" }}>
             {connections.map((conn) => {
@@ -656,12 +679,12 @@ export function Workspace() {
             })}
 
             {/* Preview line when connecting */}
-            {connectingFrom && selectedDevice && connectingFrom.deviceId !== selectedDevice && (
+            {connectingFrom && mousePosition && (
               <WireLine
                 x1={connectingFrom.port.x}
                 y1={connectingFrom.port.y}
-                x2={devices.find((d) => d.id === selectedDevice)!.x + 40}
-                y2={devices.find((d) => d.id === selectedDevice)!.y + 40}
+                x2={mousePosition.x}
+                y2={mousePosition.y}
                 cableType={selectedCableType}
                 isPreview={true}
               />
@@ -674,7 +697,8 @@ export function Workspace() {
               key={device.id}
               device={device}
               isSelected={selectedDevice === device.id}
-              isConnecting={connectingFrom?.deviceId === device.id || (connectingFrom && selectedDevice === device.id)}
+              isConnecting={connectingFrom?.deviceId === device.id}
+              showPorts={true}
               onClick={() => handleDeviceClick(device.id)}
               onPortClick={handlePortClick}
               onDragEnd={handleDeviceDragEnd}
@@ -833,7 +857,15 @@ export function Workspace() {
                     <p className="text-xs text-orange-700 mt-1">Click a port on another device to complete the connection</p>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" className="w-full mt-3 border-orange-400 text-orange-800 hover:bg-orange-200" onClick={() => setConnectingFrom(null)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full mt-3 border-orange-400 text-orange-800 hover:bg-orange-200"
+                  onClick={() => {
+                    setConnectingFrom(null);
+                    setMousePosition(null);
+                  }}
+                >
                   <X className="w-3 h-3 mr-1" />
                   Cancel Connection
                 </Button>
