@@ -12,7 +12,6 @@ import {
   Trash2,
   ArrowLeft,
   Download,
-  Router,
   ChevronDown,
   ChevronRight,
   Printer,
@@ -22,6 +21,8 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Card, CardContent } from "./ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { toast } from "sonner";
 
 interface Device {
@@ -212,7 +213,8 @@ function DeviceIcon({ type, model }: { type: string; model?: string }) {
   return <div className="w-16 h-16 bg-gray-400 rounded"></div>;
 }
 
-function DraggableDevice({ device, onDrag }: any) {
+function DraggableDevice({ device }: any) {
+  const dragRef = useRef<HTMLDivElement | null>(null);
   const [{ isDragging }, drag] = useDrag(() => ({
     type: "device-template",
     item: () => ({ deviceType: device.type, label: device.label, model: device.model, timestamp: Date.now() }),
@@ -221,11 +223,12 @@ function DraggableDevice({ device, onDrag }: any) {
     }),
   }));
 
+  drag(dragRef);
   const Icon = device.icon;
 
   return (
     <div
-      ref={drag}
+      ref={dragRef}
       className={`p-2 bg-white border-2 border-gray-200 rounded-lg cursor-move hover:border-blue-400 hover:shadow-md transition-all ${
         isDragging ? "opacity-50" : ""
       }`}
@@ -238,11 +241,12 @@ function DraggableDevice({ device, onDrag }: any) {
   );
 }
 
-function PlacedDevice({ device, isSelected, isConnecting, onClick, onPortClick, onDragEnd }: any) {
+function PlacedDevice({ device, isSelected, isConnecting, showPorts, onClick, onPortClick, onDragEnd }: any) {
+  const dragRef = useRef<HTMLDivElement | null>(null);
   const [{ isDragging }, drag] = useDrag(() => ({
     type: "placed-device",
     item: { id: device.id, initialX: device.x, initialY: device.y },
-    end: (item, monitor) => {
+    end: (_item, monitor) => {
       const delta = monitor.getDifferenceFromInitialOffset();
       if (delta && onDragEnd) {
         onDragEnd(device.id, delta);
@@ -253,11 +257,12 @@ function PlacedDevice({ device, isSelected, isConnecting, onClick, onPortClick, 
     }),
   }));
 
+  drag(dragRef);
   const ports = getDevicePorts(device);
 
   return (
     <div
-      ref={drag}
+      ref={dragRef}
       style={{
         position: "absolute",
         left: device.x,
@@ -276,8 +281,8 @@ function PlacedDevice({ device, isSelected, isConnecting, onClick, onPortClick, 
         <div className="text-xs text-center text-gray-900 mt-1 font-medium">{device.label}</div>
       </div>
 
-      {/* Ports overlay when connecting */}
-      {isConnecting &&
+      {/* Ports overlay when ready to connect */}
+      {showPorts &&
         ports.map((port) => (
           <div
             key={port.id}
@@ -400,11 +405,151 @@ export function Workspace() {
   const [selectedCableType, setSelectedCableType] = useState<"copper-straight" | "copper-crossover" | "fiber" | "console">("copper-straight");
   const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>({ endDevices: true, networkDevices: true });
   const [expandedSubcategories, setExpandedSubcategories] = useState<{ [key: string]: boolean }>({});
+  const [simulateOpen, setSimulateOpen] = useState(false);
+  const [simFrom, setSimFrom] = useState<string | null>(null);
+  const [simTo, setSimTo] = useState<string | null>(null);
+  const [simulationLoading, setSimulationLoading] = useState(false);
+  const [simulationResult, setSimulationResult] = useState<{ status: "success" | "error"; message: string } | null>(null);
 
-  const canvasRef = useRef<HTMLDivElement>(null);
+  const deviceTypeCounts = useRef<Record<string, number>>({});
+  const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
 
   const snapToGrid = (value: number) => Math.round(value / GRID_SIZE) * GRID_SIZE;
 
+  const getDeviceById = (id: string | null) => devices.find((device) => device.id === id) ?? null;
+  const isIpConfigured = (device: Device | null) => Boolean(device?.config?.ipAddress?.trim() && device?.config?.subnetMask?.trim());
+
+  const parseOctets = (value: string) => {
+    const parts = value.trim().split(".");
+    if (parts.length !== 4) return null;
+    const parsed = parts.map((part) => Number(part.trim()));
+    return parsed.every((octet) => !Number.isNaN(octet) && octet >= 0 && octet <= 255) ? parsed : null;
+  };
+
+  const areDevicesSameSubnet = (a: Device, b: Device) => {
+    const ipA = parseOctets(a.config?.ipAddress ?? "");
+    const maskA = parseOctets(a.config?.subnetMask ?? "");
+    const ipB = parseOctets(b.config?.ipAddress ?? "");
+    const maskB = parseOctets(b.config?.subnetMask ?? "");
+
+    if (!ipA || !maskA || !ipB || !maskB) return false;
+    if (maskA.join(".") !== maskB.join(".")) return false;
+
+    const networkA = ipA.map((octet, index) => octet & maskA[index]).join(".");
+    const networkB = ipB.map((octet, index) => octet & maskA[index]).join(".");
+
+    return networkA === networkB;
+  };
+
+  const getDeviceCategory = (type: string) => {
+    if (type.includes("pc") || type.includes("laptop")) return "pc";
+    if (type.includes("switch")) return "switch";
+    if (type.includes("server")) return "server";
+    if (type.includes("router")) return "router";
+    if (type.includes("hub")) return "hub";
+    return "other";
+  };
+
+  const isCableValid = (connection: Connection, source: Device, target: Device) => {
+    const sourceType = getDeviceCategory(source.type);
+    const targetType = getDeviceCategory(target.type);
+
+    if (connection.cableType === "copper-straight") {
+      return (
+        (sourceType === "pc" && targetType === "switch") ||
+        (sourceType === "switch" && targetType === "pc") ||
+        (sourceType === "switch" && targetType === "switch")
+      );
+    }
+
+    if (connection.cableType === "copper-crossover") {
+      return sourceType === "pc" && targetType === "pc";
+    }
+
+    return false;
+  };
+
+  const hasValidConnectionPath = (start: Device, end: Device) => {
+    const visited = new Set<string>([start.id]);
+    const queue = [start.id];
+
+    while (queue.length) {
+      const currentId = queue.shift()!;
+      if (currentId === end.id) return true;
+
+      const currentDevice = getDeviceById(currentId);
+      if (!currentDevice) continue;
+
+      for (const connection of connections) {
+        const nextId = connection.from === currentId ? connection.to : connection.to === currentId ? connection.from : null;
+        if (!nextId || visited.has(nextId)) continue;
+
+        const nextDevice = getDeviceById(nextId);
+        if (!nextDevice) continue;
+
+        if (!isCableValid(connection, currentDevice, nextDevice)) continue;
+
+        visited.add(nextId);
+        queue.push(nextId);
+      }
+    }
+
+    return false;
+  };
+
+  const resetSimulationForm = () => {
+    setSimFrom(null);
+    setSimTo(null);
+    setSimulationResult(null);
+    setSimulationLoading(false);
+  };
+
+  const runSimulation = () => {
+    const fromDevice = getDeviceById(simFrom);
+    const toDevice = getDeviceById(simTo);
+
+    if (!fromDevice || !toDevice) {
+      setSimulationResult({ status: "error", message: "Selected devices could not be found." });
+      toast.error("Selected devices could not be found.");
+      return;
+    }
+
+    if (fromDevice.id === toDevice.id) {
+      setSimulationResult({ status: "error", message: "Please select two different devices." });
+      toast.error("Please select two different devices.");
+      return;
+    }
+
+    if (!isIpConfigured(fromDevice) || !isIpConfigured(toDevice)) {
+      setSimulationResult({ status: "error", message: "Both devices require IP address and subnet mask." });
+      toast.error("Missing IP configuration on one or both devices.");
+      return;
+    }
+
+    if (!areDevicesSameSubnet(fromDevice, toDevice)) {
+      setSimulationResult({ status: "error", message: "Devices are not in the same subnet." });
+      toast.error("Devices are not in the same subnet.");
+      return;
+    }
+
+    if (!hasValidConnectionPath(fromDevice, toDevice)) {
+      setSimulationResult({ status: "error", message: "No valid connection path found between selected devices." });
+      toast.error("No valid connection path found.");
+      return;
+    }
+
+    setSimulationLoading(true);
+    setSimulationResult(null);
+
+    window.setTimeout(() => {
+      setSimulationLoading(false);
+      const message = `Message successfully sent from ${fromDevice.label} to ${toDevice.label}.`;
+      setSimulationResult({ status: "success", message });
+      toast.success(message);
+    }, 1200);
+  };
+
+  const dropRef = useRef<HTMLDivElement | null>(null);
   const [, drop] = useDrop(() => ({
     accept: ["device-template"],
     drop: (item: any, monitor) => {
@@ -422,23 +567,28 @@ export function Workspace() {
 
       if (item.deviceType) {
         const uniqueId = `${item.deviceType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const deviceCount = devices.filter((d) => d.type === item.deviceType).length + 1;
 
-        const newDevice: Device = {
-          id: uniqueId,
-          type: item.deviceType,
-          label: `${item.label}${deviceCount}`,
-          x,
-          y,
-          model: item.model,
-          config: {},
-        };
+        setDevices((prevDevices) => {
+          const nextCount = (deviceTypeCounts.current[item.deviceType] ?? 0) + 1;
+          deviceTypeCounts.current[item.deviceType] = nextCount;
 
-        setDevices((prevDevices) => [...prevDevices, newDevice]);
-        toast.success(`${item.label} added to workspace`);
+          const newDevice: Device = {
+            id: uniqueId,
+            type: item.deviceType,
+            label: `${item.label}${nextCount}`,
+            x,
+            y,
+            model: item.model,
+            config: {},
+          };
+
+          toast.success(`${item.label} added to workspace`);
+          return [...prevDevices, newDevice];
+        });
       }
     },
   }));
+  drop(dropRef);
 
   const handleDeviceClick = (deviceId: string) => {
     if (connectingFrom && connectingFrom.deviceId !== deviceId) {
@@ -455,12 +605,15 @@ export function Workspace() {
     if (!connectingFrom) {
       // Start connection
       setConnectingFrom({ deviceId: port.deviceId, portId: port.id, port });
+      setSelectedDevice(port.deviceId);
+      setMousePosition({ x: port.x, y: port.y });
       toast.info("Select target port to complete connection");
     } else {
       // Complete connection
       if (connectingFrom.deviceId === port.deviceId) {
         toast.error("Cannot connect device to itself");
         setConnectingFrom(null);
+        setMousePosition(null);
         return;
       }
 
@@ -477,6 +630,7 @@ export function Workspace() {
       toast.success("Connection established");
       setConnectingFrom(null);
       setSelectedDevice(null);
+      setMousePosition(null);
     }
   };
 
@@ -490,6 +644,8 @@ export function Workspace() {
     setConnections([]);
     setSelectedDevice(null);
     setConnectingFrom(null);
+    deviceTypeCounts.current = {};
+    setMousePosition(null);
     toast.success("Workspace cleared");
   };
 
@@ -632,12 +788,116 @@ export function Workspace() {
                 <Trash2 className="w-4 h-4 mr-2" />
                 Clear
               </Button>
+              <Button variant="default" size="sm" onClick={() => setSimulateOpen(true)}>
+                <Wifi className="w-4 h-4 mr-2" />
+                Simulate
+              </Button>
             </div>
           </div>
         </div>
 
+        <Dialog
+          open={simulateOpen}
+          onOpenChange={(open) => {
+            setSimulateOpen(open);
+            if (!open) resetSimulationForm();
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Simulate Message Transfer</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 mt-4">
+              <div>
+                <Label className="text-xs font-semibold text-gray-700 mb-1 block">From Device</Label>
+                <Select value={simFrom ?? ""} onValueChange={(value) => setSimFrom(value || null)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select source device" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {devices.map((device) => (
+                      <SelectItem key={device.id} value={device.id}>
+                        {device.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs font-semibold text-gray-700 mb-1 block">To Device</Label>
+                <Select value={simTo ?? ""} onValueChange={(value) => setSimTo(value || null)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select destination device" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {devices
+                      .filter((device) => device.id !== simFrom)
+                      .map((device) => (
+                        <SelectItem key={device.id} value={device.id}>
+                          {device.label}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="text-sm text-gray-500">
+                Only configured devices can be simulated. Straight-through and crossover cables are supported for basic paths.
+              </div>
+
+              {simulationResult && (
+                <div
+                  className={`rounded-xl p-4 text-sm ${
+                    simulationResult.status === "success"
+                      ? "bg-emerald-50 border border-emerald-200 text-emerald-900"
+                      : "bg-red-50 border border-red-200 text-red-900"
+                  }`}
+                >
+                  <p className="font-semibold">
+                    {simulationResult.status === "success" ? "Simulation successful" : "Simulation failed"}
+                  </p>
+                  <p className="mt-1">{simulationResult.message}</p>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="mt-6 gap-2">
+              <Button
+                onClick={runSimulation}
+                disabled={!simFrom || !simTo || simFrom === simTo || simulationLoading}
+                className="flex-1"
+              >
+                {simulationLoading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-white animate-pulse" />
+                    Simulating...
+                  </span>
+                ) : (
+                  "Start Simulation"
+                )}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setSimulateOpen(false)}>
+                Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Canvas Area */}
-        <div ref={drop} id="canvas" className="flex-1 relative bg-gray-50 overflow-hidden" style={{ backgroundImage: "radial-gradient(circle, #d1d5db 1px, transparent 1px)", backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px` }}>
+        <div
+          ref={dropRef}
+          id="canvas"
+          className="flex-1 relative bg-gray-50 overflow-hidden"
+          onMouseMove={(e) => {
+            if (!connectingFrom) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            setMousePosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+          }}
+          onMouseLeave={() => connectingFrom && setMousePosition(null)}
+          style={{ backgroundImage: "radial-gradient(circle, #d1d5db 1px, transparent 1px)", backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px` }}
+        >
           {/* SVG for connections */}
           <svg className="absolute inset-0 pointer-events-none" style={{ zIndex: 5, width: "100%", height: "100%" }}>
             {connections.map((conn) => {
@@ -656,12 +916,12 @@ export function Workspace() {
             })}
 
             {/* Preview line when connecting */}
-            {connectingFrom && selectedDevice && connectingFrom.deviceId !== selectedDevice && (
+            {connectingFrom && mousePosition && (
               <WireLine
                 x1={connectingFrom.port.x}
                 y1={connectingFrom.port.y}
-                x2={devices.find((d) => d.id === selectedDevice)!.x + 40}
-                y2={devices.find((d) => d.id === selectedDevice)!.y + 40}
+                x2={mousePosition.x}
+                y2={mousePosition.y}
                 cableType={selectedCableType}
                 isPreview={true}
               />
@@ -674,7 +934,8 @@ export function Workspace() {
               key={device.id}
               device={device}
               isSelected={selectedDevice === device.id}
-              isConnecting={connectingFrom?.deviceId === device.id || (connectingFrom && selectedDevice === device.id)}
+              isConnecting={connectingFrom?.deviceId === device.id}
+              showPorts={true}
               onClick={() => handleDeviceClick(device.id)}
               onPortClick={handlePortClick}
               onDragEnd={handleDeviceDragEnd}
@@ -833,7 +1094,15 @@ export function Workspace() {
                     <p className="text-xs text-orange-700 mt-1">Click a port on another device to complete the connection</p>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" className="w-full mt-3 border-orange-400 text-orange-800 hover:bg-orange-200" onClick={() => setConnectingFrom(null)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full mt-3 border-orange-400 text-orange-800 hover:bg-orange-200"
+                  onClick={() => {
+                    setConnectingFrom(null);
+                    setMousePosition(null);
+                  }}
+                >
                   <X className="w-3 h-3 mr-1" />
                   Cancel Connection
                 </Button>

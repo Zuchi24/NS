@@ -202,125 +202,16 @@ export function UserProfile() {
             </Card>
 
             {/* Stats */}
-            <Card className="border-gray-200">
-              <CardHeader>
-                <CardTitle className="text-lg">Statistics</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {stats.map((stat, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between"
-                    >
-                      <span className="text-sm text-gray-600">
-                        {stat.label}
-                      </span>
-                      <span className="text-lg font-bold text-gray-900">
-                        {stat.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            
           </div>
 
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Learning Progress */}
-            <Card className="border-gray-200">
-              <CardHeader>
-                <CardTitle>Learning Progress</CardTitle>
-                <CardDescription>
-                  Your progress across all modules
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-gray-700">
-                      Cable Wiring
-                    </span>
-                    <span className="text-gray-900 font-semibold">100%</span>
-                  </div>
-                  <Progress value={100} className="h-2" />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-gray-700">
-                      Device Connection
-                    </span>
-                    <span className="text-gray-900 font-semibold">75%</span>
-                  </div>
-                  <Progress value={75} className="h-2" />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-gray-700">
-                      IP Configuration
-                    </span>
-                    <span className="text-gray-900 font-semibold">60%</span>
-                  </div>
-                  <Progress value={60} className="h-2" />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-gray-700">
-                      Router Setup
-                    </span>
-                    <span className="text-gray-900 font-semibold">40%</span>
-                  </div>
-                  <Progress value={40} className="h-2" />
-                </div>
-              </CardContent>
-            </Card>
+            
 
             {/* Achievements */}
-            <Card className="border-gray-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-orange-600" />
-                  Achievements
-                </CardTitle>
-                <CardDescription>
-                  Unlock badges by completing challenges
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  {achievements.map((achievement, index) => (
-                    <div
-                      key={index}
-                      className={`border-2 rounded-lg p-4 transition-all ${
-                        achievement.earned
-                          ? "border-orange-300 bg-orange-50"
-                          : "border-gray-200 bg-gray-50 opacity-60"
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            achievement.earned ? "bg-orange-600" : "bg-gray-400"
-                          }`}
-                        >
-                          <Award className="w-5 h-5 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-sm text-gray-900 mb-1">
-                            {achievement.title}
-                          </h4>
-                          <p className="text-xs text-gray-600">
-                            {achievement.description}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
+            
             {/* Recent Activity */}
             <Card className="border-gray-200">
               <CardHeader>
