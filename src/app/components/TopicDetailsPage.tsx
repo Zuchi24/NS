@@ -7,19 +7,109 @@ import {
   ChevronRight,
   Play,
   ExternalLink,
+  FileText,
+  FileJson,
+  Image,
+  FileArchive,
+  Presentation,
+  Download,
+  Upload,
+  File,
 } from "lucide-react";
 import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
+
+// Type definitions for learning materials
+interface LearningMaterial {
+  id: number;
+  title: string;
+  type: "pdf" | "ppt" | "doc" | "img" | "zip";
+  uploadedBy: string;
+  uploadDate: string;
+  description?: string;
+  fileUrl: string;
+}
+
+// Sample learning materials data (to be replaced with API/Firebase/Supabase data)
+const learningMaterials: LearningMaterial[] = [
+  {
+    id: 1,
+    title: "Networking Basics.pdf",
+    type: "pdf",
+    uploadedBy: "Instructor",
+    uploadDate: "2024-01-15",
+    description: "Comprehensive guide to networking fundamentals",
+    fileUrl: "#",
+  },
+  {
+    id: 2,
+    title: "Network Topologies.ppt",
+    type: "ppt",
+    uploadedBy: "Admin",
+    uploadDate: "2024-01-20",
+    description: "Presentation on network topology types",
+    fileUrl: "#",
+  },
+];
+
+// Helper function to get icon based on file type
+const getFileIcon = (type: LearningMaterial["type"]) => {
+  switch (type) {
+    case "pdf":
+      return <FileText className="w-8 h-8 text-red-600" />;
+    case "ppt":
+      return <Presentation className="w-8 h-8 text-orange-600" />;
+    case "doc":
+      return <FileText className="w-8 h-8 text-blue-600" />;
+    case "img":
+      return <Image className="w-8 h-8 text-purple-600" />;
+    case "zip":
+      return <FileArchive className="w-8 h-8 text-yellow-600" />;
+    default:
+      return <File className="w-8 h-8 text-gray-600" />;
+  }
+};
+
+// Helper function to get button text based on file type
+const getButtonText = (type: LearningMaterial["type"]) => {
+  switch (type) {
+    case "pdf":
+      return "Open PDF";
+    case "ppt":
+      return "Open Presentation";
+    case "doc":
+      return "Open Document";
+    case "img":
+      return "View Image";
+    case "zip":
+      return "Download ZIP";
+    default:
+      return "Open File";
+  }
+};
 
 interface TopicData {
   id: number;
   title: string;
   overview: string;
-  keyConcepts: string[];
-  examples: string[];
+
   videoUrl?: string;
   youtubeId?: string;
 }
+
+// ============================================================
+// ROLE-BASED ACCESS CONTROL
+// ============================================================
+// For this demo, we use a hardcoded role. In production, replace with:
+// - Firebase Auth: firebase.auth().currentUser?.getIdTokenResult()
+// - Supabase Auth: supabase.auth.getUser()
+// - JWT/API: fetch user role from authentication context
+// Example: const userRole = user?.role || "student";
+const userRole = "student";
+
+// ============================================================
+// END ROLE-BASED ACCESS CONTROL
+// ============================================================
 
 export function TopicDetailsPage() {
   const navigate = useNavigate();
@@ -30,68 +120,26 @@ export function TopicDetailsPage() {
   const topicData: Record<string, TopicData> = {
     "1": {
       id: 1,
-      title: "Computer Hardware Components",
+      title: "Introduction to Networking",
       overview:
-        "Computer hardware components are the physical parts that make up a computer system. Understanding these components is essential for anyone working with networks, as they form the foundation of computing devices that connect to networks. This lesson covers the main hardware components including the motherboard, CPU, RAM, storage devices, and power supply.",
-      keyConcepts: [
-        "Motherboard: The main circuit board that connects all components",
-        "CPU (Central Processing Unit): The brain of the computer that processes instructions",
-        "RAM (Random Access Memory): Temporary storage for active programs and data",
-        "Storage Devices: Hard drives (HDD) and solid-state drives (SSD) for permanent data storage",
-        "Power Supply Unit (PSU): Converts electrical power to usable form for components",
-        "GPU (Graphics Processing Unit): Handles graphics and video processing",
-        "Cooling Systems: Fans and heatsinks that prevent overheating",
-      ],
-      examples: [
-        "A typical desktop computer motherboard has slots for RAM, sockets for CPU, and connectors for storage devices",
-        "Modern CPUs can have multiple cores (quad-core, octa-core) for parallel processing",
-        "SSDs are faster than HDDs because they have no moving parts and use flash memory",
-        "A gaming computer requires a powerful GPU for rendering high-quality graphics",
-      ],
-      youtubeId: "ExxFxD4OSZ0",
+        "Computer networking is the process of connecting computers and devices to share data, resources, and communication services such as the internet, emails, and file sharing. It includes different types of networks like LAN and WAN, as well as devices such as routers and switches that help data travel between systems. Understanding networking basics is important because it serves as the foundation of modern communication, cybersecurity, and many IT-related fields.",
+
+      youtubeId: "R2mPvd2v4D0",
     },
     "2": {
       id: 2,
-      title: "Connection Types & Communication",
+      title: "Types of Networks",
       overview:
-        "Understanding different types of connections is crucial for networking. This lesson explores various physical and wireless connection methods used in modern computing, including serial, parallel, USB, and network connections. Each connection type has specific use cases, advantages, and limitations.",
-      keyConcepts: [
-        "Serial Connection: Transmits data one bit at a time (RS-232, COM ports)",
-        "Parallel Connection: Transmits multiple bits simultaneously (printer ports)",
-        "USB (Universal Serial Bus): Modern standard for connecting peripherals",
-        "Network Connections: Ethernet (wired) and Wi-Fi (wireless)",
-        "Bluetooth: Short-range wireless technology for device pairing",
-        "Data Transfer Rates: Measured in bits per second (bps) or bytes per second",
-        "Hot-Swapping: Ability to connect/disconnect devices without restarting",
-      ],
-      examples: [
-        "USB 3.0 can transfer data at up to 5 Gbps, much faster than USB 2.0's 480 Mbps",
-        "Ethernet cables connect computers directly to network switches or routers",
-        "Bluetooth is commonly used for wireless keyboards, mice, and headphones",
-        "Thunderbolt connections support both data transfer and video output",
-      ],
+        "Types of networks refer to the different categories of computer networks based on their size, coverage, and purpose. Common types include Local Area Network (LAN), which connects devices within a small area like a school or office, and Wide Area Network (WAN), which connects networks across large distances through the internet. Understanding these network types helps users identify how devices communicate and share resources in different environments.",
+      youtubeId: "mwQcs4h2REw",
     },
     "3": {
       id: 3,
-      title: "Basics of Computer Networking",
+      title: "Network Topologies",
       overview:
-        "Computer networking is the practice of connecting computers and devices to share resources and communicate. This foundational lesson introduces core networking concepts, terminology, and principles that apply to all types of networks, from small home networks to large enterprise systems.",
-      keyConcepts: [
-        "Network: A group of interconnected devices that can communicate",
-        "Protocols: Rules and standards that govern network communication (TCP/IP, HTTP)",
-        "Client-Server Model: Architecture where clients request services from servers",
-        "Peer-to-Peer: Model where devices communicate directly without a central server",
-        "Bandwidth: Maximum data transfer rate of a network connection",
-        "Latency: Delay in data transmission across a network",
-        "Packet: Small unit of data transmitted over a network",
-      ],
-      examples: [
-        "A home network connects laptops, phones, and smart TVs to share internet access",
-        "Email uses client-server model: email client requests messages from email server",
-        "File sharing between two computers on same network demonstrates peer-to-peer",
-        "Video streaming requires high bandwidth and low latency for smooth playback",
-      ],
-      youtubeId: "3QhU9jd03a0",
+        "Network topologies refer to the physical or logical layout of devices in a computer network. Common types include star, bus, ring, mesh, and hybrid topologies, each having different structures, advantages, and uses in communication systems. Understanding network topologies helps learners identify how devices are connected and how data travels within a network.",
+
+      youtubeId: "uSKdjjw5zow",
     },
   };
 
@@ -104,7 +152,9 @@ export function TopicDetailsPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Topic Not Found</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Topic Not Found
+          </h2>
           <Button onClick={() => navigate("/roadmap")}>Back to Roadmap</Button>
         </div>
       </div>
@@ -123,8 +173,18 @@ export function TopicDetailsPage() {
     setIsCompleted(!isCompleted);
   };
 
+  // Handle file open/download
+  const handleFileAction = (fileUrl: string) => {
+    if (fileUrl && fileUrl !== "#") {
+      window.open(fileUrl, "_blank");
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50" style={{ fontFamily: 'Roboto, sans-serif' }}>
+    <div
+      className="min-h-screen bg-gray-50"
+      style={{ fontFamily: "Roboto, sans-serif" }}
+    >
       <div className="max-w-5xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="mb-6">
@@ -137,7 +197,9 @@ export function TopicDetailsPage() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Roadmap
           </Button>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{currentTopic.title}</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {currentTopic.title}
+          </h1>
         </div>
 
         {/* Main Content */}
@@ -147,44 +209,90 @@ export function TopicDetailsPage() {
             {/* Overview Section */}
             <Card className="border border-gray-200 shadow-sm bg-gradient-to-br from-blue-50 to-white">
               <CardContent className="p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-3">Overview</h2>
-                <p className="text-gray-700 leading-relaxed">{currentTopic.overview}</p>
+                <h2 className="text-xl font-bold text-gray-900 mb-3">
+                  Overview
+                </h2>
+                <p className="text-gray-700 leading-relaxed">
+                  {currentTopic.overview}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Learning Materials Section */}
+            <Card className="border border-gray-200 shadow-sm bg-white">
+              <CardContent className="p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">
+                  Learning Materials
+                </h2>
+
+                <div className="space-y-3">
+                  {/* Render file items if available */}
+                  {learningMaterials.length > 0 ? (
+                    learningMaterials.map((material) => (
+                      <div
+                        key={material.id}
+                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-blue-50 transition cursor-pointer"
+                        onClick={() => handleFileAction(material.fileUrl)}
+                      >
+                        <div className="flex items-center gap-3">
+                          {getFileIcon(material.type)}
+                          <div>
+                            <p className="font-semibold text-gray-800">
+                              {material.title}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {material.description ||
+                                `Uploaded by ${material.uploadedBy} on ${material.uploadDate}`}
+                            </p>
+                          </div>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleFileAction(material.fileUrl);
+                          }}
+                        >
+                          {material.type === "zip" ? (
+                            <Download className="w-4 h-4 mr-1" />
+                          ) : (
+                            <ExternalLink className="w-4 h-4 mr-1" />
+                          )}
+                          {getButtonText(material.type)}
+                        </Button>
+                      </div>
+                    ))
+                  ) : (
+                    /* Empty State */
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mt-4">
+                      <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-500">
+                        No learning materials uploaded yet.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload Placeholder for Admin - ONLY visible to admin/instructor */}
+                {userRole === "admin" && (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center mt-4 hover:border-blue-400 hover:bg-blue-50 transition cursor-pointer">
+                    <Upload className="w-6 h-6 text-gray-400 mx-auto mb-1" />
+                    <p className="text-sm text-gray-500">
+                      Click to upload learning materials
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      (PDF, PPT, DOC, ZIP supported)
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
             {/* Key Concepts Section */}
-            <Card className="border border-gray-200 shadow-sm">
-              <CardContent className="p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Key Concepts</h2>
-                <ul className="space-y-3">
-                  {currentTopic.keyConcepts.map((concept, index) => (
-                    <li key={index} className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                      </div>
-                      <span className="text-gray-700">{concept}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
 
             {/* Examples Section */}
-            <Card className="border border-gray-200 shadow-sm">
-              <CardContent className="p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Examples</h2>
-                <div className="space-y-3">
-                  {currentTopic.examples.map((example, index) => (
-                    <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                      <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-xs font-bold text-green-700">{index + 1}</span>
-                      </div>
-                      <p className="text-gray-700 text-sm">{example}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Right Column - Video & Progress */}
@@ -214,7 +322,7 @@ export function TopicDetailsPage() {
                       onClick={() =>
                         window.open(
                           `https://www.youtube.com/watch?v=${currentTopic.youtubeId}`,
-                          "_blank"
+                          "_blank",
                         )
                       }
                     >
@@ -228,7 +336,9 @@ export function TopicDetailsPage() {
                     <div className="w-full h-40 bg-gray-200 rounded-lg flex items-center justify-center">
                       <div className="text-center">
                         <Play className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-500">No video available yet</p>
+                        <p className="text-sm text-gray-500">
+                          No video available yet
+                        </p>
                       </div>
                     </div>
                     <Button className="w-full" disabled>
@@ -243,7 +353,9 @@ export function TopicDetailsPage() {
             {/* Progress Section */}
             <Card className="border border-gray-200 shadow-sm">
               <CardContent className="p-5">
-                <h3 className="text-lg font-bold text-gray-900 mb-3">Your Progress</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-3">
+                  Your Progress
+                </h3>
                 <div className="space-y-4">
                   <div
                     className={`flex items-center gap-3 p-3 rounded-lg ${
@@ -254,7 +366,9 @@ export function TopicDetailsPage() {
                       <>
                         <CheckCircle2 className="w-6 h-6 text-green-600" />
                         <div>
-                          <p className="font-semibold text-green-700">Completed</p>
+                          <p className="font-semibold text-green-700">
+                            Completed
+                          </p>
                           <p className="text-xs text-green-600">Great job!</p>
                         </div>
                       </>
@@ -262,8 +376,12 @@ export function TopicDetailsPage() {
                       <>
                         <div className="w-6 h-6 rounded-full border-2 border-gray-300"></div>
                         <div>
-                          <p className="font-semibold text-gray-700">Not Completed</p>
-                          <p className="text-xs text-gray-500">Mark when finished</p>
+                          <p className="font-semibold text-gray-700">
+                            Not Completed
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Mark when finished
+                          </p>
                         </div>
                       </>
                     )}
@@ -286,7 +404,9 @@ export function TopicDetailsPage() {
             {/* Navigation */}
             <Card className="border border-gray-200 shadow-sm">
               <CardContent className="p-5">
-                <h3 className="text-lg font-bold text-gray-900 mb-3">Navigation</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-3">
+                  Navigation
+                </h3>
                 <div className="space-y-2">
                   <Button
                     variant="outline"
