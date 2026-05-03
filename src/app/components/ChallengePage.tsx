@@ -4,7 +4,6 @@ import {
   Target,
   Trophy,
   Clock,
-  TrendingUp,
   Network,
   Cable,
   Wifi,
@@ -25,7 +24,7 @@ export function ChallengePage() {
   const challenges = [
     {
       id: 1,
-      title: "Assemble & Disassemble System Unit",
+      title: "Assemble System Unit",
       description: "Learn computer hardware by assembling a complete system unit with all essential components",
       difficulty: "Beginner",
       icon: Cpu,
@@ -40,7 +39,7 @@ export function ChallengePage() {
         "Place each component in its proper slot",
       ],
     },
-    {
+{
       id: 2,
       title: "Correct Cable Wiring",
       description: "Identify and select the correct cable wiring pattern for different network scenarios",
@@ -48,90 +47,89 @@ export function ChallengePage() {
       icon: Cable,
       iconColor: "bg-orange-500",
       timeEstimate: "15 min",
-      score: 88,
-      progress: 100,
-      status: "completed",
+      score: null,
+      progress: 0,
+      status: "available",
       instructions: [
         "Review the cable wiring standards (T568A and T568B)",
         "Identify when to use straight vs crossover cables",
         "Complete the cable selection quiz",
       ],
     },
-    {
-      id: 3,
-      title: "Basic IP Configuration",
-      description: "Configure IP addresses, subnet masks, and default gateways for a small network",
-      difficulty: "Intermediate",
-      icon: Wifi,
-      iconColor: "bg-purple-500",
-      timeEstimate: "20 min",
-      score: null,
-      progress: 45,
-      status: "in-progress",
-      instructions: [
-        "Place 3 PCs and 1 switch on the canvas",
-        "Assign IP addresses in the same subnet (192.168.1.0/24)",
-        "Configure subnet masks and verify connectivity",
-      ],
-    },
-    {
-      id: 4,
-      title: "Build Star Topology",
-      description: "Create a star topology network with multiple devices connected to a central switch",
-      difficulty: "Intermediate",
-      icon: Network,
-      iconColor: "bg-indigo-500",
-      timeEstimate: "25 min",
-      score: null,
-      progress: 0,
-      status: "available",
-      instructions: [
-        "Place 1 switch and 4 PCs on the canvas",
-        "Create a star topology with the switch at the center",
-        "Configure all devices with appropriate IP addresses",
-      ],
-    },
-    {
-      id: 5,
-      title: "Router Configuration",
-      description: "Configure a router to connect two different subnets and enable inter-network communication",
-      difficulty: "Advanced",
-      icon: Wifi,
-      iconColor: "bg-orange-600",
-      timeEstimate: "30 min",
-      score: null,
-      progress: 0,
-      status: "locked",
-      instructions: [
-        "Place 1 router, 2 switches, and 4 PCs",
-        "Create two separate subnets",
-        "Configure router interfaces for both subnets",
-      ],
-    },
-    {
-      id: 6,
-      title: "VLAN Configuration",
-      description: "Set up VLANs on a switch to segment network traffic and improve security",
-      difficulty: "Advanced",
-      icon: Network,
-      iconColor: "bg-purple-600",
-      timeEstimate: "35 min",
-      score: null,
-      progress: 0,
-      status: "locked",
-      instructions: [
-        "Place 1 managed switch and 6 PCs",
-        "Create 3 VLANs for different departments",
-        "Assign ports to VLANs",
-      ],
-    },
+    // {
+    //   id: 3,
+    //   title: "Basic IP Configuration",
+    //   description: "Configure IP addresses, subnet masks, and default gateways for a small network",
+    //   difficulty: "Intermediate",
+    //   icon: Wifi,
+    //   iconColor: "bg-purple-500",
+    //   timeEstimate: "20 min",
+    //   score: null,
+    //   progress: 45,
+    //   status: "in-progress",
+    //   instructions: [
+    //     "Place 3 PCs and 1 switch on the canvas",
+    //     "Assign IP addresses in the same subnet (192.168.1.0/24)",
+    //     "Configure subnet masks and verify connectivity",
+    //   ],
+    // },
+    // {
+    //   id: 4,
+    //   title: "Build Star Topology",
+    //   description: "Create a star topology network with multiple devices connected to a central switch",
+    //   difficulty: "Intermediate",
+    //   icon: Network,
+    //   iconColor: "bg-indigo-500",
+    //   timeEstimate: "25 min",
+    //   score: null,
+    //   progress: 0,
+    //   status: "available",
+    //   instructions: [
+    //     "Place 1 switch and 4 PCs on the canvas",
+    //     "Create a star topology with the switch at the center",
+    //     "Configure all devices with appropriate IP addresses",
+    //   ],
+    // },
+    // {
+    //   id: 5,
+    //   title: "Router Configuration",
+    //   description: "Configure a router to connect two different subnets and enable inter-network communication",
+    //   difficulty: "Advanced",
+    //   icon: Wifi,
+    //   iconColor: "bg-orange-600",
+    //   timeEstimate: "30 min",
+    //   score: null,
+    //   progress: 0,
+    //   status: "locked",
+    //   instructions: [
+    //     "Place 1 router, 2 switches, and 4 PCs",
+    //     "Create two separate subnets",
+    //     "Configure router interfaces for both subnets",
+    //   ],
+    // },
+    // {
+    //   id: 6,
+    //   title: "VLAN Configuration",
+    //   description: "Set up VLANs on a switch to segment network traffic and improve security",
+    //   difficulty: "Advanced",
+    //   icon: Network,
+    //   iconColor: "bg-purple-600",
+    //   timeEstimate: "35 min",
+    //   score: null,
+    //   progress: 0,
+    //   status: "locked",
+    //   instructions: [
+    //     "Place 1 managed switch and 6 PCs",
+    //     "Create 3 VLANs for different departments",
+    //     "Assign ports to VLANs",
+    //   ],
+    // },
   ];
 
-  const stats = [
-    { label: "Completed", value: "1", icon: CheckCircle, color: "text-green-600", bgColor: "bg-green-50" },
-    { label: "In Progress", value: "1", icon: Clock, color: "text-orange-600", bgColor: "bg-orange-50" },
-    { label: "Total Score", value: "88", icon: Trophy, color: "text-blue-600", bgColor: "bg-blue-50" },
-    { label: "Avg Score", value: "88%", icon: TrendingUp, color: "text-gray-700", bgColor: "bg-gray-50" },
+const stats = [
+    { label: "Completed", value: "0", icon: CheckCircle, color: "text-green-600", bgColor: "bg-green-50" },
+    { label: "In Progress", value: "0", icon: Clock, color: "text-orange-600", bgColor: "bg-orange-50" },
+    { label: "Total Activities", value: challenges.length.toString(), icon: Trophy, color: "text-blue-600", bgColor: "bg-blue-50" },
   ];
 
   const filters = ["All", "Beginner", "Intermediate", "Advanced"];
@@ -172,7 +170,7 @@ export function ChallengePage() {
             <h1 className="text-3xl font-bold text-gray-900">Challenge-Based Learning</h1>
           </div>
           <p className="text-gray-600">
-            Test your networking skills with real-world scenarios and challenges
+            Test your skills with real-world scenarios and challenges
           </p>
         </div>
 
@@ -351,8 +349,8 @@ export function ChallengePage() {
                   Complete all challenges to earn the Network Master certificate
                 </p>
               </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-blue-600">17%</div>
+<div className="text-right">
+                <div className="text-3xl font-bold text-blue-600">0%</div>
                 <div className="text-xs text-gray-600">Complete</div>
               </div>
             </div>
