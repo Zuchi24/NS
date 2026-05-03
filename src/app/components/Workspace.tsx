@@ -417,13 +417,29 @@ export function Workspace() {
   const snapToGrid = (value: number) => Math.round(value / GRID_SIZE) * GRID_SIZE;
 
   const getDeviceById = (id: string | null) => devices.find((device) => device.id === id) ?? null;
-  const isIpConfigured = (device: Device | null) => Boolean(device?.config?.ipAddress?.trim() && device?.config?.subnetMask?.trim());
-
   const parseOctets = (value: string) => {
     const parts = value.trim().split(".");
     if (parts.length !== 4) return null;
-    const parsed = parts.map((part) => Number(part.trim()));
-    return parsed.every((octet) => !Number.isNaN(octet) && octet >= 0 && octet <= 255) ? parsed : null;
+
+    const octets = parts.map((part) => {
+      const parsed = Number(part.trim());
+      return Number.isInteger(parsed) && parsed >= 0 && parsed <= 255 ? parsed : NaN;
+    });
+
+    return octets.every((octet) => !Number.isNaN(octet)) ? octets : null;
+  };
+
+  const isIpConfigured = (device: Device | null) => {
+    const ip = parseOctets(device?.config?.ipAddress ?? "");
+    const mask = parseOctets(device?.config?.subnetMask ?? "");
+    return Boolean(ip && mask);
+  };
+
+  const haveDuplicateIpAddresses = (a: Device, b: Device) => {
+    const ipA = parseOctets(a.config?.ipAddress ?? "");
+    const ipB = parseOctets(b.config?.ipAddress ?? "");
+    if (!ipA || !ipB) return false;
+    return ipA.every((octet, index) => octet === ipB[index]);
   };
 
   const areDevicesSameSubnet = (a: Device, b: Device) => {
@@ -433,12 +449,10 @@ export function Workspace() {
     const maskB = parseOctets(b.config?.subnetMask ?? "");
 
     if (!ipA || !maskA || !ipB || !maskB) return false;
-    if (maskA.join(".") !== maskB.join(".")) return false;
+    if (!maskA.every((octet, index) => octet === maskB[index])) return false;
+    if (ipA.every((octet, index) => octet === ipB[index])) return false;
 
-    const networkA = ipA.map((octet, index) => octet & maskA[index]).join(".");
-    const networkB = ipB.map((octet, index) => octet & maskA[index]).join(".");
-
-    return networkA === networkB;
+    return ipA.every((octet, index) => (octet & maskA[index]) === (ipB[index] & maskA[index]));
   };
 
   const getDeviceCategory = (type: string) => {
@@ -523,6 +537,12 @@ export function Workspace() {
     if (!isIpConfigured(fromDevice) || !isIpConfigured(toDevice)) {
       setSimulationResult({ status: "error", message: "Both devices require IP address and subnet mask." });
       toast.error("Missing IP configuration on one or both devices.");
+      return;
+    }
+
+    if (haveDuplicateIpAddresses(fromDevice, toDevice)) {
+      setSimulationResult({ status: "error", message: "Devices have duplicate IP addresses." });
+      toast.error("Duplicate IP addresses are not allowed.");
       return;
     }
 
@@ -687,10 +707,7 @@ export function Workspace() {
 
   const validateIPAddress = (ip: string) => {
     if (!ip) return true;
-    const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
-    if (!ipPattern.test(ip)) return false;
-    const parts = ip.split(".");
-    return parts.every((part) => parseInt(part) >= 0 && parseInt(part) <= 255);
+    return parseOctets(ip) !== null;
   };
 
   const toggleCategory = (category: string) => {
