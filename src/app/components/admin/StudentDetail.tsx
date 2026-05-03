@@ -5,6 +5,9 @@ import { Progress } from "../ui/progress";
 import { User, Mail, TrendingUp, ArrowLeft, Clock } from "lucide-react";
 import { MOCK_STUDENTS, MOCK_ACTIVITIES } from "../../data/mock";
 
+const ROADMAP_TOTAL = 28;
+const CHALLENGE_TOTAL = 2;
+
 export function StudentDetail() {
   const { year, sectionId, studentId } = useParams();
   const navigate = useNavigate();
@@ -17,6 +20,19 @@ export function StudentDetail() {
   const key = `${year}-${sectionId}`;
   const students = MOCK_STUDENTS[key] || [];
   const student = students.find((s) => s.id === studentId);
+  const completedRoadmapItems = Math.round(
+    (student?.completionRate ?? 0) / 100 * ROADMAP_TOTAL,
+  );
+  const roadmapCompletionRate = Math.round(
+    (completedRoadmapItems / ROADMAP_TOTAL) * 100,
+  );
+  const completedChallenges = Math.min(
+    student?.completedActivities ?? 0,
+    CHALLENGE_TOTAL,
+  );
+  const challengeCompletionRate = Math.round(
+    (completedChallenges / CHALLENGE_TOTAL) * 100,
+  );
 
   if (!student) {
     return (
@@ -105,19 +121,14 @@ export function StudentDetail() {
                 <label className="text-xs font-semibold text-gray-600">
                   Challenge Progress
                 </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 bg-green-50 rounded-lg">
-                    <p className="text-xs text-gray-600 mb-1">Completed</p>
-                    <p className="text-2xl font-bold text-green-700">
-                      {student.completedActivities}
-                    </p>
+                <div className="p-4 bg-gray-50 rounded-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700">Completed</span>
+                    <span className="text-sm font-bold text-green-700">
+                      {completedChallenges}/{CHALLENGE_TOTAL}
+                    </span>
                   </div>
-                  <div className="p-3 bg-orange-50 rounded-lg">
-                    <p className="text-xs text-gray-600 mb-1">Ongoing</p>
-                    <p className="text-2xl font-bold text-orange-700">
-                      {student.ongoingActivities}
-                    </p>
-                  </div>
+                  <Progress value={challengeCompletionRate} className="h-2" />
                 </div>
               </div>
 
@@ -129,13 +140,13 @@ export function StudentDetail() {
                 <div className="p-4 bg-gray-50 rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-700">
-                      Completion Rate
+                      Completed
                     </span>
                     <span className="text-sm font-bold text-blue-600">
-                      {student.completionRate}%
+                      {completedRoadmapItems}/{ROADMAP_TOTAL}
                     </span>
                   </div>
-                  <Progress value={student.completionRate} className="h-2" />
+                  <Progress value={roadmapCompletionRate} className="h-2" />
                 </div>
               </div>
             </div>

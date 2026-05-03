@@ -2,13 +2,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import {
   User,
-  Mail,
   IdCard,
-  Award,
   Calendar,
-  ArrowLeft,
-  Save,
   Edit2,
+  Save,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -18,235 +15,249 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "./ui/card";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { toast } from "sonner";
-import { Progress } from "./ui/progress";
 
 export function UserProfile() {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState({
-    name: "John BJ",
-    email: "john.doe@university.edu",
-    studentId: "2023001",
+    name: "Keanne Labiano",
+    yearLevel: 2,
+    sectionLetter: "A",
     role: "Student",
-    joinDate: "January 2023",
+    email: "Keanne.Labiano@netsim.edu",
+    studentId: "2024-00123",
+    age: 20,
+    gender: "Male",
+    birthdate: "2004-05-15",
+    joinDate: "January 2024",
   });
 
-  const achievements = [
-    {
-      title: "First Simulation",
-      description: "Completed your first simulation",
-      earned: true,
-    },
-    {
-      title: "Cable Expert",
-      description: "Mastered all cable wiring exercises",
-      earned: true,
-    },
-    {
-      title: "Network Builder",
-      description: "Built 10 network topologies",
-      earned: true,
-    },
-    {
-      title: "Challenge Master",
-      description: "Completed 5 challenges",
-      earned: false,
-    },
-    {
-      title: "Perfect Score",
-      description: "Achieved 100% on any exercise",
-      earned: false,
-    },
-    {
-      title: "Networking Pro",
-      description: "Completed all modules",
-      earned: false,
-    },
-  ];
+  // Computed section value
+  const fullSection = `BSIT-${profile.yearLevel}${profile.sectionLetter.toUpperCase()}`;
 
-  const stats = [
-    { label: "Completed Simulations", value: "12" },
-    { label: "Total Score", value: "1,245" },
-    { label: "Challenges Completed", value: "3" },
-    { label: "Current Streak", value: "7 days" },
-  ];
-
-  const recentActivity = [
-    { title: "Basic IP Configuration", date: "2 hours ago", score: 95 },
-    { title: "Build Star Topology", date: "1 day ago", score: 88 },
-    { title: "Cable Wiring Challenge", date: "2 days ago", score: 92 },
-  ];
+  const handleQuickEdit = () => {
+    setIsEditing(!isEditing);
+  };
 
   const handleSave = () => {
-    toast.success("Profile updated successfully");
+    toast.success("Profile updated successfully!");
     setIsEditing(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-        {/* Header */}
-        <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="mb-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
-          </Button>
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-900">User Profile</h1>
-            <Button
-              onClick={() => (isEditing ? handleSave() : setIsEditing(true))}
-              className="bg-blue-600 hover:bg-blue-700"
+    <>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-12">
+        <div className="max-w-6xl mx-auto px-6 lg:px-8 space-y-8">
+          {/* Back to Dashboard Button - Top Left */}
+          <div className="mb-4">
+            <Button 
+              onClick={() => navigate('/dashboard')}
+              className="bg-gray-600 hover:bg-gray-700 text-white"
             >
-              {isEditing ? (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Changes
-                </>
-              ) : (
-                <>
-                  <Edit2 className="w-4 h-4 mr-2" />
-                  Edit Profile
-                </>
-              )}
+              ← Back to Dashboard
             </Button>
           </div>
-        </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Profile Info */}
-          <div className="lg:col-span-1 space-y-6">
-            <Card className="border-gray-200">
-              <CardHeader>
-                <div className="flex flex-col items-center space-y-4">
-                  <Avatar className="w-24 h-24 bg-blue-100">
-                    <AvatarFallback className="text-3xl font-bold text-blue-600">
-                      {profile.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="text-center">
-                    <h2 className="text-xl font-bold text-gray-900">
-                      {profile.name}
-                    </h2>
-                    <Badge className="mt-2 bg-blue-100 text-blue-700">
-                      {profile.role}
-                    </Badge>
+          {/* Identity Section - Top Card */}
+          <Card className="hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm overflow-hidden mx-auto max-w-2xl">
+            <CardHeader className="relative pb-4 pt-8">
+              {/* Quick Edit Button - Top Right */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute top-6 right-6 h-10 w-10 p-0 shadow-lg hover:shadow-xl bg-white/90 hover:bg-white"
+                onClick={handleQuickEdit}
+              >
+                <Edit2 className="h-5 w-5" />
+              </Button>
+              
+              <div className="flex flex-col items-center space-y-6">
+                <Avatar className="w-36 h-36 border-4 border-white shadow-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 ring-4 ring-white/50">
+                  <AvatarFallback className="text-5xl font-black text-blue-600 bg-gradient-to-br from-blue-500/20">
+                    {profile.name.split(" ").map(n => n[0]).join("").toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="text-center space-y-3">
+                  <CardTitle className="text-3xl lg:text-4xl font-black bg-gradient-to-r from-gray-900 via-gray-800 to-slate-900 bg-clip-text text-transparent drop-shadow-lg">
+                    {profile.name}
+                  </CardTitle>
+                  <div className="flex flex-wrap gap-3 items-center justify-center">
+                    <div className="px-4 py-2 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 text-indigo-800 rounded-2xl text-sm font-semibold shadow-sm ring-1 ring-indigo-200/50 backdrop-blur-sm">
+                      {fullSection}
+                    </div>
                   </div>
+                  <Badge className="text-base px-6 py-2.5 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-800 border border-emerald-200/50 shadow-lg font-semibold tracking-wide">
+                    {profile.role.toUpperCase()}
+                  </Badge>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isEditing ? (
-                  <>
-                    <div className="space-y-2">
-                      <Label>Full Name</Label>
-                      <Input
-                        value={profile.name}
-                        onChange={(e) =>
-                          setProfile({ ...profile, name: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Email</Label>
-                      <Input
-                        type="email"
-                        value={profile.email}
-                        onChange={(e) =>
-                          setProfile({ ...profile, email: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Student ID</Label>
-                      <Input
-                        value={profile.studentId}
-                        onChange={(e) =>
-                          setProfile({ ...profile, studentId: e.target.value })
-                        }
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-3 text-sm">
-                      <Mail className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-600">{profile.email}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-sm">
-                      <IdCard className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-600">
-                        ID: {profile.studentId}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 text-sm">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-600">
-                        Joined {profile.joinDate}
-                      </span>
-                    </div>
-                  </>
+              </div>
+            </CardHeader>
+          </Card>
+
+          <div className="flex justify-center">
+            {/* Personal Information Card - Centered */}
+            <Card className="border-0 bg-white shadow-md w-full max-w-2xl">
+              <CardHeader className="pb-4 flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-3 text-2xl font-semibold text-gray-900">
+                  <IdCard className="h-6 w-6 text-blue-600" />
+                  Personal Information
+                </CardTitle>
+                {!isEditing && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleQuickEdit}
+                    className="gap-2"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                    Edit
+                  </Button>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* Stats */}
-            
-          </div>
-
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Learning Progress */}
-            
-
-            {/* Achievements */}
-            
-            {/* Recent Activity */}
-            <Card className="border-gray-200">
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>
-                  Your latest completed exercises
-                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {recentActivity.map((activity, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between border-b border-gray-100 pb-4 last:border-0 last:pb-0"
-                    >
+                {!isEditing ? (
+                  // Display Mode
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</Label>
+                      <p className="text-sm font-medium text-gray-900 mt-1">{profile.email}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Student ID</Label>
+                      <p className="text-sm font-medium text-gray-900 mt-1">{profile.studentId}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Age</Label>
+                      <p className="text-sm font-medium text-gray-900 mt-1">{profile.age} years</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gender</Label>
+                      <p className="text-sm font-medium text-gray-900 mt-1 capitalize">{profile.gender}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Birth Date</Label>
+                      <p className="text-sm font-medium text-gray-900 mt-1">{profile.birthdate}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Join Date</Label>
+                      <p className="text-sm font-medium text-gray-900 mt-1">{profile.joinDate}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Section</Label>
+                      <p className="text-sm font-medium text-gray-900 mt-1">{fullSection}</p>
+                    </div>
+                  </div>
+                ) : (
+                  // Edit Mode
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <h4 className="font-semibold text-gray-900">
-                          {activity.title}
-                        </h4>
-                        <p className="text-sm text-gray-500">{activity.date}</p>
+                        <Label htmlFor="email" className="text-xs font-semibold text-gray-600 block mb-1">Email</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          className="h-9 border-gray-300"
+                          value={profile.email}
+                          onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                        />
                       </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-green-600">
-                          {activity.score}%
-                        </div>
-                        <div className="text-xs text-gray-500">Score</div>
+                      <div>
+                        <Label htmlFor="studentId" className="text-xs font-semibold text-gray-600 block mb-1">Student ID</Label>
+                        <Input
+                          id="studentId"
+                          className="h-9 border-gray-300 uppercase tracking-wider"
+                          value={profile.studentId}
+                          onChange={(e) => setProfile({ ...profile, studentId: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="age" className="text-xs font-semibold text-gray-600 block mb-1">Age</Label>
+                        <Input
+                          id="age"
+                          type="number"
+                          className="h-9 border-gray-300"
+                          value={profile.age}
+                          onChange={(e) => setProfile({ ...profile, age: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="gender" className="text-xs font-semibold text-gray-600 block mb-1">Gender</Label>
+                        <Input
+                          id="gender"
+                          className="h-9 border-gray-300 capitalize"
+                          value={profile.gender}
+                          onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="birthdate" className="text-xs font-semibold text-gray-600 block mb-1">Birth Date</Label>
+                        <Input
+                          id="birthdate"
+                          type="date"
+                          className="h-9 border-gray-300"
+                          value={profile.birthdate}
+                          onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="joinDate" className="text-xs font-semibold text-gray-600 block mb-1">Join Date</Label>
+                        <Input
+                          id="joinDate"
+                          className="h-9 border-gray-300"
+                          value={profile.joinDate}
+                          onChange={(e) => setProfile({ ...profile, joinDate: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="yearLevel" className="text-xs font-semibold text-gray-600 block mb-1">Year Level</Label>
+                        <Input
+                          id="yearLevel"
+                          type="number"
+                          className="h-9 border-gray-300"
+                          value={profile.yearLevel}
+                          onChange={(e) => setProfile({ ...profile, yearLevel: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="sectionLetter" className="text-xs font-semibold text-gray-600 block mb-1">Section Letter (A, B, C...)</Label>
+                        <Input
+                          id="sectionLetter"
+                          maxLength="1"
+                          className="h-9 border-gray-300 uppercase tracking-wider font-semibold"
+                          value={profile.sectionLetter.toUpperCase()}
+                          onChange={(e) => {
+                            const letter = e.target.value.toUpperCase().replace(/[^A-Z]/g, "");
+                            if (letter.length <= 1) {
+                              setProfile({ ...profile, sectionLetter: letter });
+                            }
+                          }}
+                        />
                       </div>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex gap-3 pt-4">
+                      <Button onClick={handleSave} className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white">
+                        <Save className="w-4 h-4 mr-2" />
+                        Save
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setIsEditing(false)}
+                        className="flex-1 h-10"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

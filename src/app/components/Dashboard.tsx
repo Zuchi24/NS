@@ -147,7 +147,7 @@ export function Dashboard() {
               >
                 <div className="text-right">
                   <div className="font-semibold text-gray-900 text-sm">
-                    John Doe
+                    Student Name
                   </div>
                   <div className="text-xs text-gray-500">Student</div>
                 </div>
@@ -165,7 +165,7 @@ export function Dashboard() {
             {/* Welcome Section */}
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Welcome back, John!
+                Welcome back, Student Name!
               </h1>
               <p className="text-gray-600">
                 Here's your learning progress and upcoming tasks
@@ -311,7 +311,7 @@ export function Dashboard() {
                             {activity.title}
                           </div>
                           <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <Clock className="w-4 h-4" />
+                            <Clock cl assName="w-4 h-4" />
                             {activity.time}
                           </div>
                         </div>
@@ -321,11 +321,11 @@ export function Dashboard() {
                           >
                             {activity.status}
                           </div>
-                          {activity.score && (
+                          {/* {activity.score && (
                             <div className="text-sm text-gray-600">
                               {activity.score}%
                             </div>
-                          )}
+                          )} */}
                         </div>
                       </div>
                     ))}
@@ -338,69 +338,44 @@ export function Dashboard() {
                 <CardHeader>
                   <CardTitle className="text-lg">Learning Progress</CardTitle>
                 </CardHeader>
+
                 <CardContent>
+
                   <div className="space-y-6">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <Monitor className="w-4 h-4 text-blue-600" />
-                          <span className="font-medium text-gray-700">
-                            Device Connections
-                          </span>
-                        </div>
-                        <span className="text-gray-900 font-semibold">75%</span>
-                      </div>
-                      <Progress value={75} className="h-2" />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <Cable className="w-4 h-4 text-orange-600" />
-                          <span className="font-medium text-gray-700">
-                            Cable Wiring
-                          </span>
-                        </div>
-                        <span className="text-gray-900 font-semibold">60%</span>
-                      </div>
-                      <Progress value={60} className="h-2" />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <Wifi className="w-4 h-4 text-purple-600" />
-                          <span className="font-medium text-gray-700">
-                            IP Configuration
-                          </span>
-                        </div>
-                        <span className="text-gray-900 font-semibold">85%</span>
-                      </div>
-                      <Progress value={85} className="h-2" />
-                    </div>
-                  </div>
+
+      {/* Challenges Progress */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-medium text-gray-700">
+            Challenges Completed
+          </span>
+          <span className="text-gray-900 font-semibold">
+            2/2
+          </span>
+        </div>
+        <Progress value={100} className="h-2" />
+      </div>
+
+      {/* Roadmap Progress */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-medium text-gray-700">
+            Roadmap Progress
+          </span>
+          <span className="text-gray-900 font-semibold">
+            1/28
+          </span>
+        </div>
+        <Progress value={(1 / 28) * 100} className="h-2" />
+      </div>
+
+    </div>
+                  
                 </CardContent>
               </Card>
             </div>
 
-            {/* Start New Simulation */}
-            <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white">
-              <CardContent className="p-8">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-gray-900">
-                      Ready for a new challenge?
-                    </h3>
-                    <p className="text-gray-600">
-                      Start a new simulation and continue your learning journey
-                    </p>
-                  </div>
-                  <Link to="/simulations">
-                    <Button className="bg-blue-600 hover:bg-blue-700 h-12 px-8">
-                      Start Simulation
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
+           
           </div>
         </main>
       </div>
