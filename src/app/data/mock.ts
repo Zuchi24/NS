@@ -7,6 +7,7 @@ export interface Student {
   completionRate: number;
   completedActivities: number;
   ongoingActivities: number;
+  completedRoadmapItems: number;
   year: string;
   section: string;
 }
@@ -39,6 +40,7 @@ YEARS.forEach(year => {
         completionRate: 25,
         completedActivities: 1,
         ongoingActivities: 1,
+        completedRoadmapItems: 2,
         year,
         section,
       },
@@ -51,6 +53,7 @@ YEARS.forEach(year => {
         completionRate: 45,
         completedActivities: 1,
         ongoingActivities: 1,
+        completedRoadmapItems: 13,
         year,
         section,
       },
@@ -63,6 +66,7 @@ YEARS.forEach(year => {
         completionRate: 92,
         completedActivities: 2,
         ongoingActivities: 0,
+        completedRoadmapItems: 26,
         year,
         section,
       },
@@ -75,6 +79,7 @@ YEARS.forEach(year => {
         completionRate: 70,
         completedActivities: 1,
         ongoingActivities: 1,
+        completedRoadmapItems: 20,
         year,
         section,
       },
