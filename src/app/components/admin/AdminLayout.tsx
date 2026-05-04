@@ -12,6 +12,7 @@ export function AdminLayout() {
     const path = location.pathname;
 
     if (path.includes('/admin/settings')) return 'Platform Settings';
+    if (path.includes('/admin/roadmap')) return 'Roadmap Materials';
     if (path.includes('/admin/analytics')) return 'Analytics & Insights';
     if (path.includes('/admin/profile')) return 'Admin Profile';
     if (path.includes('/admin/dashboard')) return 'Admin Dashboard';

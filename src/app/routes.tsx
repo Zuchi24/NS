@@ -20,6 +20,7 @@ import { SectionView } from "./components/admin/SectionView";
 import { StudentDetail } from "./components/admin/StudentDetail";
 import { Analytics } from "./components/admin/Analytics";
 import { Settings } from "./components/admin/Settings";
+import { RoadmapAdminPage } from "./components/admin/RoadmapAdminPage";
 
 export const router = createBrowserRouter([
   {
@@ -109,6 +110,10 @@ export const router = createBrowserRouter([
       {
         path: "analytics",
         Component: Analytics,
+      },
+      {
+        path: "roadmap",
+        Component: RoadmapAdminPage,
       },
       {
         path: "settings",
