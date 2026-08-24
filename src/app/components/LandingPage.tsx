@@ -3,21 +3,18 @@ import {
   Network,
   Monitor,
   Wifi,
-  Cable,
   Target,
-  TrendingUp,
   CheckCircle,
-  BookOpen,
-  Award,
-  Users,
   Map,
   Wrench,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
+import { useEffect, useState } from "react";
 
 export function LandingPage() {
   const navigate = useNavigate();
+
 
   const mainFeatures = [
     {
@@ -50,8 +47,8 @@ export function LandingPage() {
     <div className="min-h-screen bg-white">
       {/* Navigation */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
+        <div className="max-w-8xl mx-auto px-6 md:px-10">
+          <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
                 <Network className="w-6 h-6 text-white" />
@@ -99,11 +96,11 @@ export function LandingPage() {
       {/* Hero Section */}
       <section
         id="home"
-        className="bg-gradient-to-b from-blue-50 to-white py-20"
+        className="bg-gradient-to-b from-blue-50 to-white py-16"
       >
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-8">
+        <div className="max-w-8xl mx-auto px-6 md:px-10">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+            <div className="space-y-6 max-w-2xl">
               <div className="inline-block px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">
                 Networking Simulation Platform for IT Students
               </div>
@@ -166,59 +163,191 @@ export function LandingPage() {
 
             {/* Illustration */}
             <div className="relative">
-              <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-200">
-                <div className="space-y-6">
+              <div className="absolute -top-6 -left-6 hidden lg:block">
+                <div className="w-24 h-24 rounded-full bg-blue-100/75 blur-2xl" />
+              </div>
+              <div className="absolute -bottom-8 right-4 hidden lg:block">
+                <div className="w-28 h-28 rounded-full bg-sky-100/65 blur-2xl" />
+              </div>
+
+              <div className="relative bg-white rounded-[2rem] shadow-[0_40px_120px_-60px_rgba(15,23,42,0.15)] p-8 border border-gray-200 overflow-hidden">
+                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-300 via-transparent to-blue-300 opacity-40" />
+                <div className="space-y-6 relative">
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-sm font-semibold text-gray-600">
                       Simulation Workspace
                     </span>
                     <div className="flex gap-2">
-                      <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                      <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+                      <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm" />
+                      <div className="w-3 h-3 rounded-full bg-blue-500 shadow-sm" />
+                      <div className="w-3 h-3 rounded-full bg-gray-300 shadow-sm" />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="col-span-3 flex justify-center gap-6">
-                      <div className="bg-blue-100 p-4 rounded-xl">
-                        <Monitor className="w-8 h-8 text-blue-600" />
+                  <div className="grid lg:grid-cols-[1fr_minmax(180px,220px)] gap-6">
+                    <div className="relative rounded-3xl bg-slate-50 p-6 ring-1 ring-blue-100">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="text-xs uppercase tracking-[0.24em] text-slate-500">
+                          Live topology
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" />
+                          <span className="text-xs text-slate-500">Online</span>
+                        </div>
                       </div>
-                      <div className="bg-orange-100 p-4 rounded-xl">
-                        <Wifi className="w-8 h-8 text-orange-600" />
-                      </div>
-                      <div className="bg-blue-100 p-4 rounded-xl">
-                        <Monitor className="w-8 h-8 text-blue-600" />
+
+                      <div className="relative h-64">
+                          <div className="absolute top-0 left-4 w-32 rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
+                          <div className="text-[10px] uppercase tracking-[0.24em] text-slate-400">
+                            Router
+                          </div>
+                          <div className="mt-3 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white grid place-items-center">
+                              <Network className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-slate-900 truncate">
+                                R1
+                              </div>
+                              <div className="text-[11px] text-slate-500 truncate">
+                                192.168.1.1
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="absolute top-24 left-1/2 -translate-x-1/2 w-36 rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
+                          <div className="text-[10px] uppercase tracking-[0.24em] text-slate-400">
+                            Switch
+                          </div>
+                          <div className="mt-3 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 grid place-items-center">
+                              <Network className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-slate-900 truncate">
+                                SW1
+                              </div>
+                              <div className="text-[11px] text-slate-500 truncate">
+                                24 ports
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="absolute top-0 right-4 w-32 rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
+                          <div className="text-[10px] uppercase tracking-[0.24em] text-slate-400">
+                            Wi-Fi
+                          </div>
+                          <div className="mt-3 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 grid place-items-center">
+                              <Wifi className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-slate-900 truncate">
+                                AP1
+                              </div>
+                              <div className="text-[11px] text-slate-500 truncate">
+                                192.168.1.10
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="absolute bottom-0 left-4 w-32 rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
+                          <div className="text-[10px] uppercase tracking-[0.24em] text-slate-400">
+                            Workstation
+                          </div>
+                          <div className="mt-3 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 grid place-items-center">
+                              <Monitor className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-slate-900 truncate">
+                                PC1
+                              </div>
+                              <div className="text-[11px] text-slate-500 truncate">
+                                192.168.1.21
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="absolute bottom-0 right-4 w-32 rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
+                          <div className="text-[10px] uppercase tracking-[0.24em] text-slate-400">
+                            Server
+                          </div>
+                          <div className="mt-3 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-600 grid place-items-center">
+                              <Monitor className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-slate-900 truncate">
+                                SVR
+                              </div>
+                              <div className="text-[11px] text-slate-500 truncate">
+                                10.0.0.5
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="absolute top-[82px] left-[calc(50%-7rem)] w-32 h-px bg-blue-200"></div>
+                        <div className="absolute top-[82px] right-[calc(50%-7rem)] w-32 h-px bg-blue-200"></div>
+                        <div className="absolute top-48 left-[calc(50%-0.5rem)] w-px h-28 bg-blue-200"></div>
+                        <div className="absolute top-64 left-0 w-20 h-px bg-blue-200"></div>
+                        <div className="absolute top-64 right-0 w-20 h-px bg-blue-200"></div>
                       </div>
                     </div>
-                    <div className="col-span-3 flex justify-center">
-                      <Cable className="w-16 h-16 text-gray-400" />
-                    </div>
-                    <div className="col-span-3 flex justify-center gap-6">
-                      <div className="bg-orange-100 p-4 rounded-xl">
-                        <Network className="w-8 h-8 text-orange-600" />
+
+                    <div className="space-y-4 rounded-3xl bg-blue-50 p-5 ring-1 ring-blue-100">
+                      <div className="text-sm font-semibold text-slate-900">
+                        Active devices
+                      </div>
+                      <div className="rounded-2xl bg-white p-4 border border-slate-200">
+                        <div className="flex items-center justify-between text-sm text-slate-700">
+                          <span>Router</span>
+                          <span className="text-emerald-600 font-semibold">
+                            Online
+                          </span>
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500">
+                          192.168.1.1 · VLAN 10
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-white p-4 border border-slate-200">
+                        <div className="flex items-center justify-between text-sm text-slate-700">
+                          <span>Switch</span>
+                          <span className="text-slate-500">Stable</span>
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500">
+                          24 ports · 12 active
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-white p-4 border border-slate-200">
+                        <div className="flex items-center justify-between text-sm text-slate-700">
+                          <span>Wi-Fi</span>
+                          <span className="text-orange-600">2.4 GHz</span>
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500">
+                          Clients connected: 8
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span className="text-sm text-gray-700">
-                        Drag and drop devices
-                      </span>
+                  <div className="grid grid-cols-1 gap-3 bg-gray-50 rounded-xl p-4">
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <CheckCircle className="w-4 h-4 text-emerald-500" />
+                      <span>Drag and drop devices</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span className="text-sm text-gray-700">
-                        Connect cables
-                      </span>
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <CheckCircle className="w-4 h-4 text-emerald-500" />
+                      <span>Connect cables across devices</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span className="text-sm text-gray-700">
-                        Configure IP addresses
-                      </span>
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <CheckCircle className="w-4 h-4 text-emerald-500" />
+                      <span>Configure IP addresses quickly</span>
                     </div>
                   </div>
                 </div>
