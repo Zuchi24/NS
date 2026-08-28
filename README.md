@@ -1,15 +1,31 @@
-<<<<<<< HEAD
 # NetSimKoLang
-=======
 
-  # Network Simulation System
+Network Simulation System — an interactive learning platform for networking
+fundamentals, with hands-on simulations for PC assembly, cable making, device
+connection, and network configuration.
 
-  This is a code bundle for Network Simulation System. The original project is available at https://www.figma.com/design/ud6dRjilxwEoPPOkCKFCQZ/Network-Simulation-System.
+## Tech stack
 
-  ## Running the code
+React 18 · TypeScript · Vite · Tailwind CSS v4 · shadcn/ui · React Router v7
 
-  Run `npm i` to install the dependencies.
+## Running the code
 
-  Run `npm run dev` to start the development server.
-  
->>>>>>> 05d43ec (Initial commit)
+```bash
+pnpm install
+pnpm dev
+```
+
+The dev server runs at http://localhost:5173.
+
+To build for production:
+
+```bash
+pnpm build
+```
+
+## Credits
+
+UI originally scaffolded from a Figma design:
+https://www.figma.com/design/ud6dRjilxwEoPPOkCKFCQZ/Network-Simulation-System
+
+See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for asset attributions.
