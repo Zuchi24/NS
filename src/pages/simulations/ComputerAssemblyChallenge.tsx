@@ -421,8 +421,19 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
               </div>
               <div className="text-right">
                 <div className="text-sm text-gray-600">Progress</div>
-                <div className="text-2xl font-bold text-blue-600">
-                  {placedCount}/{totalCount}
+                <div className="flex items-baseline justify-end gap-2">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {placedCount}/{totalCount}
+                  </div>
+                  <span className="text-sm font-semibold text-gray-500">
+                    {progress}%
+                  </span>
+                </div>
+                <div className="mt-1 h-1.5 w-32 rounded-full bg-gray-200 overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
                 </div>
               </div>
             </div>
@@ -735,9 +746,6 @@ interface WorkspaceAreaProps {
   components: Component[];
   onDrop: (componentId: ComponentType, x: number, y: number) => void;
 }
-
-// Customizable background image for PC case - change this URL to use your own image
-const PC_CASE_BACKGROUND = "/pc-case.png";
 
 function WorkspaceArea({ components, onDrop }: WorkspaceAreaProps) {
   const [{ isOver }, drop] = useDrop(() => ({

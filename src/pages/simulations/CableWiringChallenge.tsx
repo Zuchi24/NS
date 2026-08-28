@@ -151,7 +151,6 @@ export function CableWiringChallenge() {
   const [standard, setStandard] = useState<"T568A" | "T568B">("T568B");
   const [showGuide, setShowGuide] = useState(false);
   const [wires, setWires] = useState<Wire[]>([]);
-  const [cableStripped, setCableStripped] = useState(false);
   const [rj45Attached, setRj45Attached] = useState(false);
   const [crimped, setCrimped] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
@@ -173,7 +172,6 @@ export function CableWiringChallenge() {
       toast.error("Select the Wire Stripper tool first!");
       return;
     }
-    setCableStripped(true);
     setWires(initializeWires());
     setStep(2);
     toast.success("Cable jacket removed! Now arrange the wires.");
@@ -242,7 +240,6 @@ export function CableWiringChallenge() {
   };
 
   const handleReset = () => {
-    setCableStripped(false);
     setWires([]);
     setRj45Attached(false);
     setCrimped(false);
