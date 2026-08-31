@@ -1,245 +1,412 @@
-import { Link } from "react-router";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import {
-  Target,
-  Trophy,
-  Clock,
-  Cable,
   CheckCircle,
+  Clock,
   Lock,
   Play,
-  Cpu,
+  RotateCcw,
+  Target,
+  Trophy,
 } from "lucide-react";
+import { toast } from "sonner";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/common/AsyncStates";
+import {
+  challengeRoute,
+  fetchChallenges,
+  fetchMyAttempts,
+  startAttempt,
+} from "@/features/content/contentService";
+import type { Attempt, Challenge } from "@/features/content/types";
+import {
+  DIFFICULTY_META,
+  DIFFICULTY_ORDER,
+} from "@/features/content/difficulty";
+import type { Difficulty } from "@/features/content/types";
+import { useAsync } from "@/services/useAsync";
+
+/**
+ * "attempted" is a challenge the student has submitted without passing it —
+ * worth telling apart from one they have never opened.
+ */
+type Status = "locked" | "available" | "in-progress" | "attempted" | "passed";
+
+const FILTERS = ["All", "Available", "In Progress", "Passed"] as const;
+type Filter = (typeof FILTERS)[number];
+
+interface ChallengeRow {
+  challenge: Challenge;
+  status: Status;
+  /** The challenge's own band, straight from the API. */
+  difficulty: Difficulty;
+  openAttemptId: number | null;
+  /** Requirements the last submission missed. Null when there is none. */
+  unmet: number | null;
+}
+
+/** A signal meter: how many of three bars this band fills. */
+function DifficultyBars({
+  difficulty,
+  className = "",
+}: {
+  difficulty: Difficulty;
+  className?: string;
+}) {
+  const meta = DIFFICULTY_META[difficulty];
+
+  return (
+    <span className={`inline-flex items-end gap-[2px] ${className}`} aria-hidden="true">
+      {[0, 1, 2].map((bar) => (
+        <span
+          key={bar}
+          className={`w-[3px] rounded-sm ${
+            bar < meta.bars ? meta.fill : "bg-current opacity-25"
+          }`}
+          style={{ height: 5 + bar * 3 }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** The band, as it appears on a challenge card. */
+function DifficultyChip({ difficulty }: { difficulty: Difficulty }) {
+  const meta = DIFFICULTY_META[difficulty];
+
+  return (
+    <span
+      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-gray-200 bg-white text-xs font-semibold ${meta.text}`}
+    >
+      <DifficultyBars difficulty={difficulty} />
+      {meta.label}
+    </span>
+  );
+}
+
+function loadChallengeView() {
+  return Promise.all([fetchChallenges(), fetchMyAttempts()]);
+}
+
+/** Folds a student's attempts at one challenge into a single display state. */
+function toRow(challenge: Challenge, attempts: Attempt[]): ChallengeRow {
+  const mine = attempts.filter((a) => a.challengeId === challenge.id);
+  const submitted = mine.filter((a) => a.status === "completed");
+  const open = mine.find((a) => a.status === "in_progress");
+
+  // Work already done outranks the lock: a challenge whose topic closed behind
+  // a content change should still show what the student achieved in it.
+  const status: Status = submitted.some((a) => a.passed)
+    ? "passed"
+    : open
+      ? "in-progress"
+      : submitted.length > 0
+        ? "attempted"
+        : challenge.locked
+          ? "locked"
+          : "available";
+
+  // The most recent submission is the one whose feedback still stands.
+  const latest = submitted.reduce<Attempt | null>(
+    (newest, attempt) => (newest === null || attempt.id > newest.id ? attempt : newest),
+    null,
+  );
+
+  const unmet =
+    status === "attempted" && latest?.results
+      ? latest.results.filter((result) => !result.passed).length
+      : null;
+
+  return {
+    challenge,
+    // The server's, authored on the challenge itself.
+    difficulty: challenge.difficulty,
+    status,
+    openAttemptId: open?.id ?? null,
+    unmet,
+  };
+}
 
 export function ChallengePage() {
-  const [activeFilter, setActiveFilter] = useState<string>("All");
+  const navigate = useNavigate();
+  const [activeFilter, setActiveFilter] = useState<Filter>("All");
+  const [activeLevel, setActiveLevel] = useState<Difficulty | "all">("all");
+  const [starting, setStarting] = useState<number | null>(null);
 
-  const challenges = [
+  const { data, error, loading, reload } = useAsync(loadChallengeView);
+
+  if (loading) return <LoadingState label="Loading challenges…" />;
+  if (error) return <ErrorState message={error} onRetry={reload} />;
+  if (!data) return null;
+
+  const [challenges, attempts] = data;
+  const rows = challenges.map((challenge) => toRow(challenge, attempts));
+
+  const passedCount = rows.filter((r) => r.status === "passed").length;
+  const inProgressCount = rows.filter((r) => r.status === "in-progress").length;
+  const attemptedCount = rows.filter((r) => r.status === "attempted").length;
+
+  const stats = [
     {
-      id: 1,
-      title: "Assemble System Unit",
-      description: "Learn computer hardware by assembling a complete system unit with all essential components",
-      difficulty: "Beginner",
-      icon: Cpu,
-      iconColor: "bg-blue-500",
-      timeEstimate: "15 min",
-      score: null,
-      progress: 0,
-      status: "available",
-      instructions: [
-        "Drag components from the left panel to the system case",
-        "Rotate components to match correct orientation",
-        "Place each component in its proper slot",
-      ],
+      label: "Challenges",
+      value: rows.length,
+      icon: Target,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
     },
-{
-      id: 2,
-      title: "Correct Cable Wiring",
-      description: "Identify and select the correct cable wiring pattern for different network scenarios",
-      difficulty: "Beginner",
-      icon: Cable,
-      iconColor: "bg-orange-500",
-      timeEstimate: "15 min",
-      score: null,
-      progress: 0,
-      status: "available",
-      instructions: [
-        "Review the cable wiring standards (T568A and T568B)",
-        "Identify when to use straight vs crossover cables",
-        "Complete the cable selection quiz",
-      ],
+    {
+      label: "Passed",
+      value: passedCount,
+      icon: CheckCircle,
+      color: "text-green-600",
+      bgColor: "bg-green-50",
     },
-    // {
-    //   id: 3,
-    //   title: "Basic IP Configuration",
-    //   description: "Configure IP addresses, subnet masks, and default gateways for a small network",
-    //   difficulty: "Intermediate",
-    //   icon: Wifi,
-    //   iconColor: "bg-purple-500",
-    //   timeEstimate: "20 min",
-    //   score: null,
-    //   progress: 45,
-    //   status: "in-progress",
-    //   instructions: [
-    //     "Place 3 PCs and 1 switch on the canvas",
-    //     "Assign IP addresses in the same subnet (192.168.1.0/24)",
-    //     "Configure subnet masks and verify connectivity",
-    //   ],
-    // },
-    // {
-    //   id: 4,
-    //   title: "Build Star Topology",
-    //   description: "Create a star topology network with multiple devices connected to a central switch",
-    //   difficulty: "Intermediate",
-    //   icon: Network,
-    //   iconColor: "bg-indigo-500",
-    //   timeEstimate: "25 min",
-    //   score: null,
-    //   progress: 0,
-    //   status: "available",
-    //   instructions: [
-    //     "Place 1 switch and 4 PCs on the canvas",
-    //     "Create a star topology with the switch at the center",
-    //     "Configure all devices with appropriate IP addresses",
-    //   ],
-    // },
-    // {
-    //   id: 5,
-    //   title: "Router Configuration",
-    //   description: "Configure a router to connect two different subnets and enable inter-network communication",
-    //   difficulty: "Advanced",
-    //   icon: Wifi,
-    //   iconColor: "bg-orange-600",
-    //   timeEstimate: "30 min",
-    //   score: null,
-    //   progress: 0,
-    //   status: "locked",
-    //   instructions: [
-    //     "Place 1 router, 2 switches, and 4 PCs",
-    //     "Create two separate subnets",
-    //     "Configure router interfaces for both subnets",
-    //   ],
-    // },
-    // {
-    //   id: 6,
-    //   title: "VLAN Configuration",
-    //   description: "Set up VLANs on a switch to segment network traffic and improve security",
-    //   difficulty: "Advanced",
-    //   icon: Network,
-    //   iconColor: "bg-purple-600",
-    //   timeEstimate: "35 min",
-    //   score: null,
-    //   progress: 0,
-    //   status: "locked",
-    //   instructions: [
-    //     "Place 1 managed switch and 6 PCs",
-    //     "Create 3 VLANs for different departments",
-    //     "Assign ports to VLANs",
-    //   ],
-    // },
+    {
+      label: "In Progress",
+      value: inProgressCount,
+      icon: Clock,
+      color: "text-orange-600",
+      bgColor: "bg-orange-50",
+    },
+    {
+      label: "Keep Trying",
+      value: attemptedCount,
+      icon: RotateCcw,
+      color: "text-purple-600",
+      bgColor: "bg-purple-50",
+    },
   ];
 
-const stats = [
-    { label: "Completed", value: "0", icon: CheckCircle, color: "text-green-600", bgColor: "bg-green-50" },
-    { label: "In Progress", value: "0", icon: Clock, color: "text-orange-600", bgColor: "bg-orange-50" },
-    { label: "Total Activities", value: challenges.length.toString(), icon: Trophy, color: "text-blue-600", bgColor: "bg-blue-50" },
-  ];
+  const matchesStatus = (row: ChallengeRow) => {
+    if (activeFilter === "All") return true;
+    if (activeFilter === "Available")
+      return (
+        row.status === "available" ||
+        row.status === "attempted" ||
+        row.status === "locked"
+      );
+    if (activeFilter === "In Progress") return row.status === "in-progress";
+    return row.status === "passed";
+  };
 
-  const filters = ["All", "Beginner", "Intermediate", "Advanced"];
+  const visible = rows.filter(
+    (row) =>
+      matchesStatus(row) && (activeLevel === "all" || row.difficulty === activeLevel),
+  );
 
-  const filteredChallenges = activeFilter === "All"
-    ? challenges
-    : challenges.filter(c => c.difficulty === activeFilter);
+  /**
+   * The list, grouped under its difficulty headings. Showing one band on its
+   * own still keeps its heading, so the page reads the same either way.
+   */
+  const groups = DIFFICULTY_ORDER.map((level) => ({
+    level,
+    rows: visible.filter((row) => row.difficulty === level),
+  })).filter((group) => group.rows.length > 0);
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case "Beginner":
-        return "bg-green-50 text-green-700 border-green-200";
-      case "Intermediate":
-        return "bg-orange-50 text-orange-700 border-orange-200";
-      case "Advanced":
-        return "bg-red-50 text-red-700 border-red-200";
-      default:
-        return "bg-gray-50 text-gray-700 border-gray-200";
+  /** Tab counts stay on the whole catalogue, so they don't shift underfoot. */
+  const levelTotals = DIFFICULTY_ORDER.map((level) => ({
+    level,
+    total: rows.filter((row) => row.difficulty === level).length,
+  }));
+
+  const open = async (row: ChallengeRow) => {
+    setStarting(row.challenge.id);
+
+    try {
+      // The server hands back the attempt already in progress rather than
+      // opening a second one, so this is safe to press twice.
+      const attempt = await startAttempt(row.challenge.id);
+      navigate(challengeRoute(row.challenge, attempt.id));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not start the challenge");
+      setStarting(null);
     }
   };
 
-  return (
-    <div className="max-w-7xl mx-auto space-y-8" style={{ fontFamily: 'Roboto, sans-serif' }}>
-        {/* Header */}
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <Target className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Challenge-Based Learning</h1>
-          </div>
-          <p className="text-gray-600">
-            Test your skills with real-world scenarios and challenges
-          </p>
-        </div>
+  // Bar width only; the card shows how many of the challenges are passed.
+  const completionPercentage =
+    rows.length === 0 ? 0 : Math.round((passedCount / rows.length) * 100);
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {stats.map((stat, index) => {
-            const Icon = stat.icon;
-            return (
-              <Card key={index} className="border border-gray-200 shadow-sm">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">{stat.label}</p>
-                      <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                    </div>
-                    <div className={`w-12 h-12 ${stat.bgColor} rounded-lg flex items-center justify-center`}>
-                      <Icon className={`w-6 h-6 ${stat.color}`} />
-                    </div>
+  return (
+    <div className="max-w-7xl mx-auto space-y-8">
+      <div>
+        <div className="flex items-center gap-3 mb-2">
+          <Target className="w-8 h-8 text-blue-600" />
+          <h1 className="text-3xl font-bold text-gray-900">
+            Challenge-Based Learning
+          </h1>
+        </div>
+        <p className="text-gray-600">
+          Test your skills with real-world scenarios and challenges
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <Card key={stat.label} className="border border-gray-200 shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">{stat.label}</p>
+                    <p className="text-2xl font-bold text-gray-900 tabular-nums">
+                      {stat.value}
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
+                  <div
+                    className={`w-12 h-12 ${stat.bgColor} rounded-lg flex items-center justify-center`}
+                  >
+                    <Icon className={`w-6 h-6 ${stat.color}`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Difficulty is the primary way through the catalogue, so it leads and
+          takes the heavier control; the status tabs below narrow within it. */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setActiveLevel("all")}
+            aria-pressed={activeLevel === "all"}
+            className={`px-4 py-2 rounded-lg border text-sm font-semibold transition-all ${
+              activeLevel === "all"
+                ? "bg-blue-600 text-white border-blue-600"
+                : "bg-white text-gray-700 border-gray-200 hover:border-blue-300"
+            }`}
+          >
+            All Challenges
+            <span className="ml-2 tabular-nums opacity-70">{rows.length}</span>
+          </button>
+
+          {levelTotals.map(({ level, total }) => {
+            const meta = DIFFICULTY_META[level];
+            const isActive = activeLevel === level;
+
+            return (
+              <button
+                key={level}
+                onClick={() => setActiveLevel(level)}
+                aria-pressed={isActive}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-semibold transition-all ${
+                  isActive
+                    ? meta.active
+                    : `bg-white border-gray-200 hover:border-gray-300 ${meta.text}`
+                }`}
+              >
+                <DifficultyBars difficulty={level} />
+                {meta.label}
+                <span className="tabular-nums opacity-70">{total}</span>
+              </button>
             );
           })}
         </div>
 
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-2 border-b border-gray-200 pb-1">
-          {filters.map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`px-4 py-2 text-sm font-medium transition-all ${
-                activeFilter === filter
-                  ? "text-blue-600 border-b-2 border-blue-600"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              {filter}
-            </button>
-          ))}
-        </div>
+        {activeLevel !== "all" && (
+          <p className="text-sm text-gray-600">
+            {DIFFICULTY_META[activeLevel].blurb}
+          </p>
+        )}
+      </div>
 
-        {/* Challenges List */}
-        <div className="space-y-4">
-          {filteredChallenges.map((challenge) => {
-            const Icon = challenge.icon;
-            const isLocked = challenge.status === "locked";
-            const isCompleted = challenge.status === "completed";
-            const isInProgress = challenge.status === "in-progress";
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-1">
+        {FILTERS.map((filter) => (
+          <button
+            key={filter}
+            onClick={() => setActiveFilter(filter)}
+            className={`px-4 py-2 text-sm font-medium transition-all ${
+              activeFilter === filter
+                ? "text-blue-600 border-b-2 border-blue-600"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            {filter}
+          </button>
+        ))}
+      </div>
+
+      {visible.length === 0 ? (
+        <EmptyState
+          title="Nothing here"
+          description={
+            rows.length === 0
+              ? "No challenges have been published yet."
+              : "No challenges match this filter."
+          }
+        />
+      ) : (
+        <div className="space-y-10">
+          {groups.map((group) => {
+            const meta = DIFFICULTY_META[group.level];
+            const passedInGroup = group.rows.filter(
+              (row) => row.status === "passed",
+            ).length;
+
+            return (
+              <section key={group.level} className="space-y-4">
+                <div className="flex items-baseline justify-between gap-4 border-b border-gray-200 pb-2">
+                  <div className="flex items-center gap-2.5">
+                    <DifficultyBars
+                      difficulty={group.level}
+                      className={meta.text}
+                    />
+                    <h2 className="text-lg font-bold text-gray-900">
+                      {meta.label}
+                    </h2>
+                    <span className="text-sm text-gray-500 tabular-nums">
+                      {group.rows.length}{" "}
+                      {group.rows.length === 1 ? "challenge" : "challenges"}
+                      {passedInGroup > 0 && ` · ${passedInGroup} passed`}
+                    </span>
+                  </div>
+                  <p className="hidden md:block text-sm text-gray-500 text-right max-w-md">
+                    {meta.blurb}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+          {group.rows.map((row) => {
+            const isPassed = row.status === "passed";
+            const isInProgress = row.status === "in-progress";
+            const isAttempted = row.status === "attempted";
+            const isLocked = row.status === "locked";
+            const isStarting = starting === row.challenge.id;
 
             return (
               <Card
-                key={challenge.id}
-                className={`border border-gray-200 shadow-sm transition-all ${
-                  isLocked
-                    ? "opacity-60"
-                    : "hover:shadow-md hover:border-blue-200"
-                }`}
+                key={row.challenge.id}
+                className="border border-gray-200 shadow-sm transition-all hover:shadow-md hover:border-blue-200"
               >
                 <CardContent className="p-6">
                   <div className="flex gap-6">
-                    {/* Icon */}
-                    <div className={`w-16 h-16 ${challenge.iconColor} rounded-xl flex items-center justify-center flex-shrink-0`}>
-                      {isLocked ? (
-                        <Lock className="w-8 h-8 text-white" />
-                      ) : (
-                        <Icon className="w-8 h-8 text-white" />
-                      )}
+                    <div className="w-16 h-16 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Target className="w-8 h-8 text-white" />
                     </div>
 
-                    {/* Content */}
                     <div className="flex-1 min-w-0">
-                      {/* Title Row */}
                       <div className="flex items-start justify-between gap-4 mb-2">
-                        <h3 className="text-xl font-semibold text-gray-900">{challenge.title}</h3>
+                        <h3 className="text-xl font-semibold text-gray-900">
+                          {row.challenge.title}
+                        </h3>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getDifficultyColor(challenge.difficulty)}`}>
-                            {challenge.difficulty}
-                          </span>
-                          {isCompleted && (
+                          {/* Outlined, so it reads as a property of the
+                              challenge rather than another status pill. */}
+                          <DifficultyChip difficulty={row.difficulty} />
+                          {isPassed && (
                             <div className="flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
                               <CheckCircle className="w-3.5 h-3.5" />
-                              {challenge.score}%
+                              Passed
                             </div>
                           )}
                           {isInProgress && (
@@ -247,72 +414,58 @@ const stats = [
                               In Progress
                             </span>
                           )}
+                          {isAttempted && (
+                            <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-semibold">
+                              {row.unmet === null
+                                ? "Not passed yet"
+                                : `${row.unmet} requirement${row.unmet === 1 ? "" : "s"} to go`}
+                            </span>
+                          )}
+                          {isLocked && (
+                            <span className="flex items-center gap-1 bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-semibold">
+                              <Lock className="w-3.5 h-3.5" />
+                              Locked
+                            </span>
+                          )}
                         </div>
                       </div>
 
-                      {/* Description */}
-                      <p className="text-sm text-gray-600 mb-4">{challenge.description}</p>
-
-                      {/* Time Estimate */}
-                      <div className="flex items-center gap-1 text-sm text-gray-500 mb-4">
-                        <Clock className="w-4 h-4" />
-                        <span>{challenge.timeEstimate}</span>
-                      </div>
-
-                      {/* Instructions */}
-                      <div className="mb-4">
-                        <h4 className="text-sm font-semibold text-gray-900 mb-2">Steps:</h4>
-                        <ul className="space-y-1.5">
-                          {challenge.instructions.map((instruction, idx) => (
-                            <li key={idx} className="text-sm text-gray-600 flex items-start gap-2">
-                              <span className="text-blue-600 font-medium flex-shrink-0 w-4">{idx + 1}.</span>
-                              <span>{instruction}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      {/* Progress Bar (for in-progress) */}
-                      {isInProgress && challenge.progress > 0 && (
-                        <div className="mb-4">
-                          <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                            <span>Progress</span>
-                            <span>{challenge.progress}%</span>
-                          </div>
-                          <Progress value={challenge.progress} className="h-2" />
-                        </div>
+                      {row.challenge.description && (
+                        <p className="text-sm text-gray-600 mb-4">
+                          {row.challenge.description}
+                        </p>
                       )}
 
-                      {/* Action Button */}
                       <div className="flex">
-                        {isLocked ? (
-                          <Button disabled className="h-10 px-6 bg-gray-300 text-gray-500 cursor-not-allowed">
+                        <Button
+                          onClick={() => open(row)}
+                          disabled={isStarting || isLocked}
+                          variant={isPassed || isLocked ? "outline" : "default"}
+                          className={
+                            isPassed
+                              ? "h-10 px-6 border-blue-600 text-blue-600 hover:bg-blue-50"
+                              : isLocked
+                                ? "h-10 px-6"
+                                : "h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white"
+                          }
+                        >
+                          {isLocked ? (
                             <Lock className="w-4 h-4 mr-2" />
-                            Locked
-                          </Button>
-                        ) : isCompleted ? (
-                          <Link to={
-                            challenge.id === 1 ? "/challenge/computer-assembly" :
-                            challenge.id === 2 ? "/challenge/cable-wiring" :
-                            "/simulations"
-                          }>
-                            <Button variant="outline" className="h-10 px-6 border-blue-600 text-blue-600 hover:bg-blue-50">
-                              <Play className="w-4 h-4 mr-2" />
-                              Try Again
-                            </Button>
-                          </Link>
-                        ) : (
-                          <Link to={
-                            challenge.id === 1 ? "/challenge/computer-assembly" :
-                            challenge.id === 2 ? "/challenge/cable-wiring" :
-                            "/simulations"
-                          }>
-                            <Button className="h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white">
-                              <Play className="w-4 h-4 mr-2" />
-                              {isInProgress ? "Continue Challenge" : "Start Challenge"}
-                            </Button>
-                          </Link>
-                        )}
+                          ) : (
+                            <Play className="w-4 h-4 mr-2" />
+                          )}
+                          {isStarting
+                            ? "Opening…"
+                            : isLocked
+                              ? "Locked"
+                              : isPassed
+                                ? "Try Again"
+                                : isInProgress
+                                  ? "Continue Challenge"
+                                  : isAttempted
+                                    ? "Retry Challenge"
+                                    : "Start Challenge"}
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -320,28 +473,37 @@ const stats = [
               </Card>
             );
           })}
+                </div>
+              </section>
+            );
+          })}
         </div>
+      )}
 
-        {/* Achievement Section */}
-        <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-6">
-              <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Trophy className="w-9 h-9 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-gray-900 mb-1">Keep up the great work!</h3>
-                <p className="text-sm text-gray-600">
-                  Complete all challenges to earn the Network Master certificate
-                </p>
-              </div>
-<div className="text-right">
-                <div className="text-3xl font-bold text-blue-600">0%</div>
-                <div className="text-xs text-gray-600">Complete</div>
-              </div>
+      <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white shadow-sm">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Trophy className="w-9 h-9 text-white" />
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-gray-900 mb-1">
+                Keep up the great work!
+              </h3>
+              <p className="text-sm text-gray-600">
+                Pass every challenge to unlock every achievement
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-bold text-blue-600 tabular-nums">
+                {passedCount}/{rows.length}
+              </div>
+              <div className="text-xs text-gray-600 mb-2">Passed</div>
+              <Progress value={completionPercentage} className="h-2 w-28" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

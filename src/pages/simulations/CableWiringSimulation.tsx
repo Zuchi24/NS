@@ -166,9 +166,8 @@ export function CableWiringSimulation() {
               </span>
             </div>
             <Progress value={progress} className="h-3" />
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>Score: {correctAnswers}/{answeredQuestions.size}</span>
-              <span>{Math.round((correctAnswers / exercises.length) * 100)}% Accuracy</span>
+            <div className="text-sm text-gray-600">
+              Answered correctly: {correctAnswers} of {answeredQuestions.size}
             </div>
           </div>
         </CardContent>
@@ -294,7 +293,8 @@ export function CableWiringSimulation() {
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg p-6 text-center space-y-3">
               <h3 className="text-2xl font-bold">Simulation Complete! 🎉</h3>
               <p className="text-blue-100">
-                You scored {correctAnswers} out of {exercises.length} ({Math.round((correctAnswers / exercises.length) * 100)}%)
+                You answered {correctAnswers} of {exercises.length} questions
+                correctly
               </p>
               <Button onClick={handleReset} variant="secondary" className="gap-2">
                 <RotateCcw className="w-4 h-4" />

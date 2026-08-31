@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SubmissionResultsDialog } from "@/components/common/SubmissionResultsDialog";
+import { useChallengeAttempt } from "@/features/content/useChallengeAttempt";
 
 type ComponentType =
   | "motherboard"
@@ -24,9 +26,10 @@ type ComponentType =
   | "ssd"
   | "case-fan";
 
-// Strict installation order - no steps can be skipped
-// This constant is used by helper functions outside the component
-const INSTALLATION_ORDER: ComponentType[] = [
+// The build order this page falls back to in free practice. A challenge
+// opened from the catalogue brings its own, and the server checks the
+// submitted sequence against its own copy either way.
+const DEFAULT_INSTALLATION_ORDER: ComponentType[] = [
   "motherboard",
   "cpu",
   "cpu-cooler",
@@ -128,13 +131,16 @@ function ComponentIcon({ type }: { type: ComponentType }) {
 
   switch (type) {
     case "motherboard":
+      // Drawn rather than loaded: /motherboard.png was never in public/, so
+      // this was a broken image in the parts list.
       return (
-        <img
-          src="/motherboard.png"
-          alt="Motherboard"
-          className={iconClass + " object-contain"}
-          style={{ background: "#f3f4f6", borderRadius: 8, border: '1px solid #e5e7eb' }}
-        />
+        <svg className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="2" />
+          <rect x="7" y="7" width="6" height="6" strokeWidth="1.5" />
+          <line x1="16" y1="6" x2="16" y2="12" strokeWidth="1.5" />
+          <line x1="18.5" y1="6" x2="18.5" y2="12" strokeWidth="1.5" />
+          <line x1="6" y1="17" x2="15" y2="17" strokeWidth="1.5" />
+        </svg>
       );
     case "cpu":
       return (
@@ -198,6 +204,19 @@ export function ComputerAssemblyChallenge() {
   const navigate = useNavigate();
   const [showSuccess, setShowSuccess] = useState(false);
 
+  /**
+   * Graded when opened from the catalogue with `?attempt=`, free practice
+   * otherwise. The order parts went in is what the server grades.
+   */
+  const [installed, setInstalled] = useState<string[]>([]);
+  const attempt = useChallengeAttempt();
+
+  // The challenge decides what goes in and in what order; the page only knows
+  // how to draw the parts. Free practice falls back to the standard build.
+  const installationOrder = (attempt.challenge?.config?.components?.length
+    ? attempt.challenge.config.components
+    : DEFAULT_INSTALLATION_ORDER) as ComponentType[];
+
   // Use ref to track placed state for dependency checks (avoids async state issues)
   const placedRef = useRef<Record<string, boolean>>({});
 
@@ -208,7 +227,7 @@ export function ComputerAssemblyChallenge() {
       placed: false,
       rotation: 0,
       correctRotation: 0,
-      slot: { x: 100, y: 80, width: 250, height: 300 },
+      slot: { x: 55, y: 94, width: 343, height: 360 },
     },
     {
       id: "cpu",
@@ -216,7 +235,7 @@ export function ComputerAssemblyChallenge() {
       placed: false,
       rotation: 0,
       correctRotation: 0,
-      slot: { x: 190, y: 140, width: 55, height: 90 },
+      slot: { x: 219, y: 143, width: 65, height: 98 },
     },
     {
       id: "cpu-cooler",
@@ -224,7 +243,7 @@ export function ComputerAssemblyChallenge() {
       placed: false,
       rotation: 0,
       correctRotation: 0,
-      slot: { x: 170, y: 130, width: 95, height: 110 },
+      slot: { x: 170, y: 126, width: 147, height: 147 },
     },
     {
       id: "ram1",
@@ -232,7 +251,7 @@ export function ComputerAssemblyChallenge() {
       placed: false,
       rotation: 0,
       correctRotation: 0,
-      slot: { x: 280, y: 100, width: 45, height: 170 },
+      slot: { x: 301, y: 110, width: 82, height: 180 },
     },
     {
       id: "psu",
@@ -240,7 +259,7 @@ export function ComputerAssemblyChallenge() {
       placed: false,
       rotation: 0,
       correctRotation: 0,
-      slot: { x: 80, y: 420, width: 120, height: 80 },
+      slot: { x: 40, y: 486, width: 280, height: 110 },
     },
     {
       id: "gpu",
@@ -248,7 +267,7 @@ export function ComputerAssemblyChallenge() {
       placed: false,
       rotation: 0,
       correctRotation: 0,
-      slot: { x: 100, y: 280, width: 200, height: 60 },
+      slot: { x: 55, y: 306, width: 393, height: 115 },
     },
     {
       id: "ssd",
@@ -256,7 +275,7 @@ export function ComputerAssemblyChallenge() {
       placed: false,
       rotation: 0,
       correctRotation: 0,
-      slot: { x: 450, y: 400, width: 100, height: 130 },
+      slot: { x: 465, y: 486, width: 131, height: 98 },
     },
     {
       id: "case-fan",
@@ -264,7 +283,7 @@ export function ComputerAssemblyChallenge() {
       placed: false,
       rotation: 0,
       correctRotation: 0,
-      slot: { x: 20, y: 80, width: 20, height: 120 },
+      slot: { x: 23, y: 77, width: 82, height: 164 },
     },
   ]);
 
@@ -280,7 +299,7 @@ export function ComputerAssemblyChallenge() {
     let maxOrderIndex = -1;
     placedIds.forEach((id) => {
       const componentType = id as ComponentType;
-      const orderIndex = INSTALLATION_ORDER.indexOf(componentType);
+      const orderIndex = installationOrder.indexOf(componentType);
       if (orderIndex > maxOrderIndex) {
         maxOrderIndex = orderIndex;
       }
@@ -292,7 +311,7 @@ export function ComputerAssemblyChallenge() {
   // Uses ref for accurate tracking of placed state to avoid stale state issues
   const canPlaceComponent = (componentId: ComponentType): { allowed: boolean; message: string } => {
     const currentStep = getCurrentStep();
-    const componentOrder = INSTALLATION_ORDER.indexOf(componentId);
+    const componentOrder = installationOrder.indexOf(componentId);
     
     // Component not in order list
     if (componentOrder === -1) {
@@ -308,8 +327,8 @@ export function ComputerAssemblyChallenge() {
     // Component must be placed at current step (no skipping allowed)
     if (componentOrder !== currentStep) {
       const currentComponentName = components.find((c) => c.id === componentId)?.name || componentId;
-      const expectedComponentName = currentStep < INSTALLATION_ORDER.length 
-        ? components.find((c) => c.id === INSTALLATION_ORDER[currentStep])?.name 
+      const expectedComponentName = currentStep < installationOrder.length 
+        ? components.find((c) => c.id === installationOrder[currentStep])?.name 
         : "the previous component";
       
       if (currentStep === 0) {
@@ -357,6 +376,12 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
     const isCorrectRotation = component.rotation === component.correctRotation;
 
     if (isInSlot && isCorrectRotation) {
+      // The sequence is what gets graded, so it is recorded as it happens
+      // rather than assumed from the enforced order.
+      setInstalled((previous) =>
+        previous.includes(componentId) ? previous : [...previous, componentId],
+      );
+
       // Update both state AND ref immediately to fix synchronization issue
       setComponents((prev) => {
         const updatedComponents = prev.map((c) => 
@@ -373,14 +398,24 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
 
   const checkAssembly = () => {
     const allPlaced = components.every((c) => c.placed);
-    if (allPlaced) {
-      setShowSuccess(true);
+    if (!allPlaced) {
+      return;
     }
+
+    // Practice runs stop at the success banner; a run opened from the
+    // catalogue is submitted and graded.
+    if (attempt.isGraded) {
+      void attempt.submit({ installed });
+      return;
+    }
+
+    setShowSuccess(true);
   };
 
   const resetChallenge = () => {
     setComponents((prev) => prev.map((c) => ({ ...c, placed: false, rotation: 0 })));
     setShowSuccess(false);
+    setInstalled([]);
     placedRef.current = {};
   };
 
@@ -393,6 +428,7 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
 
   const placedCount = components.filter((c) => c.placed).length;
   const totalCount = components.length;
+  // Drives the width of the progress bar; never shown as a number.
   const progress = Math.round((placedCount / totalCount) * 100);
 
   return (
@@ -413,21 +449,17 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 mb-1">
-                  Challenge 1: Assemble & Disassemble System Unit
+                  {attempt.challenge?.title ?? "Assemble a System Unit"}
                 </h1>
                 <p className="text-sm text-gray-600">
-                  Drag and drop components to assemble a complete computer system
+                  {attempt.challenge?.description ??
+                    "Drag and drop components to assemble a complete computer system"}
                 </p>
               </div>
               <div className="text-right">
                 <div className="text-sm text-gray-600">Progress</div>
-                <div className="flex items-baseline justify-end gap-2">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {placedCount}/{totalCount}
-                  </div>
-                  <span className="text-sm font-semibold text-gray-500">
-                    {progress}%
-                  </span>
+                <div className="text-2xl font-bold text-blue-600">
+                  {placedCount}/{totalCount}
                 </div>
                 <div className="mt-1 h-1.5 w-32 rounded-full bg-gray-200 overflow-hidden">
                   <div
@@ -451,13 +483,13 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
 <div className="space-y-2">
                     {components
                       .sort((a, b) => {
-                        const orderA = INSTALLATION_ORDER.indexOf(a.id);
-                        const orderB = INSTALLATION_ORDER.indexOf(b.id);
+                        const orderA = installationOrder.indexOf(a.id);
+                        const orderB = installationOrder.indexOf(b.id);
                         return orderA - orderB;
                       })
                       .map((component) => {
                         const currentStep = getCurrentStep();
-                        const componentOrder = INSTALLATION_ORDER.indexOf(component.id);
+                        const componentOrder = installationOrder.indexOf(component.id);
                         // Use ref for accurate placed state to show correct visual state
                         const isPlaced = placedRef.current[component.id] || component.placed;
                         const isNext = componentOrder === currentStep && !isPlaced;
@@ -486,7 +518,11 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
                     <h3 className="text-sm font-semibold text-gray-900">System Unit Case</h3>
                     <span className="text-xs text-gray-500">Drag components here</span>
                   </div>
-                  <WorkspaceArea components={components} onDrop={handleDrop} />
+                  <WorkspaceArea
+                    components={components}
+                    onDrop={handleDrop}
+                    order={installationOrder}
+                  />
                 </CardContent>
               </Card>
             </div>
@@ -575,6 +611,13 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
         </div>
 
         {/* Success Modal */}
+        <SubmissionResultsDialog
+          results={attempt.results}
+          passed={attempt.passed}
+          onClose={attempt.dismissResults}
+          onBack={() => navigate("/challenges")}
+        />
+
         {showSuccess && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <Card className="w-96 border-2 border-green-500">
@@ -640,14 +683,17 @@ const COMPONENT_TO_STATE_MAP: Record<ComponentType, BuildState> = {
 
 // Get the current build state based on highest installed component
 // Considers ALL components that affect the build state
-const getCurrentBuildState = (placedComponents: Component[]): BuildState => {
+const getCurrentBuildState = (
+  placedComponents: Component[],
+  order: ComponentType[],
+): BuildState => {
   // Find the highest step that has been completed
   let highestOrderIndex = -1;
   let highestState: BuildState = "empty";
   
   placedComponents.forEach((component) => {
     if (component.placed) {
-      const orderIndex = INSTALLATION_ORDER.indexOf(component.id);
+      const orderIndex = order.indexOf(component.id);
       const mappedState = COMPONENT_TO_STATE_MAP[component.id];
       
       // Consider all components that map to a non-empty state
@@ -742,106 +788,135 @@ const getSeparateImageConfig = (componentId: ComponentType) => {
   return SEPARATE_IMAGE_CONFIG[componentId];
 };
 
+/**
+ * The workspace is authored against a fixed canvas and scaled to whatever room
+ * it is given.
+ *
+ * Slot positions, the case artwork and the drop hit-test were all in raw CSS
+ * pixels inside a container whose width follows the viewport, so the red guide
+ * boxes drifted away from the case on any screen that was not the one they were
+ * drawn on. Everything now lives in this one space and scales together, which
+ * is what keeps them aligned from a 14" laptop to a 27" monitor.
+ */
+const DESIGN_WIDTH = 720;
+const DESIGN_HEIGHT = 600;
+
+/**
+ * Where the case art sits on that canvas.
+ *
+ * These are the numbers the old CSS produced once the browser had capped the
+ * image to the container and then doubled it, measured off the running page —
+ * so the slots keep the alignment they were drawn against.
+ */
+const CASE_ART = { x: -370, y: -86.4, width: 1440, height: 785.4 };
+
 interface WorkspaceAreaProps {
   components: Component[];
   onDrop: (componentId: ComponentType, x: number, y: number) => void;
+  /** The build order in play, which decides how far along the artwork is. */
+  order: ComponentType[];
 }
 
-function WorkspaceArea({ components, onDrop }: WorkspaceAreaProps) {
-  const [{ isOver }, drop] = useDrop(() => ({
-    accept: "component",
-    drop: (item: { id: ComponentType }, monitor) => {
-      const offset = monitor.getClientOffset();
-      if (offset) {
-        const dropAreaRect = document.getElementById("drop-area")?.getBoundingClientRect();
-        if (dropAreaRect) {
-          const x = offset.x - dropAreaRect.left;
-          const y = offset.y - dropAreaRect.top;
-          onDrop(item.id, x, y);
-        }
-      }
-    },
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-    }),
-  }));
+function WorkspaceArea({ components, onDrop, order }: WorkspaceAreaProps) {
+  const canvas = useRef<SVGSVGElement | null>(null);
 
-// Calculate current build state
-  const currentBuildState = getCurrentBuildState(components);
+  const [{ isOver }, drop] = useDrop(
+    () => ({
+      accept: "component",
+      drop: (item: { id: ComponentType }, monitor) => {
+        const offset = monitor.getClientOffset();
+        const box = canvas.current?.getBoundingClientRect();
+
+        if (!offset || !box) return;
+
+        // Measured at the moment of the drop, so the hit-test is right at any
+        // size without anything having to watch for resizes.
+        const scale = box.width / DESIGN_WIDTH;
+
+        onDrop(item.id, (offset.x - box.left) / scale, (offset.y - box.top) / scale);
+      },
+      collect: (monitor) => ({
+        isOver: monitor.isOver(),
+      }),
+    }),
+    [onDrop],
+  );
+
+  const currentBuildState = getCurrentBuildState(components, order);
   const currentImageConfig = getBuildStateImage(currentBuildState);
   const hasAnyComponentPlaced = currentBuildState !== "empty";
 
-  // Get separate images for components that should coexist with main build state
-  // These are rendered as overlay images that stack together
+  // Overlays that sit on top of the main build state.
   const separatePlacedComponents = components.filter(
-    (c) => c.placed && (c.id === "ssd" || c.id === "case-fan" || c.id === "psu")
+    (c) => c.placed && (c.id === "ssd" || c.id === "case-fan" || c.id === "psu"),
   );
 
-return (
+  return (
     <div
       ref={drop}
       id="drop-area"
-      className={`relative w-full h-[600px] rounded-xl border-4 ${
+      className={`relative w-full rounded-xl border-4 ${
         isOver ? "border-blue-400" : "border-gray-700"
       } overflow-hidden transition-colors`}
+      style={{ aspectRatio: `${DESIGN_WIDTH} / ${DESIGN_HEIGHT}` }}
     >
-{/* Dynamic build state image - shows any state with customizable position/size */}
-      {currentImageConfig && currentImageConfig.src && (
-        <img
-          src={currentImageConfig.src}
-          alt={`Build state: ${currentBuildState}`}
-          className="absolute object-contain"
-          style={{
-            left: currentImageConfig.left,
-            top: currentImageConfig.top,
-            transform: `scale(${currentImageConfig.scale})`,
-            transformOrigin: 'center center',
-          }}
-        />
-      )}
-
-      {/* Separate images for SSD, case-fan, and PSU - shown as overlay on top of build state */}
-      {separatePlacedComponents.map((component) => {
-        const separateImageSrc = getComponentSeparateImage(component.id);
-        const config = getSeparateImageConfig(component.id);
-        if (!separateImageSrc) return null;
-        return (
-          <img
-            key={component.id}
-            src={separateImageSrc}
-            alt={`${component.name} installed`}
-            className="absolute object-contain"
-            style={{
-              left: config.left,
-              top: config.top,
-              width: config.width,
-              height: config.height,
-            }}
+      {/* The case, the overlays and the slot guides share one viewBox, so they
+          scale together and stay lined up whatever the screen. */}
+      <svg
+        ref={canvas}
+        className="absolute inset-0 w-full h-full"
+        viewBox={`0 0 ${DESIGN_WIDTH} ${DESIGN_HEIGHT}`}
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {currentImageConfig?.src && (
+          <image
+            href={currentImageConfig.src}
+            x={CASE_ART.x}
+            y={CASE_ART.y}
+            width={CASE_ART.width}
+            height={CASE_ART.height}
           />
-        );
-      })}
+        )}
 
-{/* Case outline and slots - always visible for visual guide */}
-      <svg className="absolute inset-0 w-full h-full opacity-30">
-        {components.map((component) => {
-          if (component.placed) return null;
+        {separatePlacedComponents.map((component) => {
+          const src = getComponentSeparateImage(component.id);
+          const config = getSeparateImageConfig(component.id);
+
+          if (!src) return null;
+
           return (
-            <rect
+            <image
               key={component.id}
-              x={component.slot.x}
-              y={component.slot.y}
-              width={component.slot.width}
-              height={component.slot.height}
-              fill="none"
-              stroke="#ff0000"
-              strokeWidth="3"
-              rx="4"
+              href={src}
+              x={config.left}
+              y={config.top}
+              width={config.width}
+              height={config.height}
             />
           );
         })}
+
+        {/* Slot guides, in the same units the drop is measured in. */}
+        <g opacity="0.3">
+          {components.map((component) =>
+            component.placed ? null : (
+              <rect
+                key={component.id}
+                x={component.slot.x}
+                y={component.slot.y}
+                width={component.slot.width}
+                height={component.slot.height}
+                fill="none"
+                stroke="#ff0000"
+                strokeWidth="3"
+                rx="4"
+              />
+            ),
+          )}
+        </g>
       </svg>
 
-{/* Helper text - always visible */}
+      {/* Helper text - always visible */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
         <div className="text-gray-400 text-sm">Drop components here</div>
       </div>

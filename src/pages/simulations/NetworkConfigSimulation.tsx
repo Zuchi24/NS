@@ -220,7 +220,7 @@ export function NetworkConfigSimulation() {
   const [showHint, setShowHint] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [score, setScore] = useState(0);
+  const [completedExercises, setCompletedExercises] = useState(0);
 
   const exercise = exercises[currentExercise];
   const progress = ((currentExercise + 1) / exercises.length) * 100;
@@ -260,7 +260,7 @@ export function NetworkConfigSimulation() {
       toast.success("Perfect configuration!", {
         description: exercise.explanation,
       });
-      setScore(prev => prev + 1);
+      setCompletedExercises(prev => prev + 1);
     } else {
       toast.error("Configuration has errors", {
         description: "Check the highlighted fields and try again.",
@@ -285,7 +285,7 @@ export function NetworkConfigSimulation() {
 
   const handleReset = () => {
     setCurrentExercise(0);
-    setScore(0);
+    setCompletedExercises(0);
     resetExercise();
   };
 
@@ -320,7 +320,7 @@ export function NetworkConfigSimulation() {
             </div>
             <Progress value={progress} className="h-3" />
             <div className="text-sm text-gray-600">
-              Score: {score}/{exercises.length}
+              Exercises completed: {completedExercises} of {exercises.length}
             </div>
           </div>
         </CardContent>
@@ -450,7 +450,8 @@ export function NetworkConfigSimulation() {
                 <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg p-6 text-center space-y-3">
                   <h3 className="text-2xl font-bold">All Exercises Complete! 🎉</h3>
                   <p className="text-indigo-100">
-                    You scored {score} out of {exercises.length} ({Math.round((score / exercises.length) * 100)}%)
+                    You completed {completedExercises} of {exercises.length}{" "}
+                    exercises
                   </p>
                   <Button onClick={handleReset} variant="secondary" className="gap-2">
                     <RotateCcw className="w-4 h-4" />

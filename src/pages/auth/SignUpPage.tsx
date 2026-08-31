@@ -1,11 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Network, Mail, Lock, UserPlus, IdCard, ArrowLeft } from "lucide-react";
+import {
+  Network,
+  Mail,
+  Lock,
+  UserPlus,
+  IdCard,
+  ArrowLeft,
+  GraduationCap,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/useAuth";
+import { fetchSections } from "@/features/auth/authService";
+import type { YearLevelOptions } from "@/features/auth/types";
 
 export function SignUpPage() {
   const navigate = useNavigate();
@@ -20,11 +30,49 @@ export function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  /*
+   * The section the student is enrolling into.
+   *
+   * Held as the option's own id, never as typed text: the list comes from the
+   * server and the server checks the id against it again, so there is no way
+   * to enrol into a section that does not exist or has been closed.
+   *
+   * It is asked for because every instructor view is organised by section — a
+   * roster, a cohort head count, a year-level breakdown. An account without
+   * one is an account no instructor can find.
+   */
+  const [yearLevels, setYearLevels] = useState<YearLevelOptions[]>([]);
+  const [sectionId, setSectionId] = useState("");
+  const [sectionsError, setSectionsError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    fetchSections()
+      .then((data) => {
+        if (active) setYearLevels(data);
+      })
+      .catch(() => {
+        // The form stays usable and says what is wrong rather than silently
+        // offering an empty list.
+        if (active) setSectionsError(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!firstName || !lastName || !email || !password || !confirmPassword) {
       toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (!sectionId) {
+      toast.error("Please choose your year level and section");
       return;
     }
 
@@ -49,6 +97,8 @@ export function SignUpPage() {
         studentId,
         email,
         password,
+        passwordConfirmation: confirmPassword,
+        sectionId: Number(sectionId),
       });
       toast.success("Account created successfully!");
       navigate("/dashboard", { replace: true });
@@ -139,6 +189,47 @@ export function SignUpPage() {
                   className="pl-10 h-11 border-gray-300 focus:border-blue-500"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="sectionId" className="text-gray-700">
+                Year Level and Section
+              </Label>
+              <div className="relative">
+                <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <select
+                  id="sectionId"
+                  value={sectionId}
+                  onChange={(e) => setSectionId(e.target.value)}
+                  disabled={sectionsError || yearLevels.length === 0}
+                  className="w-full pl-10 h-11 rounded-md border border-gray-300 bg-white text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                >
+                  <option value="">
+                    {sectionsError
+                      ? "Could not load sections"
+                      : yearLevels.length === 0
+                        ? "Loading sections…"
+                        : "Select your section"}
+                  </option>
+                  {/* Grouped by year level, which is where a section gets its
+                      year from — so choosing one settles both. */}
+                  {yearLevels.map((yearLevel) => (
+                    <optgroup key={yearLevel.id} label={yearLevel.name}>
+                      {yearLevel.sections.map((section) => (
+                        <option key={section.id} value={section.id}>
+                          {section.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+              {sectionsError && (
+                <p className="text-xs text-red-600">
+                  We could not load the section list. Refresh the page to try
+                  again.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

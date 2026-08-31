@@ -33,4 +33,15 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  test: {
+    /*
+     * Most tests here are pure functions and need no DOM at all. The component
+     * tests do, so the environment is chosen per file by a `@vitest-environment
+     * jsdom` docblock rather than switching the whole suite over — jsdom costs
+     * real time to stand up, and the arithmetic tests should not pay it.
+     */
+    environment: 'node',
+    setupFiles: ['./src/test/setup.ts'],
+  },
 })

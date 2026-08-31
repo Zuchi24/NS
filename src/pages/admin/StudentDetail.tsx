@@ -1,105 +1,48 @@
-import { useParams, useNavigate } from "react-router";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { useCallback } from "react";
+import { useNavigate, useParams } from "react-router";
 import {
-  User,
-  Mail,
-  TrendingUp,
   ArrowLeft,
-  Trophy,
-  Map,
   CheckCircle2,
   Circle,
+  Clock,
+  Mail,
+  Map,
+  TrendingUp,
+  Trophy,
+  User,
 } from "lucide-react";
-import { MOCK_STUDENTS } from "@/data/mock";
-
-const ROADMAP_TOTAL = 28;
-const CHALLENGE_TOTAL = 2;
-
-const CHALLENGE_ITEMS = [
-  {
-    id: 1,
-    title: "Assemble System Unit",
-    description:
-      "Learn computer hardware by assembling a complete system unit with all essential components",
-    difficulty: "Beginner",
-  },
-  {
-    id: 2,
-    title: "Correct Cable Wiring",
-    description:
-      "Identify and select the correct cable wiring pattern for different network scenarios",
-    difficulty: "Beginner",
-  },
-];
-
-const ROADMAP_ITEMS = [
-  { id: 1, title: "Introduction to Networking", category: "Start / Fundamentals" },
-  { id: 2, title: "Types of Networks", category: "Start / Fundamentals" },
-  { id: 3, title: "Network Topologies", category: "Start / Fundamentals" },
-  { id: 4, title: "OSI Model", category: "Start / Fundamentals" },
-  { id: 5, title: "TCP/IP Model", category: "Start / Fundamentals" },
-  { id: 6, title: "IP Addressing", category: "Basic Networking Concepts" },
-  { id: 7, title: "Subnetting", category: "Basic Networking Concepts" },
-  { id: 8, title: "MAC Address", category: "Basic Networking Concepts" },
-  { id: 9, title: "DNS", category: "Basic Networking Concepts" },
-  { id: 10, title: "DHCP", category: "Basic Networking Concepts" },
-  { id: 11, title: "Router", category: "Network Devices" },
-  { id: 12, title: "Switch", category: "Network Devices" },
-  { id: 13, title: "Hub & Access Point", category: "Network Devices" },
-  { id: 14, title: "Firewall", category: "Network Devices" },
-  { id: 15, title: "Straight-through Cable", category: "Cabling and Connections" },
-  { id: 16, title: "Crossover Cable", category: "Cabling and Connections" },
-  { id: 17, title: "Fiber Optics", category: "Cabling and Connections" },
-  { id: 18, title: "Assigning IP Address", category: "Network Configuration" },
-  { id: 19, title: "Connecting Devices", category: "Network Configuration" },
-  { id: 20, title: "Basic Troubleshooting", category: "Network Configuration" },
-  { id: 21, title: "HTTP / HTTPS", category: "Protocols" },
-  { id: 22, title: "FTP", category: "Protocols" },
-  { id: 23, title: "TCP vs UDP", category: "Protocols" },
-  { id: 24, title: "ICMP", category: "Protocols" },
-  { id: 25, title: "VLAN", category: "Intermediate Topics" },
-  { id: 26, title: "Routing Basics", category: "Intermediate Topics" },
-  { id: 27, title: "NAT", category: "Intermediate Topics" },
-  { id: 28, title: "Network Security Basics", category: "Intermediate Topics" },
-];
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { ErrorState, LoadingState } from "@/components/common/AsyncStates";
+import { fetchStudent } from "@/features/admin/adminService";
+import { standingClass, topicStatus } from "@/features/admin/format";
+import { shortDate, timeAgo } from "@/services/time";
+import { useAsync } from "@/services/useAsync";
 
 export function StudentDetail() {
   const { year, sectionId, studentId } = useParams();
   const navigate = useNavigate();
 
-  if (!year || !sectionId || !studentId) {
-    navigate("/admin/students");
-    return null;
-  }
+  const load = useCallback(() => fetchStudent(Number(studentId)), [studentId]);
+  const { data, error, loading, reload } = useAsync(load, [studentId]);
 
-  const key = `${year}-${sectionId}`;
-  const students = MOCK_STUDENTS[key] || [];
-  const student = students.find((s) => s.id === studentId);
+  if (loading) return <LoadingState label="Loading student…" />;
+  if (error) return <ErrorState message={error} onRetry={reload} />;
+  if (!data) return null;
 
-  if (!student) {
-    return (
-      <div className="space-y-6">
-        <p className="text-gray-500">Student not found</p>
-      </div>
-    );
-  }
+  const { student, topics, challenges } = data;
+  const { summary } = student;
 
-  const completedRoadmapItems = Math.min(
-    student.completedRoadmapItems,
-    ROADMAP_TOTAL,
-  );
-  const roadmapCompletionRate = Math.round(
-    (completedRoadmapItems / ROADMAP_TOTAL) * 100,
-  );
-  const completedChallenges = Math.min(
-    student.completedActivities,
-    CHALLENGE_TOTAL,
-  );
-  const challengeCompletionRate = Math.round(
-    (completedChallenges / CHALLENGE_TOTAL) * 100,
-  );
+  const challengesPassed = challenges.filter(
+    (challenge) => challenge.passed,
+  ).length;
+  const topicsCompleted = topics.filter(
+    (topic) => topic.status === "completed",
+  ).length;
+
+  const percent = (count: number, of: number) =>
+    of > 0 ? Math.round((count / of) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -107,18 +50,17 @@ export function StudentDetail() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() =>
-            navigate(
-              `/admin/students/${encodeURIComponent(year)}/${encodeURIComponent(sectionId)}`,
-            )
-          }
+          onClick={() => navigate(`/admin/students/${year}/${sectionId}`)}
           className="mb-3"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
         <p className="text-sm text-gray-500">
-          {year} / {sectionId} / {student.name}
+          {student.section
+            ? `${student.section.yearLevel} / ${student.section.name} / `
+            : ""}
+          {student.fullName}
         </p>
       </div>
 
@@ -135,20 +77,24 @@ export function StudentDetail() {
               <label className="text-xs font-semibold text-gray-600">
                 Full Name
               </label>
-              <p className="text-gray-900 font-medium">{student.name}</p>
+              <p className="text-gray-900 font-medium">{student.fullName}</p>
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-600">
                 Student ID
               </label>
-              <p className="text-gray-900 font-medium">{student.studentId}</p>
+              <p className="text-gray-900 font-medium">
+                {student.studentId ?? "Not set"}
+              </p>
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-600">
-                Year & Section
+                Year &amp; Section
               </label>
               <p className="text-gray-900 font-medium">
-                {year} - {sectionId}
+                {student.section
+                  ? `${student.section.yearLevel} - ${student.section.name}`
+                  : "Not placed in a section"}
               </p>
             </div>
             <div>
@@ -158,6 +104,15 @@ export function StudentDetail() {
               <div className="flex items-center gap-2 text-gray-900">
                 <Mail className="w-4 h-4 text-gray-400" />
                 <p>{student.email}</p>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600">
+                Last active
+              </label>
+              <div className="flex items-center gap-2 text-gray-900">
+                <Clock className="w-4 h-4 text-gray-400" />
+                <p>{timeAgo(summary.lastActiveAt)}</p>
               </div>
             </div>
           </CardContent>
@@ -174,49 +129,61 @@ export function StudentDetail() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3">
                 <label className="text-xs font-semibold text-gray-600">
-                  Challenge Progress
+                  Challenges passed
                 </label>
                 <div className="p-4 bg-gray-50 rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700">Completed</span>
+                    <span className="text-sm text-gray-700">Passed</span>
                     <span className="text-sm font-bold text-green-700">
-                      {completedChallenges}/{CHALLENGE_TOTAL}
+                      {challengesPassed}/{challenges.length}
                     </span>
                   </div>
-                  <Progress value={challengeCompletionRate} className="h-2" />
+                  <Progress
+                    value={percent(challengesPassed, challenges.length)}
+                    className="h-2"
+                  />
                 </div>
               </div>
 
               <div className="space-y-3">
                 <label className="text-xs font-semibold text-gray-600">
-                  Roadmap Progress
+                  Topics completed
                 </label>
                 <div className="p-4 bg-gray-50 rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-700">Completed</span>
                     <span className="text-sm font-bold text-blue-600">
-                      {completedRoadmapItems}/{ROADMAP_TOTAL}
+                      {topicsCompleted}/{topics.length}
                     </span>
                   </div>
-                  <Progress value={roadmapCompletionRate} className="h-2" />
+                  <Progress
+                    value={percent(topicsCompleted, topics.length)}
+                    className="h-2"
+                  />
                 </div>
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-gray-600">
-                Status
-              </label>
-              <div
-                className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                  student.status === "Passed"
-                    ? "bg-green-100 text-green-700"
-                    : student.status === "Needs Improvement"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-blue-100 text-blue-700"
-                }`}
-              >
-                {student.status}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-600">
+                  Standing
+                </label>
+                <div
+                  className={`mt-1 inline-block px-3 py-1 rounded-full text-sm font-medium ${standingClass(
+                    summary.standing,
+                  )}`}
+                >
+                  {summary.standingLabel}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600">
+                  Submissions
+                </label>
+                <p className="mt-1 text-sm text-gray-900">
+                  {summary.submissions} submitted
+                </p>
               </div>
             </div>
           </CardContent>
@@ -227,7 +194,8 @@ export function StudentDetail() {
         <CardHeader>
           <CardTitle className="text-lg">Learning Progress Details</CardTitle>
           <p className="text-sm text-gray-600 mt-2">
-            Completed and remaining challenge and roadmap items for {student.name}
+            Every challenge and topic in the catalogue, and where{" "}
+            {student.firstName} stands on each.
           </p>
         </CardHeader>
         <CardContent>
@@ -239,50 +207,56 @@ export function StudentDetail() {
                   <h3 className="font-semibold text-gray-900">Challenges</h3>
                 </div>
                 <span className="text-sm font-bold text-green-700">
-                  {completedChallenges}/{CHALLENGE_TOTAL} completed
+                  {challengesPassed}/{challenges.length} passed
                 </span>
               </div>
-              <div className="space-y-3">
-                {CHALLENGE_ITEMS.map((challenge, index) => {
-                  const isCompleted = index < completedChallenges;
-
-                  return (
-                    <div
-                      key={challenge.id}
-                      className="rounded-lg border border-gray-200 p-4"
-                    >
-                      <div className="flex items-start gap-3">
-                        {isCompleted ? (
-                          <CheckCircle2 className="mt-0.5 w-5 h-5 flex-shrink-0 text-green-600" />
-                        ) : (
-                          <Circle className="mt-0.5 w-5 h-5 flex-shrink-0 text-gray-400" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="font-semibold text-gray-900">
-                              {challenge.title}
-                            </h4>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                isCompleted
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-gray-100 text-gray-600"
-                              }`}
-                            >
-                              {isCompleted ? "Completed" : "Not Completed"}
-                            </span>
-                          </div>
+              <div className="max-h-[520px] space-y-3 overflow-y-auto pr-2">
+                {challenges.map((challenge) => (
+                  <div
+                    key={challenge.id}
+                    className="rounded-lg border border-gray-200 p-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      {challenge.passed ? (
+                        <CheckCircle2 className="mt-0.5 w-5 h-5 flex-shrink-0 text-green-600" />
+                      ) : (
+                        <Circle className="mt-0.5 w-5 h-5 flex-shrink-0 text-gray-400" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-semibold text-gray-900">
+                            {challenge.title}
+                          </h4>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              challenge.passed
+                                ? "bg-green-100 text-green-700"
+                                : "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {challenge.passed
+                              ? `Passed ${shortDate(challenge.passedAt)}`
+                              : "Not passed"}
+                          </span>
+                        </div>
+                        {challenge.description && (
                           <p className="mt-1 text-sm text-gray-600">
                             {challenge.description}
                           </p>
-                          <p className="mt-2 text-xs font-medium text-gray-500">
-                            {challenge.difficulty}
-                          </p>
-                        </div>
+                        )}
+                        <p className="mt-2 text-xs text-gray-500">
+                          {challenge.attempts === 0
+                            ? "Never opened"
+                            : `${challenge.attempts} attempt${
+                                challenge.attempts === 1 ? "" : "s"
+                              }, ${challenge.submissions} submitted · last ${timeAgo(
+                                challenge.lastAttemptAt,
+                              ).toLowerCase()}`}
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </section>
 
@@ -293,20 +267,21 @@ export function StudentDetail() {
                   <h3 className="font-semibold text-gray-900">Roadmap</h3>
                 </div>
                 <span className="text-sm font-bold text-blue-700">
-                  {completedRoadmapItems}/{ROADMAP_TOTAL} completed
+                  {topicsCompleted}/{topics.length} completed
                 </span>
               </div>
               <div className="max-h-[520px] space-y-2 overflow-y-auto pr-2">
-                {ROADMAP_ITEMS.map((item, index) => {
-                  const isCompleted = index < completedRoadmapItems;
+                {topics.map((topic) => {
+                  const status = topicStatus(topic.status);
+                  const done = topic.status === "completed";
 
                   return (
                     <div
-                      key={item.id}
+                      key={topic.id}
                       className="rounded-lg border border-gray-200 p-3"
                     >
                       <div className="flex items-start gap-3">
-                        {isCompleted ? (
+                        {done ? (
                           <CheckCircle2 className="mt-0.5 w-5 h-5 flex-shrink-0 text-blue-600" />
                         ) : (
                           <Circle className="mt-0.5 w-5 h-5 flex-shrink-0 text-gray-400" />
@@ -314,21 +289,28 @@ export function StudentDetail() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <h4 className="font-semibold text-gray-900">
-                              {item.id}. {item.title}
+                              {topic.title}
                             </h4>
                             <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                isCompleted
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-gray-100 text-gray-600"
-                              }`}
+                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}
                             >
-                              {isCompleted ? "Completed" : "Not Completed"}
+                              {status.label}
                             </span>
                           </div>
-                          <p className="mt-1 text-xs font-medium text-gray-500">
-                            {item.category}
-                          </p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <Progress
+                              value={topic.progressPercent}
+                              className="h-1.5 w-24"
+                            />
+                            <span className="text-xs text-gray-500">
+                              {topic.progressPercent}%
+                            </span>
+                            {topic.roadmap && (
+                              <span className="text-xs text-gray-400 truncate">
+                                · {topic.roadmap}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

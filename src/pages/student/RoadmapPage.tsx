@@ -1,389 +1,151 @@
-import { useState } from "react";
 import { useNavigate } from "react-router";
-import {
-  CheckCircle2,
-  Lock,
-  FileText,
-} from "lucide-react";
-
-import { Progress } from "@/components/ui/progress";
+import { CheckCircle2, Lock, PlayCircle, Youtube } from "lucide-react";
 import { toast } from "sonner";
 
-interface Material {
-  id: string;
-  type: "pdf" | "video" | "link";
-  title: string;
-  url: string;
+import { Progress } from "@/components/ui/progress";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/common/AsyncStates";
+import { fetchRoadmaps } from "@/features/content/contentService";
+import type { Roadmap, Topic } from "@/features/content/types";
+import { useAsync } from "@/services/useAsync";
+
+interface TopicNode {
+  topic: Topic;
+  challengeCount: number;
+  completed: boolean;
+  unlocked: boolean;
+  inProgress: boolean;
+  /** Share of the topic's required challenges passed, 0-100. */
+  percent: number;
 }
 
-interface RoadmapNode {
-  id: number;
-  title: string;
-  description: string;
-  category: string;
-  position: "center" | "left" | "right";
-  materials: Material[];
-  completed: boolean;
+/**
+ * The roadmaps, each topic carrying the student's own standing on it.
+ *
+ * Unlocking and completion are the server's to decide — it knows which
+ * placements are required and which submissions actually passed — so this page
+ * reads `topic.progress` rather than working it out from the attempt list.
+ */
+function loadRoadmapView() {
+  return fetchRoadmaps();
 }
 
 export function RoadmapPage() {
   const navigate = useNavigate();
+  const { data, error, loading, reload } = useAsync(loadRoadmapView);
 
-  const [roadmapNodes] = useState<RoadmapNode[]>([
-    // Start / Fundamentals
-    {
-      id: 1,
-      title: "Introduction to Networking",
-      description: "Learn the basics of computer networks, their purpose, and real-world applications.",
-      category: "Start / Fundamentals",
-      position: "center",
-      materials: [],
-      completed: true,
-    },
-    {
-      id: 2,
-      title: "Types of Networks",
-      description: "Understand LAN, WAN, MAN, and their differences.",
-      category: "Start / Fundamentals",
-      position: "left",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 3,
-      title: "Network Topologies",
-      description: "Explore star, bus, ring, mesh, and hybrid topologies.",
-      category: "Start / Fundamentals",
-      position: "right",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 4,
-      title: "OSI Model",
-      description: "Master the 7 layers of the OSI networking model.",
-      category: "Start / Fundamentals",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 5,
-      title: "TCP/IP Model",
-      description: "Understand the TCP/IP protocol suite and layers.",
-      category: "Start / Fundamentals",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
+  if (loading) return <LoadingState label="Loading your roadmap…" />;
+  if (error) return <ErrorState message={error} onRetry={reload} />;
+  if (!data) return null;
 
-    // Basic Networking Concepts
-    {
-      id: 6,
-      title: "IP Addressing",
-      description: "Learn IPv4 and IPv6 addressing schemes.",
-      category: "Basic Networking Concepts",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 7,
-      title: "Subnetting",
-      description: "Master subnet masks and network segmentation.",
-      category: "Basic Networking Concepts",
-      position: "left",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 8,
-      title: "MAC Address",
-      description: "Understand physical addressing in networks.",
-      category: "Basic Networking Concepts",
-      position: "right",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 9,
-      title: "DNS",
-      description: "Learn how Domain Name System works.",
-      category: "Basic Networking Concepts",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 10,
-      title: "DHCP",
-      description: "Understand Dynamic Host Configuration Protocol.",
-      category: "Basic Networking Concepts",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
+  const roadmaps = data;
 
-    // Network Devices
-    {
-      id: 11,
-      title: "Router",
-      description: "Learn how routers direct network traffic.",
-      category: "Network Devices",
-      position: "left",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 12,
-      title: "Switch",
-      description: "Understand layer 2 and layer 3 switches.",
-      category: "Network Devices",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 13,
-      title: "Hub & Access Point",
-      description: "Learn about basic connectivity devices.",
-      category: "Network Devices",
-      position: "right",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 14,
-      title: "Firewall",
-      description: "Understand network security devices.",
-      category: "Network Devices",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
+  const buildNodes = (roadmap: Roadmap): TopicNode[] =>
+    roadmap.topics.map((topic) => ({
+      topic,
+      challengeCount: topic.challengesCount ?? 0,
+      completed: topic.progress?.status === "completed",
+      inProgress: topic.progress?.status === "in_progress",
+      // Locked until the server says otherwise, so a topic never opens by
+      // accident when progress is missing from the payload.
+      unlocked: topic.progress?.isUnlocked ?? false,
+      percent: topic.progress?.percent ?? 0,
+    }));
 
-    // Cabling and Connections
-    {
-      id: 15,
-      title: "Straight-through Cable",
-      description: "Learn T568A/B wiring standards.",
-      category: "Cabling and Connections",
-      position: "left",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 16,
-      title: "Crossover Cable",
-      description: "Understand when to use crossover cables.",
-      category: "Cabling and Connections",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 17,
-      title: "Fiber Optics",
-      description: "Explore fiber optic cable technology.",
-      category: "Cabling and Connections",
-      position: "right",
-      materials: [],
-      completed: false,
-    },
+  const sections = roadmaps
+    .filter((roadmap) => roadmap.topics.length > 0)
+    .map((roadmap) => ({ roadmap, nodes: buildNodes(roadmap) }));
 
-    // Network Configuration
-    {
-      id: 18,
-      title: "Assigning IP Address",
-      description: "Configure static and dynamic IP addresses.",
-      category: "Network Configuration",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 19,
-      title: "Connecting Devices",
-      description: "Build basic network connections visually.",
-      category: "Network Configuration",
-      position: "left",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 20,
-      title: "Basic Troubleshooting",
-      description: "Diagnose common network issues.",
-      category: "Network Configuration",
-      position: "right",
-      materials: [],
-      completed: false,
-    },
+  const allNodes = sections.flatMap((section) => section.nodes);
+  const completedCount = allNodes.filter((node) => node.completed).length;
+  const totalCount = allNodes.length;
+  const progressPercentage =
+    totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
 
-    // Protocols
-    {
-      id: 21,
-      title: "HTTP / HTTPS",
-      description: "Understand web communication protocols.",
-      category: "Protocols",
-      position: "left",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 22,
-      title: "FTP",
-      description: "Learn File Transfer Protocol.",
-      category: "Protocols",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 23,
-      title: "TCP vs UDP",
-      description: "Compare connection-oriented vs connectionless protocols.",
-      category: "Protocols",
-      position: "right",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 24,
-      title: "ICMP",
-      description: "Understand ping and network diagnostics.",
-      category: "Protocols",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
-
-    // Intermediate Topics
-    {
-      id: 25,
-      title: "VLAN",
-      description: "Learn Virtual Local Area Networks.",
-      category: "Intermediate Topics",
-      position: "left",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 26,
-      title: "Routing Basics",
-      description: "Understand static and dynamic routing.",
-      category: "Intermediate Topics",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 27,
-      title: "NAT",
-      description: "Learn Network Address Translation.",
-      category: "Intermediate Topics",
-      position: "right",
-      materials: [],
-      completed: false,
-    },
-    {
-      id: 28,
-      title: "Network Security Basics",
-      description: "Understand fundamental security concepts.",
-      category: "Intermediate Topics",
-      position: "center",
-      materials: [],
-      completed: false,
-    },
-  ]);
-
-  const isNodeUnlocked = (nodeId: number) => {
-    if (nodeId === 1) return true;
-    const previousNode = roadmapNodes.find((n) => n.id === nodeId - 1);
-    return previousNode?.completed || false;
-  };
-
-  const handleNodeClick = (node: RoadmapNode) => {
-    if (!isNodeUnlocked(node.id)) {
-      toast.error("Complete previous topics to unlock this lesson");
+  const openTopic = (node: TopicNode) => {
+    if (!node.unlocked) {
+      toast.error("Finish the topic before this one to unlock it");
       return;
     }
-    navigate(`/topic/${node.id}`);
+    navigate(`/topic/${node.topic.id}`);
   };
 
-  const completedCount = roadmapNodes.filter((n) => n.completed).length;
-  const totalCount = roadmapNodes.length;
-  const progressPercentage = Math.round((completedCount / totalCount) * 100);
-
-  const groupedNodes = roadmapNodes.reduce((acc, node) => {
-    if (!acc[node.category]) acc[node.category] = [];
-    acc[node.category].push(node);
-    return acc;
-  }, {} as Record<string, RoadmapNode[]>);
-
-  const categories = Object.keys(groupedNodes);
+  if (sections.length === 0) {
+    return (
+      <EmptyState
+        title="No roadmap published yet"
+        description="Your instructor has not published a roadmap with topics. Check back once one is available."
+      />
+    );
+  }
 
   return (
     <div className="-m-8">
-      {/* Top Progress Bar */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
         <div className="max-w-5xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between mb-3">
-            <h1 className="text-xl font-bold text-gray-900">Networking Roadmap</h1>
+            <h1 className="text-xl font-bold text-gray-900">
+              Networking Roadmap
+            </h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <Progress value={progressPercentage} className="h-2.5" />
             </div>
-            <span className="text-sm font-semibold text-gray-700">
+            <span className="text-sm font-semibold text-gray-700 tabular-nums">
               {completedCount}/{totalCount} Complete
             </span>
-            <span className="text-lg font-bold text-blue-600">{progressPercentage}%</span>
           </div>
         </div>
       </div>
 
-      {/* Roadmap Content */}
       <div className="max-w-5xl mx-auto px-6 py-12">
         <div className="relative">
-          {/* Vertical Center Line */}
           <div className="absolute left-1/2 transform -translate-x-1/2 top-0 bottom-0 w-1 bg-gray-200" />
 
-          {/* Categories and Nodes */}
           <div className="space-y-16">
-            {categories.map((category) => (
-              <div key={category} className="relative">
-                {/* Category Header */}
+            {sections.map(({ roadmap, nodes }) => (
+              <div key={roadmap.id} className="relative">
                 <div className="flex justify-center mb-8">
                   <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-6 py-3 rounded-full shadow-lg z-10 relative">
-                    <h2 className="text-sm font-bold uppercase tracking-wide">{category}</h2>
+                    <h2 className="text-sm font-bold uppercase tracking-wide">
+                      {roadmap.title}
+                    </h2>
                   </div>
                 </div>
 
-                {/* Nodes */}
                 <div className="space-y-6">
-                  {groupedNodes[category].map((node) => {
-                    const isUnlocked = isNodeUnlocked(node.id);
-                    const isCompleted = node.completed;
+                  {nodes.map((node, index) => {
+                    const position =
+                      index === 0
+                        ? "center"
+                        : index % 2 === 1
+                          ? "left"
+                          : "right";
 
                     return (
                       <div
-                        key={node.id}
+                        key={node.topic.id}
                         className={`relative flex ${
-                          node.position === "center"
+                          position === "center"
                             ? "justify-center"
-                            : node.position === "left"
-                            ? "justify-start pr-[55%]"
-                            : "justify-end pl-[55%]"
+                            : position === "left"
+                              ? "justify-start pr-[55%]"
+                              : "justify-end pl-[55%]"
                         }`}
                       >
-                        {/* Connecting Line to Center */}
-                        {node.position !== "center" && (
+                        {position !== "center" && (
                           <svg
                             className="absolute top-1/2 transform -translate-y-1/2"
                             style={{
-                              left: node.position === "left" ? "calc(100% - 8%)" : "47%",
-                              width: node.position === "left" ? "calc(50% - 42%)" : "calc(53% - 47%)",
+                              left: position === "left" ? "calc(100% - 8%)" : "47%",
+                              width:
+                                position === "left"
+                                  ? "calc(50% - 42%)"
+                                  : "calc(53% - 47%)",
                               height: "2px",
                             }}
                           >
@@ -392,30 +154,36 @@ export function RoadmapPage() {
                               y1="1"
                               x2="100%"
                               y2="1"
-                              stroke={isCompleted ? "#22c55e" : isUnlocked ? "#3b82f6" : "#d1d5db"}
+                              stroke={
+                                node.completed
+                                  ? "#22c55e"
+                                  : node.unlocked
+                                    ? "#3b82f6"
+                                    : "#d1d5db"
+                              }
                               strokeWidth="2"
                             />
                           </svg>
                         )}
 
-                        {/* Node Card */}
-                        <div
-                          onClick={() => handleNodeClick(node)}
-                          className={`relative bg-white rounded-xl shadow-md border-2 p-5 w-80 cursor-pointer transition-all ${
-                            isCompleted
+                        <button
+                          type="button"
+                          onClick={() => openTopic(node)}
+                          aria-label={`Open ${node.topic.title}`}
+                          className={`relative bg-white rounded-xl shadow-md border-2 p-5 w-80 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                            node.completed
                               ? "border-green-500 hover:shadow-lg"
-                              : isUnlocked
-                              ? "border-blue-400 hover:border-blue-500 hover:shadow-lg"
-                              : "border-gray-200 opacity-60 cursor-not-allowed"
+                              : node.unlocked
+                                ? "border-blue-400 hover:border-blue-500 hover:shadow-lg"
+                                : "border-gray-200 opacity-60 cursor-not-allowed"
                           }`}
                         >
-                          {/* Status Icon */}
                           <div className="absolute -right-3 -top-3">
-                            {isCompleted ? (
+                            {node.completed ? (
                               <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
                                 <CheckCircle2 className="w-5 h-5 text-white" />
                               </div>
-                            ) : isUnlocked ? (
+                            ) : node.unlocked ? (
                               <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shadow-lg">
                                 <div className="w-3 h-3 bg-white rounded-full" />
                               </div>
@@ -426,16 +194,38 @@ export function RoadmapPage() {
                             )}
                           </div>
 
-                          <h3 className="text-lg font-bold text-gray-900 mb-2 pr-6">{node.title}</h3>
-                          <p className="text-sm text-gray-600 leading-relaxed">{node.description}</p>
+                          <h3 className="text-lg font-bold text-gray-900 mb-2 pr-6">
+                            {node.topic.title}
+                          </h3>
+                          {node.topic.description && (
+                            <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
+                              {node.topic.description}
+                            </p>
+                          )}
 
-                          {node.materials.length > 0 && (
-                            <div className="mt-3 flex items-center gap-2 text-xs text-blue-600">
-                              <FileText className="w-3.5 h-3.5" />
-                              <span>{node.materials.length} material(s) available</span>
+                          {node.inProgress && (
+                            <div className="mt-3 space-y-1">
+                              <Progress value={node.percent} className="h-1.5" />
+                              <p className="text-xs text-gray-500">In progress</p>
                             </div>
                           )}
-                        </div>
+
+                          <div className="mt-3 flex items-center gap-4 text-xs">
+                            <span className="flex items-center gap-1.5 text-blue-600">
+                              <PlayCircle className="w-3.5 h-3.5" />
+                              {node.challengeCount}{" "}
+                              {node.challengeCount === 1
+                                ? "challenge"
+                                : "challenges"}
+                            </span>
+                            {node.topic.videoUrl && (
+                              <span className="flex items-center gap-1.5 text-gray-500">
+                                <Youtube className="w-3.5 h-3.5" />
+                                Video
+                              </span>
+                            )}
+                          </div>
+                        </button>
                       </div>
                     );
                   })}

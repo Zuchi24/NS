@@ -1,10 +1,8 @@
-import { useRef } from "react";
+import { useCallback } from "react";
 import { useDrag } from "react-dnd";
 import { DeviceIcon } from "./DeviceIcon";
 
 export function DraggableDevice({ device }: any) {
-  const dragRef = useRef<HTMLDivElement | null>(null);
-
   const [{ isDragging }, drag] = useDrag(() => ({
     type: "device-template",
 
@@ -20,13 +18,23 @@ export function DraggableDevice({ device }: any) {
     }),
   }));
 
-  drag(dragRef);
+  /**
+   * react-dnd is handed the node itself, in the commit phase. Connecting a ref
+   * object while rendering hands over a `.current` that is still null, and the
+   * tile is only wired up on whatever later render happens to reconnect it.
+   */
+  const attach = useCallback(
+    (node: HTMLDivElement | null) => {
+      drag(node);
+    },
+    [drag],
+  );
 
   const Icon = device.icon;
 
   return (
     <div
-      ref={dragRef}
+      ref={attach}
       className={`p-2 bg-white border-2 border-gray-200 rounded-lg cursor-move hover:border-blue-400 hover:shadow-md transition-all ${
         isDragging ? "opacity-50" : ""
       }`}

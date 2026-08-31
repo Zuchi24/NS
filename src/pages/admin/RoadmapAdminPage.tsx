@@ -1,286 +1,241 @@
-import { useMemo, useRef, useState } from "react";
-import { FileText, Trash2, Upload } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { useMemo, useState } from "react";
+import { BookOpen, Trophy, Video } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/common/AsyncStates";
+import {
+  fetchChallenges,
+  fetchRoadmaps,
+} from "@/features/content/contentService";
+import { useAsync } from "@/services/useAsync";
+import { RoadmapTopicsPanel } from "./RoadmapTopicsPanel";
+import { TopicMaterialsPanel } from "./TopicMaterialsPanel";
 
-interface RoadmapTopic {
-  id: number;
-  title: string;
-  category: string;
+/**
+ * The authored catalogue: the roadmaps, their topics in order, the challenges
+ * placed in each, and the material attached to them.
+ *
+ * One roadmap at a time. Topic order only means anything within a roadmap — it
+ * is what decides which topics unlock after which — so authoring it across a
+ * flattened list of every roadmap at once would be showing an order that does
+ * not exist. Picking a roadmap first is what makes "move this up" answerable.
+ *
+ * Challenges remain read-only here: they are authored in the seeder, and this
+ * page says so rather than offering controls that would not outlive a reload.
+ */
+/**
+ * Says a roadmap is not out yet.
+ *
+ * Only ever rendered on the admin side, because only staff are sent an
+ * unpublished roadmap in the first place — the API filters them out of a
+ * student's list, so this is labelling what staff can see rather than hiding
+ * anything from anyone. Matches the "Draft" mark the materials panel uses.
+ */
+function DraftBadge() {
+  return (
+    <span className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+      Draft
+    </span>
+  );
 }
-
-interface UploadedMaterial {
-  id: string;
-  file: File;
-  title?: string;
-}
-
-interface TopicUploads {
-  topicId: number;
-  files: UploadedMaterial[];
-}
-
-const roadmapTopics: RoadmapTopic[] = [
-  { id: 1, title: "Introduction to Networking", category: "Start / Fundamentals" },
-  { id: 2, title: "Types of Networks", category: "Start / Fundamentals" },
-  { id: 3, title: "Network Topologies", category: "Start / Fundamentals" },
-  { id: 4, title: "OSI Model", category: "Start / Fundamentals" },
-  { id: 5, title: "TCP/IP Model", category: "Start / Fundamentals" },
-  { id: 6, title: "IP Addressing", category: "Basic Networking Concepts" },
-  { id: 7, title: "Subnetting", category: "Basic Networking Concepts" },
-  { id: 8, title: "MAC Address", category: "Basic Networking Concepts" },
-  { id: 9, title: "DNS", category: "Basic Networking Concepts" },
-  { id: 10, title: "DHCP", category: "Basic Networking Concepts" },
-  { id: 11, title: "Router", category: "Network Devices" },
-  { id: 12, title: "Switch", category: "Network Devices" },
-  { id: 13, title: "Hub & Access Point", category: "Network Devices" },
-  { id: 14, title: "Firewall", category: "Network Devices" },
-  { id: 15, title: "Straight-through Cable", category: "Cabling and Connections" },
-  { id: 16, title: "Crossover Cable", category: "Cabling and Connections" },
-  { id: 17, title: "Fiber Optics", category: "Cabling and Connections" },
-  { id: 18, title: "Assigning IP Address", category: "Network Configuration" },
-  { id: 19, title: "Connecting Devices", category: "Network Configuration" },
-  { id: 20, title: "Basic Troubleshooting", category: "Network Configuration" },
-  { id: 21, title: "HTTP / HTTPS", category: "Protocols" },
-  { id: 22, title: "FTP", category: "Protocols" },
-  { id: 23, title: "TCP vs UDP", category: "Protocols" },
-  { id: 24, title: "ICMP", category: "Protocols" },
-  { id: 25, title: "VLAN", category: "Intermediate Topics" },
-  { id: 26, title: "Routing Basics", category: "Intermediate Topics" },
-  { id: 27, title: "NAT", category: "Intermediate Topics" },
-  { id: 28, title: "Network Security Basics", category: "Intermediate Topics" },
-];
 
 export function RoadmapAdminPage() {
-  const [selectedTopicId, setSelectedTopicId] = useState(roadmapTopics[0].id);
-  const [materialTitle, setMaterialTitle] = useState("");
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [topicUploads, setTopicUploads] = useState<TopicUploads[]>([]);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const selectedTopic = roadmapTopics.find((topic) => topic.id === selectedTopicId) || roadmapTopics[0];
-  const uploadedMaterials =
-    topicUploads.find((upload) => upload.topicId === selectedTopicId)?.files || [];
-
-  const groupedTopics = useMemo(
-    () =>
-      roadmapTopics.reduce<Record<string, RoadmapTopic[]>>((groups, topic) => {
-        if (!groups[topic.category]) {
-          groups[topic.category] = [];
-        }
-        groups[topic.category].push(topic);
-        return groups;
-      }, {}),
-    []
+  const { data, error, loading, reload } = useAsync(() =>
+    Promise.all([fetchRoadmaps(), fetchChallenges()]).then(
+      ([roadmaps, challenges]) => ({ roadmaps, challenges }),
+    ),
   );
 
-  const handleUpload = () => {
-    if (selectedFiles.length === 0) {
-      toast.error("Choose a file before uploading");
-      return;
-    }
+  const [selectedRoadmapId, setSelectedRoadmapId] = useState<number | null>(
+    null,
+  );
+  const [selectedTopicId, setSelectedTopicId] = useState<number | null>(null);
 
-    const filesToUpload = selectedFiles.map((file) => ({
-      id: `${selectedTopicId}-${file.name}-${file.lastModified}-${crypto.randomUUID()}`,
-      file,
-      title: materialTitle.trim() || undefined,
-    }));
+  const roadmaps = useMemo(() => data?.roadmaps ?? [], [data]);
 
-    setTopicUploads((currentUploads) => {
-      const existingUpload = currentUploads.find(
-        (upload) => upload.topicId === selectedTopicId
-      );
+  if (loading) return <LoadingState label="Loading catalogue…" />;
+  if (error) return <ErrorState message={error} onRetry={reload} />;
 
-      if (!existingUpload) {
-        return [
-          ...currentUploads,
-          {
-            topicId: selectedTopicId,
-            files: filesToUpload,
-          },
-        ];
-      }
-
-      return currentUploads.map((upload) =>
-        upload.topicId === selectedTopicId
-          ? { ...upload, files: [...upload.files, ...filesToUpload] }
-          : upload
-      );
-    });
-
-    setMaterialTitle("");
-    setSelectedFiles([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-    toast.success("Material uploaded");
-  };
-
-  const handleRemove = (materialId: string) => {
-    setTopicUploads((currentUploads) =>
-      currentUploads.map((upload) =>
-        upload.topicId === selectedTopicId
-          ? {
-              ...upload,
-              files: upload.files.filter((material) => material.id !== materialId),
-            }
-          : upload
-      )
+  if (roadmaps.length === 0) {
+    return (
+      <EmptyState
+        title="No roadmaps yet"
+        description="The catalogue is empty. Roadmaps are seeded from the backend; topics are authored here once one exists."
+      />
     );
-    toast.success("Material removed");
-  };
+  }
+
+  // Falls back to the first rather than to nothing, so the page always has a
+  // roadmap in view — including right after the selected one's last topic goes.
+  const roadmap =
+    roadmaps.find((entry) => entry.id === selectedRoadmapId) ?? roadmaps[0];
+
+  const topics = roadmap.topics;
+
+  const selectedTopic =
+    topics.find((topic) => topic.id === selectedTopicId) ?? topics[0] ?? null;
+
+  const topicChallenges = selectedTopic
+    ? (data?.challenges ?? []).filter((challenge) =>
+        challenge.topicIds.includes(selectedTopic.id),
+      )
+    : [];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-      <Card className="border-gray-200">
-        <CardHeader>
-          <CardTitle className="text-lg">Roadmap Topics</CardTitle>
-          <p className="text-sm text-gray-600 mt-2">
-            Select a topic to manage its learning materials.
-          </p>
-        </CardHeader>
-        <CardContent className="max-h-[calc(100vh-220px)] overflow-y-auto pr-2">
-          <div className="space-y-6">
-            {Object.entries(groupedTopics).map(([category, topics]) => (
-              <section key={category} className="space-y-2">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  {category}
-                </h2>
-                <div className="space-y-2">
-                  {topics.map((topic) => {
-                    const isSelected = topic.id === selectedTopicId;
-
-                    return (
-                      <button
-                        key={topic.id}
-                        type="button"
-                        onClick={() => setSelectedTopicId(topic.id)}
-                        className={`w-full rounded-md border px-4 py-3 text-left transition-colors ${
-                          isSelected
-                            ? "border-blue-600 bg-blue-50"
-                            : "border-gray-200 bg-white hover:bg-gray-50"
-                        }`}
-                      >
-                        <p className="text-sm font-semibold text-gray-900">
-                          {topic.title}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">{topic.category}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
+    <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
       <div className="space-y-6">
         <Card className="border-gray-200">
           <CardHeader>
-            <CardTitle className="text-lg">Upload Materials</CardTitle>
-            <p className="text-sm text-gray-600 mt-2">
-              {selectedTopic.title}
-            </p>
+            <CardTitle className="text-lg flex items-center gap-2">
+              Roadmap
+              {!roadmap.isPublished && <DraftBadge />}
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Material Title
-                </label>
-                <Input
-                  value={materialTitle}
-                  onChange={(event) => setMaterialTitle(event.target.value)}
-                  placeholder="Optional title"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  File
-                </label>
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,image/*,video/*,*/*"
-                  onChange={(event) =>
-                    setSelectedFiles(Array.from(event.target.files || []))
-                  }
-                />
-              </div>
-            </div>
+          <CardContent className="space-y-2">
+            <Label htmlFor="roadmap-picker">Authoring</Label>
+            <select
+              id="roadmap-picker"
+              value={roadmap.id}
+              onChange={(event) => {
+                setSelectedRoadmapId(Number(event.target.value));
+                // The topic selection belongs to the roadmap that was showing;
+                // carrying it across would leave the panels below describing a
+                // topic that is no longer in the list.
+                setSelectedTopicId(null);
+              }}
+              className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {roadmaps.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {/* Marked in the option text as well as beside the title: a
+                      native select shows only the chosen row when closed, so a
+                      badge alone would not say which of the others are drafts. */}
+                  {entry.isPublished ? entry.title : `${entry.title} (draft)`}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-600">{roadmap.description}</p>
 
-            {selectedFiles.length > 0 && (
-              <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                <p className="text-xs font-semibold text-gray-600 mb-2">
-                  Selected file{selectedFiles.length > 1 ? "s" : ""}
-                </p>
-                <div className="space-y-1">
-                  {selectedFiles.map((file) => (
-                    <p key={`${file.name}-${file.lastModified}`} className="text-sm text-gray-700">
-                      {file.name}
-                    </p>
-                  ))}
-                </div>
-              </div>
+            {!roadmap.isPublished && (
+              <p className="text-xs text-amber-700">
+                This roadmap is unpublished. Students cannot see it, or anything
+                in it, until it is published — but you can author it now.
+              </p>
             )}
-
-            <Button onClick={handleUpload} className="bg-blue-600 hover:bg-blue-700">
-              <Upload className="w-4 h-4" />
-              Upload
-            </Button>
           </CardContent>
         </Card>
 
-        <Card className="border-gray-200">
-          <CardHeader>
-            <CardTitle className="text-lg">Uploaded Materials</CardTitle>
-            <p className="text-sm text-gray-600 mt-2">
-              Files added for {selectedTopic.title}
-            </p>
-          </CardHeader>
-          <CardContent>
-            {uploadedMaterials.length === 0 ? (
-              <div className="rounded-md border border-dashed border-gray-300 py-10 text-center">
-                <FileText className="mx-auto h-10 w-10 text-gray-400" />
-                <p className="mt-3 text-sm font-medium text-gray-700">
-                  No files uploaded yet
+        <RoadmapTopicsPanel
+          // Keyed on the roadmap so switching resets the panel's own form
+          // rather than leaving a half-written topic pointed at another
+          // roadmap.
+          key={roadmap.id}
+          roadmapId={roadmap.id}
+          roadmapTitle={roadmap.title}
+          topics={topics}
+          selectedTopicId={selectedTopic?.id ?? null}
+          onSelect={setSelectedTopicId}
+          onChanged={reload}
+        />
+      </div>
+
+      <div className="space-y-6">
+        {selectedTopic === null ? (
+          <EmptyState
+            title="No topics in this roadmap"
+            description="Add the first topic on the left, then attach its materials here."
+          />
+        ) : (
+          <>
+            <Card className="border-gray-200">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-blue-600" />
+                  {selectedTopic.title}
+                </CardTitle>
+                <p className="text-sm text-gray-600 mt-2 flex items-center gap-2">
+                  {roadmap.title}
+                  {!roadmap.isPublished && <DraftBadge />}
                 </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {uploadedMaterials.map((material) => (
-                  <div
-                    key={material.id}
-                    className="flex items-center justify-between gap-4 rounded-md border border-gray-200 px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-gray-900">
-                        {material.title || material.file.name}
-                      </p>
-                      <p className="truncate text-xs text-gray-500">
-                        {material.file.name}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleRemove(material.id)}
-                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {selectedTopic.description ? (
+                  <p className="text-sm text-gray-700">
+                    {selectedTopic.description}
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500 italic">
+                    This topic has no description.
+                  </p>
+                )}
+
+                <div className="flex items-center gap-2 text-sm">
+                  <Video className="w-4 h-4 text-gray-400 shrink-0" />
+                  {selectedTopic.videoUrl ? (
+                    <a
+                      href={selectedTopic.videoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 hover:underline truncate"
                     >
-                      <Trash2 className="w-4 h-4" />
-                      Remove
-                    </Button>
+                      {selectedTopic.videoUrl}
+                    </a>
+                  ) : (
+                    <span className="text-gray-500">No video linked</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-gray-200">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-green-600" />
+                  Challenges in this topic
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {topicChallenges.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-6 text-center">
+                    No challenges are placed in this topic.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {topicChallenges.map((challenge) => (
+                      <div
+                        key={challenge.id}
+                        className="rounded-md border border-gray-200 px-4 py-3"
+                      >
+                        <p className="text-sm font-semibold text-gray-900">
+                          {challenge.title}
+                        </p>
+                        {challenge.description && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            {challenge.description}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-2">
+                          {challenge.kind.replace("_", " ")}
+                        </p>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Keyed on the topic so switching selection resets the panel rather
+                than showing the previous topic's list while the next one loads. */}
+            <TopicMaterialsPanel
+              key={selectedTopic.id}
+              topicId={selectedTopic.id}
+            />
+          </>
+        )}
       </div>
     </div>
   );

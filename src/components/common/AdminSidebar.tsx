@@ -9,14 +9,17 @@ import {
   ChevronRight,
   GraduationCap,
   Map,
+  BarChart3,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/components/ui/utils';
-import { YEARS, SECTIONS } from '@/data/mock';
+import { fetchCohorts } from '@/features/admin/adminService';
 import { useAuth } from '@/features/auth/useAuth';
+import { useAsync } from '@/services/useAsync';
 
 const navItems = [
   { name: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
+  { name: 'Analytics', icon: BarChart3, path: '/admin/analytics' },
   { name: 'Roadmap', icon: Map, path: '/admin/roadmap' },
 ];
 
@@ -25,24 +28,23 @@ export function AdminSidebar() {
   const location = useLocation();
   const { logout } = useAuth();
 
+  // The real year levels and sections, so the tree the sidebar offers is the
+  // one the drilldown can actually open.
+  const { data: cohorts } = useAsync(fetchCohorts);
+
   const [isStudentsExpanded, setIsStudentsExpanded] = useState(true);
-  const [expandedYear, setExpandedYear] = useState<string | null>(null);
+  const [expandedYear, setExpandedYear] = useState<number | null>(null);
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
-  const handleYearClick = (year: string) => {
-    setExpandedYear(expandedYear === year ? null : year);
-    navigate(`/admin/students/${encodeURIComponent(year)}`);
+  const handleYearClick = (yearId: number) => {
+    setExpandedYear(expandedYear === yearId ? null : yearId);
+    navigate(`/admin/students/${yearId}`);
   };
 
-  const handleSectionClick = (year: string, section: string) => {
-    navigate(
-      `/admin/students/${encodeURIComponent(year)}/${encodeURIComponent(section)}`
-    );
-  };
-
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    // Awaited so the token is revoked and cleared before the login page mounts.
+    await logout();
     toast.success('Logged out successfully');
     navigate('/login', { replace: true });
   };
@@ -97,42 +99,47 @@ export function AdminSidebar() {
 
             {isStudentsExpanded && (
               <div className="mt-1 ml-4 border-l border-gray-100 pl-2 space-y-1">
-                {YEARS.map((year) => (
-                  <div key={year}>
+                {(cohorts ?? []).map((year) => (
+                  <div key={year.id}>
                     <button
-                      onClick={() => handleYearClick(year)}
+                      onClick={() => handleYearClick(year.id)}
                       className={cn(
                         'w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                        location.pathname.includes(encodeURIComponent(year))
+                        location.pathname.startsWith(`/admin/students/${year.id}`)
                           ? 'text-blue-600 bg-blue-50/50'
                           : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
                       )}
                     >
                       <div className="flex items-center gap-2">
                         <GraduationCap size={14} />
-                        {year}
+                        {year.name}
                       </div>
-                      {expandedYear === year ? (
+                      {expandedYear === year.id ? (
                         <ChevronDown size={12} />
                       ) : (
                         <ChevronRight size={12} />
                       )}
                     </button>
 
-                    {expandedYear === year && (
+                    {expandedYear === year.id && (
                       <div className="overflow-hidden mt-1 ml-4 border-l border-gray-100 pl-2 space-y-1">
-                        {SECTIONS.map((section) => (
+                        {year.sections.map((section) => (
                           <button
-                            key={section}
-                            onClick={() => handleSectionClick(year, section)}
+                            key={section.id}
+                            onClick={() =>
+                              navigate(`/admin/students/${year.id}/${section.id}`)
+                            }
                             className={cn(
-                              'w-full text-left px-3 py-1.5 rounded-md text-xs transition-colors',
-                              location.pathname.includes(encodeURIComponent(section))
+                              'w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-xs transition-colors',
+                              location.pathname.startsWith(
+                                `/admin/students/${year.id}/${section.id}`
+                              )
                                 ? 'text-blue-600 font-medium'
                                 : 'text-gray-500 hover:text-gray-800'
                             )}
                           >
-                            {section}
+                            <span className="truncate">{section.name}</span>
+                            <span className="text-gray-400">{section.studentsCount}</span>
                           </button>
                         ))}
                       </div>
@@ -144,10 +151,10 @@ export function AdminSidebar() {
           </div>
 
           <button
-            onClick={() => navigate('/admin/settings')}
+            onClick={() => navigate('/admin/profile')}
             className={cn(
               'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium mt-4 transition-colors',
-              isActive('/admin/settings')
+              isActive('/admin/profile')
                 ? 'bg-blue-50 text-blue-600'
                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
             )}

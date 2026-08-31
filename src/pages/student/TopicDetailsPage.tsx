@@ -1,424 +1,453 @@
-import { useNavigate, useParams } from "react-router";
 import { useState } from "react";
-import { useAuth } from "@/features/auth/useAuth";
+import { useNavigate, useParams } from "react-router";
 import {
   ArrowLeft,
+  BookOpen,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Play,
   ExternalLink,
-  FileText,
-  Image,
-  FileArchive,
-  Presentation,
-  Download,
-  Upload,
-  File,
+  Lock,
+  Play,
+  PlayCircle,
 } from "lucide-react";
+import { toast } from "sonner";
+
+import { useAuth } from "@/features/auth/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/common/AsyncStates";
+import {
+  challengeRoute,
+  fetchMyAttempts,
+  fetchTopic,
+  startAttempt,
+} from "@/features/content/contentService";
+import { fetchTopicMaterials, youtubeId } from "@/features/content/materialService";
+import { MaterialList } from "@/features/content/components/MaterialList";
+import type {
+  Attempt,
+  Challenge,
+  LearningMaterial,
+  Topic,
+} from "@/features/content/types";
+import { ApiError } from "@/services/api";
+import { useAsync } from "@/services/useAsync";
 
-// Type definitions for learning materials
-interface LearningMaterial {
-  id: number;
-  title: string;
-  type: "pdf" | "ppt" | "doc" | "img" | "zip";
-  uploadedBy: string;
-  uploadDate: string;
-  description?: string;
-  fileUrl: string;
+/**
+ * One topic: what it covers, its video, the challenges placed in it, and how
+ * far the student has got.
+ *
+ * Everything here is the server's — including whether the topic is open at all.
+ * The roadmap locks topics in order and the API refuses a locked one outright,
+ * so a student who types its URL gets the locked state, not its contents.
+ */
+
+/** What the loader hands back: the topic, or the fact that it is shut. */
+type TopicView =
+  | { locked: true }
+  | {
+      locked: false;
+      detail: Awaited<ReturnType<typeof fetchTopic>>;
+      attempts: Attempt[];
+      materials: LearningMaterial[];
+    };
+
+type ChallengeState = "available" | "in-progress" | "attempted" | "passed";
+
+function stateOf(challenge: Challenge, attempts: Attempt[]): ChallengeState {
+  const mine = attempts.filter((a) => a.challengeId === challenge.id);
+  const submitted = mine.filter((a) => a.status === "completed");
+
+  if (submitted.some((a) => a.passed)) return "passed";
+  if (mine.some((a) => a.status === "in_progress")) return "in-progress";
+
+  return submitted.length > 0 ? "attempted" : "available";
 }
 
-// Sample learning materials data (to be replaced with API/Firebase/Supabase data)
-const learningMaterials: LearningMaterial[] = [
-  {
-    id: 1,
-    title: "Networking Basics.pdf",
-    type: "pdf",
-    uploadedBy: "Instructor",
-    uploadDate: "2024-01-15",
-    description: "Comprehensive guide to networking fundamentals",
-    fileUrl: "#",
-  },
-  {
-    id: 2,
-    title: "Network Topologies.ppt",
-    type: "ppt",
-    uploadedBy: "Admin",
-    uploadDate: "2024-01-20",
-    description: "Presentation on network topology types",
-    fileUrl: "#",
-  },
-];
-
-// Helper function to get icon based on file type
-const getFileIcon = (type: LearningMaterial["type"]) => {
-  switch (type) {
-    case "pdf":
-      return <FileText className="w-8 h-8 text-red-600" />;
-    case "ppt":
-      return <Presentation className="w-8 h-8 text-orange-600" />;
-    case "doc":
-      return <FileText className="w-8 h-8 text-blue-600" />;
-    case "img":
-      return <Image className="w-8 h-8 text-purple-600" />;
-    case "zip":
-      return <FileArchive className="w-8 h-8 text-yellow-600" />;
-    default:
-      return <File className="w-8 h-8 text-gray-600" />;
-  }
+const STATE_LABEL: Record<ChallengeState, string> = {
+  available: "Start",
+  "in-progress": "Continue",
+  attempted: "Try Again",
+  passed: "Passed",
 };
-
-// Helper function to get button text based on file type
-const getButtonText = (type: LearningMaterial["type"]) => {
-  switch (type) {
-    case "pdf":
-      return "Open PDF";
-    case "ppt":
-      return "Open Presentation";
-    case "doc":
-      return "Open Document";
-    case "img":
-      return "View Image";
-    case "zip":
-      return "Download ZIP";
-    default:
-      return "Open File";
-  }
-};
-
-interface TopicData {
-  id: number;
-  title: string;
-  overview: string;
-
-  videoUrl?: string;
-  youtubeId?: string;
-}
 
 export function TopicDetailsPage() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const { topicId } = useParams();
-  const [isCompleted, setIsCompleted] = useState(false);
+  const id = Number(topicId);
 
-  // Topic data (in real app, this would come from API or context)
-  const topicData: Record<string, TopicData> = {
-    "1": {
-      id: 1,
-      title: "Introduction to Networking",
-      overview:
-        "Computer networking is the process of connecting computers and devices to share data, resources, and communication services such as the internet, emails, and file sharing. It includes different types of networks like LAN and WAN, as well as devices such as routers and switches that help data travel between systems. Understanding networking basics is important because it serves as the foundation of modern communication, cybersecurity, and many IT-related fields.",
+  const [starting, setStarting] = useState<number | null>(null);
 
-      youtubeId: "R2mPvd2v4D0",
-    },
-    "2": {
-      id: 2,
-      title: "Types of Networks",
-      overview:
-        "Types of networks refer to the different categories of computer networks based on their size, coverage, and purpose. Common types include Local Area Network (LAN), which connects devices within a small area like a school or office, and Wide Area Network (WAN), which connects networks across large distances through the internet. Understanding these network types helps users identify how devices communicate and share resources in different environments.",
-      youtubeId: "mwQcs4h2REw",
-    },
-    "3": {
-      id: 3,
-      title: "Network Topologies",
-      overview:
-        "Network topologies refer to the physical or logical layout of devices in a computer network. Common types include star, bus, ring, mesh, and hybrid topologies, each having different structures, advantages, and uses in communication systems. Understanding network topologies helps learners identify how devices are connected and how data travels within a network.",
+  const { data, error, loading, reload } = useAsync<TopicView>(async () => {
+    try {
+      const [detail, attempts, materials] = await Promise.all([
+        fetchTopic(id),
+        fetchMyAttempts(),
+        fetchTopicMaterials(id),
+      ]);
 
-      youtubeId: "uSKdjjw5zow",
-    },
-  };
+      return { locked: false, detail, attempts, materials };
+    } catch (e) {
+      // A locked topic is a 403 by design, not a failure worth an error page.
+      if (e instanceof ApiError && e.status === 403) {
+        return { locked: true };
+      }
 
-  const currentTopic = topicData[topicId || "1"];
-  const currentId = parseInt(topicId || "1");
-  const hasPrevious = currentId > 1;
-  const hasNext = currentId < Object.keys(topicData).length;
-
-  if (!currentTopic) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Topic Not Found
-          </h2>
-          <Button onClick={() => navigate("/roadmap")}>Back to Roadmap</Button>
-        </div>
-      </div>
-    );
-  }
-
-  const handlePrevious = () => {
-    if (hasPrevious) navigate(`/topic/${currentId - 1}`);
-  };
-
-  const handleNext = () => {
-    if (hasNext) navigate(`/topic/${currentId + 1}`);
-  };
-
-  const handleMarkCompleted = () => {
-    setIsCompleted(!isCompleted);
-  };
-
-  // Handle file open/download
-  const handleFileAction = (fileUrl: string) => {
-    if (fileUrl && fileUrl !== "#") {
-      window.open(fileUrl, "_blank");
+      throw e;
     }
-  };
+  }, [id]);
 
-  return (
+  const backToRoadmap = (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => navigate("/roadmap")}
+      className="mb-4 text-gray-600 hover:text-gray-900"
+    >
+      <ArrowLeft className="w-4 h-4 mr-2" />
+      Back to Roadmap
+    </Button>
+  );
+
+  /** The route sits outside the student layout, so the shell lives here. */
+  const shell = (children: React.ReactNode) => (
     <div
       className="min-h-screen bg-gray-50"
       style={{ fontFamily: "Roboto, sans-serif" }}
     >
-      <div className="max-w-5xl mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/roadmap")}
-            className="mb-4 text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Roadmap
-          </Button>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {currentTopic.title}
-          </h1>
-        </div>
+      <div className="max-w-5xl mx-auto px-6 py-8">{children}</div>
+    </div>
+  );
 
-        {/* Main Content */}
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left Column - Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Overview Section */}
+  if (!Number.isFinite(id)) {
+    return shell(
+      <EmptyState
+        title="Topic not found"
+        description="That topic link does not point anywhere."
+      />,
+    );
+  }
+
+  if (loading) return shell(<LoadingState label="Loading topic…" />);
+  if (error) return shell(<ErrorState message={error} onRetry={reload} />);
+  if (!data) return null;
+
+  if (data.locked) {
+    return shell(
+      <div className="max-w-3xl mx-auto">
+        {backToRoadmap}
+        <Card className="border border-gray-200 shadow-sm">
+          <CardContent className="p-10 text-center space-y-3">
+            <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
+              <Lock className="w-7 h-7 text-gray-400" />
+            </div>
+            <h1 className="text-xl font-bold text-gray-900">Topic locked</h1>
+            <p className="text-sm text-gray-600">
+              Finish the topics before this one to open it.
+            </p>
+            <Button onClick={() => navigate("/roadmap")} className="mt-2">
+              Back to Roadmap
+            </Button>
+          </CardContent>
+        </Card>
+      </div>,
+    );
+  }
+
+  const { topic, challenges, roadmapTitle, siblings } = data.detail;
+  const attempts = data.attempts;
+  const materials = data.materials;
+  const progress = topic.progress;
+
+  const index = siblings.findIndex((sibling) => sibling.id === topic.id);
+  const previous = index > 0 ? siblings[index - 1] : null;
+  const next =
+    index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : null;
+
+  const goTo = (sibling: Topic | null) => {
+    if (!sibling) return;
+
+    // The roadmap decides what is open; paging must not walk around it.
+    if (sibling.progress?.isUnlocked === false) {
+      toast.error("Finish the topic before that one to unlock it");
+      return;
+    }
+
+    navigate(`/topic/${sibling.id}`);
+  };
+
+  const open = async (challenge: Challenge) => {
+    setStarting(challenge.id);
+
+    try {
+      const attempt = await startAttempt(challenge.id);
+      navigate(challengeRoute(challenge, attempt.id));
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Could not start the challenge",
+      );
+      setStarting(null);
+    }
+  };
+
+  const videoId = youtubeId(topic.videoUrl);
+  const passedCount = challenges.filter(
+    (challenge) => stateOf(challenge, attempts) === "passed",
+  ).length;
+
+  return shell(
+    <>
+      <div className="mb-6">
+        {backToRoadmap}
+        {roadmapTitle && (
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 mb-1">
+            {roadmapTitle}
+          </p>
+        )}
+        <h1 className="text-3xl font-bold text-gray-900">{topic.title}</h1>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {topic.description && (
             <Card className="border border-gray-200 shadow-sm bg-gradient-to-br from-blue-50 to-white">
               <CardContent className="p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-3">
                   Overview
                 </h2>
                 <p className="text-gray-700 leading-relaxed">
-                  {currentTopic.overview}
+                  {topic.description}
                 </p>
               </CardContent>
             </Card>
+          )}
 
-            {/* Learning Materials Section */}
-            <Card className="border border-gray-200 shadow-sm bg-white">
-              <CardContent className="p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">
-                  Learning Materials
-                </h2>
+          {/* The challenges placed in this topic, in the topic's own order. */}
+          <Card className="border border-gray-200 shadow-sm bg-white">
+            <CardContent className="p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">
+                Challenges
+              </h2>
 
+              {challenges.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No challenges have been placed in this topic yet.
+                </p>
+              ) : (
                 <div className="space-y-3">
-                  {/* Render file items if available */}
-                  {learningMaterials.length > 0 ? (
-                    learningMaterials.map((material) => (
+                  {challenges.map((challenge) => {
+                    const state = stateOf(challenge, attempts);
+                    const isPassed = state === "passed";
+
+                    return (
                       <div
-                        key={material.id}
-                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-blue-50 transition cursor-pointer"
-                        onClick={() => handleFileAction(material.fileUrl)}
+                        key={challenge.id}
+                        className="flex items-center justify-between gap-4 p-4 border border-gray-200 rounded-lg"
                       >
-                        <div className="flex items-center gap-3">
-                          {getFileIcon(material.type)}
-                          <div>
-                            <p className="font-semibold text-gray-800">
-                              {material.title}
+                        <div className="flex items-start gap-3 min-w-0">
+                          {isPassed ? (
+                            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          ) : (
+                            <PlayCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900">
+                              {challenge.title}
                             </p>
-                            <p className="text-sm text-gray-500">
-                              {material.description ||
-                                `Uploaded by ${material.uploadedBy} on ${material.uploadDate}`}
-                            </p>
+                            {challenge.description && (
+                              <p className="text-sm text-gray-600 line-clamp-2">
+                                {challenge.description}
+                              </p>
+                            )}
                           </div>
                         </div>
 
                         <Button
                           size="sm"
-                          className="bg-blue-600 hover:bg-blue-700"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleFileAction(material.fileUrl);
-                          }}
+                          variant={isPassed ? "outline" : "default"}
+                          onClick={() => open(challenge)}
+                          disabled={starting === challenge.id}
+                          className="flex-shrink-0"
                         >
-                          {material.type === "zip" ? (
-                            <Download className="w-4 h-4 mr-1" />
-                          ) : (
-                            <ExternalLink className="w-4 h-4 mr-1" />
-                          )}
-                          {getButtonText(material.type)}
+                          {starting === challenge.id
+                            ? "Opening…"
+                            : isPassed
+                              ? "Try Again"
+                              : STATE_LABEL[state]}
                         </Button>
                       </div>
-                    ))
-                  ) : (
-                    /* Empty State */
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mt-4">
-                      <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-500">
-                        No learning materials uploaded yet.
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* The topic's own materials, as its author ordered them. The API
+              serves these only for a topic the student may open, so reaching
+              this card at all is already the answer to whether they may. */}
+          <Card className="border border-gray-200 shadow-sm bg-white">
+            <CardContent className="p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">
+                Learning Materials
+              </h2>
+
+              {materials.length === 0 ? (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <BookOpen className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-500">
+                    No learning materials for this topic yet.
+                  </p>
+                </div>
+              ) : (
+                <MaterialList materials={materials} />
+              )}
+
+              {isAdmin && (
+                <p className="text-xs text-gray-400 text-center mt-3">
+                  Add and reorder materials from Roadmap management.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="lg:col-span-1 space-y-6">
+          <Card className="border-2 border-blue-300 shadow-sm bg-gradient-to-br from-blue-50 to-white">
+            <CardContent className="p-5">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">
+                <Play className="w-5 h-5 inline mr-2 text-blue-600" />
+                Watch Tutorial
+              </h3>
+
+              {videoId ? (
+                <div className="space-y-3">
+                  <div className="relative w-full pb-[56.25%] bg-gray-900 rounded-lg overflow-hidden">
+                    <iframe
+                      className="absolute top-0 left-0 w-full h-full"
+                      src={`https://www.youtube.com/embed/${videoId}`}
+                      title={topic.title}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                  <Button
+                    className="w-full bg-red-600 hover:bg-red-700 text-white"
+                    onClick={() =>
+                      window.open(
+                        `https://www.youtube.com/watch?v=${videoId}`,
+                        "_blank",
+                        "noopener,noreferrer",
+                      )
+                    }
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Watch on YouTube
+                  </Button>
+                </div>
+              ) : (
+                <div className="w-full h-40 bg-gray-200 rounded-lg flex items-center justify-center">
+                  <div className="text-center">
+                    <Play className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">
+                      No video available yet
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Progress is earned by passing challenges — there is nothing to
+              mark by hand. */}
+          <Card className="border border-gray-200 shadow-sm">
+            <CardContent className="p-5">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">
+                Your Progress
+              </h3>
+
+              <div
+                className={`flex items-center gap-3 p-3 rounded-lg ${
+                  progress?.status === "completed" ? "bg-green-50" : "bg-gray-50"
+                }`}
+              >
+                {progress?.status === "completed" ? (
+                  <>
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                    <div>
+                      <p className="font-semibold text-green-700">Completed</p>
+                      <p className="text-xs text-green-600">
+                        Every required challenge passed.
                       </p>
                     </div>
-                  )}
-                </div>
-
-                {/* Upload Placeholder for Admin - ONLY visible to admin/instructor */}
-                {isAdmin && (
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center mt-4 hover:border-blue-400 hover:bg-blue-50 transition cursor-pointer">
-                    <Upload className="w-6 h-6 text-gray-400 mx-auto mb-1" />
-                    <p className="text-sm text-gray-500">
-                      Click to upload learning materials
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      (PDF, PPT, DOC, ZIP supported)
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Key Concepts Section */}
-
-            {/* Examples Section */}
-          </div>
-
-          {/* Right Column - Video & Progress */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Video Learning Section */}
-            <Card className="border-2 border-blue-300 shadow-sm bg-gradient-to-br from-blue-50 to-white">
-              <CardContent className="p-5">
-                <h3 className="text-lg font-bold text-gray-900 mb-3">
-                  <Play className="w-5 h-5 inline mr-2 text-blue-600" />
-                  Watch Tutorial
-                </h3>
-
-                {currentTopic.youtubeId ? (
-                  <div className="space-y-3">
-                    {/* YouTube Embed */}
-                    <div className="relative w-full pb-[56.25%] bg-gray-900 rounded-lg overflow-hidden">
-                      <iframe
-                        className="absolute top-0 left-0 w-full h-full"
-                        src={`https://www.youtube.com/embed/${currentTopic.youtubeId}`}
-                        title={currentTopic.title}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      ></iframe>
-                    </div>
-                    <Button
-                      className="w-full bg-red-600 hover:bg-red-700 text-white"
-                      onClick={() =>
-                        window.open(
-                          `https://www.youtube.com/watch?v=${currentTopic.youtubeId}`,
-                          "_blank",
-                        )
-                      }
-                    >
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      Watch on YouTube
-                    </Button>
-                  </div>
+                  </>
                 ) : (
-                  <div className="space-y-3">
-                    {/* Placeholder */}
-                    <div className="w-full h-40 bg-gray-200 rounded-lg flex items-center justify-center">
-                      <div className="text-center">
-                        <Play className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-500">
-                          No video available yet
-                        </p>
-                      </div>
+                  <>
+                    <div className="w-6 h-6 rounded-full border-2 border-gray-300" />
+                    <div>
+                      <p className="font-semibold text-gray-700">
+                        {progress?.status === "in_progress"
+                          ? "In progress"
+                          : "Not started"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Pass this topic's challenges to complete it.
+                      </p>
                     </div>
-                    <Button className="w-full" disabled>
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      Watch on YouTube
-                    </Button>
-                  </div>
+                  </>
                 )}
-              </CardContent>
-            </Card>
+              </div>
 
-            {/* Progress Section */}
-            <Card className="border border-gray-200 shadow-sm">
-              <CardContent className="p-5">
-                <h3 className="text-lg font-bold text-gray-900 mb-3">
-                  Your Progress
-                </h3>
-                <div className="space-y-4">
-                  <div
-                    className={`flex items-center gap-3 p-3 rounded-lg ${
-                      isCompleted ? "bg-green-50" : "bg-gray-50"
-                    }`}
-                  >
-                    {isCompleted ? (
-                      <>
-                        <CheckCircle2 className="w-6 h-6 text-green-600" />
-                        <div>
-                          <p className="font-semibold text-green-700">
-                            Completed
-                          </p>
-                          <p className="text-xs text-green-600">Great job!</p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-6 h-6 rounded-full border-2 border-gray-300"></div>
-                        <div>
-                          <p className="font-semibold text-gray-700">
-                            Not Completed
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Mark when finished
-                          </p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <Button
-                    onClick={handleMarkCompleted}
-                    className={`w-full ${
-                      isCompleted
-                        ? "bg-gray-600 hover:bg-gray-700"
-                        : "bg-green-600 hover:bg-green-700"
-                    } text-white`}
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                    {isCompleted ? "Mark as Incomplete" : "Mark as Completed"}
-                  </Button>
+              {challenges.length > 0 && (
+                <div className="mt-4 space-y-1.5">
+                  <Progress value={progress?.percent ?? 0} className="h-2" />
+                  <p className="text-xs text-gray-500 tabular-nums">
+                    {passedCount} of {challenges.length} challenges passed
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
+          </Card>
 
-            {/* Navigation */}
-            <Card className="border border-gray-200 shadow-sm">
-              <CardContent className="p-5">
-                <h3 className="text-lg font-bold text-gray-900 mb-3">
-                  Navigation
-                </h3>
-                <div className="space-y-2">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={handlePrevious}
-                    disabled={!hasPrevious}
-                  >
-                    <ChevronLeft className="w-4 h-4 mr-2" />
-                    Previous Topic
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={handleNext}
-                    disabled={!hasNext}
-                  >
-                    Next Topic
-                    <ChevronRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card className="border border-gray-200 shadow-sm">
+            <CardContent className="p-5">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">
+                Navigation
+              </h3>
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => goTo(previous)}
+                  disabled={!previous}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-2" />
+                  Previous Topic
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => goTo(next)}
+                  disabled={!next}
+                >
+                  {next?.progress?.isUnlocked === false && (
+                    <Lock className="w-3.5 h-3.5 mr-2 text-gray-400" />
+                  )}
+                  Next Topic
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
-    </div>
+    </>,
   );
 }

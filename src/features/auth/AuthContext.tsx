@@ -11,7 +11,9 @@ export interface AuthContextValue {
   loading: boolean;
   login: (credentials: LoginCredentials) => Promise<User>;
   signup: (details: SignUpDetails) => Promise<User>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  /** Re-reads the user from the server, after something changed their profile. */
+  refreshUser: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -20,10 +22,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore any existing session on first mount.
+  // Restore any existing session on first mount. The token is revalidated
+  // against the server, so a revoked one signs out rather than lingering.
   useEffect(() => {
-    setUser(authService.getCurrentUser());
-    setLoading(false);
+    let active = true;
+
+    authService
+      .restoreSession()
+      .then((restored) => {
+        if (active) setUser(restored);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    // A reload mid-request must not write state into an unmounted provider.
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
@@ -38,9 +54,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return created;
   }, []);
 
-  const logout = useCallback(() => {
-    authService.logout();
+  const logout = useCallback(async () => {
+    await authService.logout();
     setUser(null);
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    setUser(await authService.restoreSession());
   }, []);
 
   const value = useMemo<AuthContextValue>(
@@ -52,8 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       signup,
       logout,
+      refreshUser,
     }),
-    [user, loading, login, signup, logout]
+    [user, loading, login, signup, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/useAuth";
+import { landingPath } from "@/features/auth/landing";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -23,8 +24,6 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  const [role, setRole] = useState<"student" | "admin">("student");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,13 +36,15 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      const user = await login({ email, password, role });
-      toast.success(`Welcome back ${user.name || (role === "admin" ? "Admin" : "Student")}!`);
+      const user = await login({ email, password, remember: rememberMe });
+      toast.success(`Welcome back ${user.name || user.email}!`);
 
-      // Return the user to wherever a route guard interrupted them, if anywhere.
+      // Return the user to wherever a route guard interrupted them, if that
+      // page is one their role can open. The account's own role decides, not
+      // the toggle above — picking "Admin" on a student account signs you in
+      // as the student you are.
       const from = (location.state as { from?: string } | null)?.from;
-      const home = role === "admin" ? "/admin/dashboard" : "/dashboard";
-      navigate(from ?? home, { replace: true });
+      navigate(landingPath(user, from), { replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Login failed");
     } finally {
@@ -64,33 +65,10 @@ export function LoginPage() {
 
             <h2 className="text-2xl font-bold text-gray-900">Welcome Back</h2>
             <p className="text-gray-600">Sign in to continue your learning</p>
-
-            {/* ✅ ROLE SELECTOR (NEW) */}
-            <div className="flex gap-2 bg-gray-100 p-1 rounded-lg mt-4">
-              <button
-                type="button"
-                onClick={() => setRole("student")}
-                className={`flex-1 py-2 text-sm font-medium rounded-md transition ${
-                  role === "student"
-                    ? "bg-white text-blue-600 shadow"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Student
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setRole("admin")}
-                className={`flex-1 py-2 text-sm font-medium rounded-md transition ${
-                  role === "admin"
-                    ? "bg-white text-blue-600 shadow"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Admin
-              </button>
-            </div>
+            {/* There was a Student/Admin toggle here. It only restyled itself:
+                the account's own role decides what you can open, so choosing
+                "Admin" on a student account signed you in as the student you
+                are. A switch that changes nothing is worse than no switch. */}
           </div>
 
           {/* Form */}
@@ -131,27 +109,18 @@ export function LoginPage() {
               </div>
             </div>
 
-            {/* Remember + Forgot */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="remember"
-                  checked={rememberMe}
-                  onCheckedChange={(checked) =>
-                    setRememberMe(checked as boolean)
-                  }
-                />
-                <Label htmlFor="remember" className="text-sm text-gray-600">
-                  Remember Me
-                </Label>
-              </div>
-
-              <button
-                type="button"
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Forgot Password?
-              </button>
+            {/* "Forgot Password?" sat here. There is no password-reset
+                endpoint, so it went nowhere; ask your instructor to reset it.
+                Remember Me is real — it keeps the session past a restart. */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="remember"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+              />
+              <Label htmlFor="remember" className="text-sm text-gray-600">
+                Keep me signed in on this device
+              </Label>
             </div>
 
             {/* Submit */}

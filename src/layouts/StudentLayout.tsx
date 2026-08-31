@@ -4,14 +4,12 @@ import {
   Target,
   Wrench,
   Map,
+  Trophy,
   User,
   LogOut,
   Network,
-  Bell,
-  Search,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/components/ui/utils";
 import { useAuth } from "@/features/auth/useAuth";
 
@@ -20,6 +18,7 @@ const navItems = [
   { name: "Challenges", icon: Target, path: "/challenges" },
   { name: "Workspace", icon: Wrench, path: "/workspace" },
   { name: "Roadmap", icon: Map, path: "/roadmap" },
+  { name: "Achievements", icon: Trophy, path: "/achievements" },
 ];
 
 /**
@@ -32,8 +31,9 @@ export function StudentLayout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    // Awaited so the token is revoked and cleared before the login page mounts.
+    await logout();
     toast.success("Logged out successfully");
     navigate("/login", { replace: true });
   };
@@ -93,25 +93,15 @@ export function StudentLayout() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white border-b border-gray-200 px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 max-w-xl">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input
-                  placeholder="Search simulations, challenges..."
-                  className="pl-10 h-10 bg-gray-50 border-gray-200"
-                />
-              </div>
-            </div>
-
+          {/* Search and notifications used to sit here. Neither exists: there
+              is no search endpoint and no notifications feature, and a box that
+              never finds anything beside a bell that is permanently unread are
+              worse than the space they took. */}
+          <div className="flex items-center justify-end">
             <div className="flex items-center gap-4">
-              <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <Bell className="w-5 h-5 text-gray-600" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-orange-500 rounded-full"></span>
-              </button>
               <Link
                 to="/profile"
-                className="flex items-center gap-3 pl-4 border-l border-gray-200 hover:opacity-80 transition-opacity"
+                className="flex items-center gap-3 hover:opacity-80 transition-opacity"
               >
                 <div className="text-right">
                   <div className="font-semibold text-gray-900 text-sm">

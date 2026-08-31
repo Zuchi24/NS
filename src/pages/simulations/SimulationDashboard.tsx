@@ -87,10 +87,7 @@ export function SimulationDashboard() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Progress</span>
-                        <span className="font-semibold text-gray-900">{module.progress}%</span>
-                      </div>
+                      <div className="text-sm text-gray-600">Progress</div>
                       <Progress value={module.progress} className="h-2" />
                     </div>
                     <div className="flex items-center justify-between text-sm">

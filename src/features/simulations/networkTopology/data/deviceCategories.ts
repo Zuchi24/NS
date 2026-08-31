@@ -5,11 +5,11 @@ export const DEVICE_CATEGORIES = {
     name: "End Devices",
     color: "blue",
     items: [
-      { type: "pc", label: "PC", icon: Monitor },
-      { type: "laptop", label: "Laptop", icon: Laptop },
-      { type: "server", label: "Server", icon: Server },
-      { type: "printer", label: "Printer", icon: Printer },
-      { type: "smartphone", label: "Smartphone", icon: Smartphone },
+      { type: "pc", family: "pc", label: "PC", icon: Monitor },
+      { type: "laptop", family: "laptop", label: "Laptop", icon: Laptop },
+      { type: "server", family: "server", label: "Server", icon: Server },
+      { type: "printer", family: "printer", label: "Printer", icon: Printer },
+      { type: "smartphone", family: "smartphone", label: "Smartphone", icon: Smartphone },
     ],
   },
 
@@ -20,6 +20,7 @@ export const DEVICE_CATEGORIES = {
     subcategories: {
       switches: {
         name: "Switches",
+        family: "switch",
         models: [
           {
             type: "switch-2960",
@@ -41,6 +42,7 @@ export const DEVICE_CATEGORIES = {
 
       routers: {
         name: "Routers",
+        family: "router",
         models: [
           {
             type: "router-1941",
@@ -62,6 +64,7 @@ export const DEVICE_CATEGORIES = {
 
       hubs: {
         name: "Hubs",
+        family: "hub",
         models: [
           {
             type: "hub-generic",

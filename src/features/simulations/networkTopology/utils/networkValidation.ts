@@ -1,5 +1,5 @@
 import type { Device, Connection } from "../types";
-import { GRID_SIZE } from "./constants";
+import { DEVICE_SIZE, GRID_SIZE } from "./constants";
 
 /**
  * Pure helpers for the topology editor: grid snapping, IP parsing and subnet
@@ -10,6 +10,16 @@ import { GRID_SIZE } from "./constants";
 
 export const snapToGrid = (value: number) =>
   Math.round(value / GRID_SIZE) * GRID_SIZE;
+
+/**
+ * Keeps a placed device inside the canvas along one axis.
+ *
+ * The canvas clips what overflows it, so a device dropped right on an edge —
+ * which is where a device dragged in from the palette naturally lands — would
+ * otherwise be placed where nobody can see or reach it.
+ */
+export const clampToCanvas = (value: number, extent: number) =>
+  Math.max(0, Math.min(value, Math.max(0, extent - DEVICE_SIZE)));
 
 
 export const parseOctets = (value: string) => {
@@ -221,6 +231,76 @@ export const isCableValid = (
    */
 
   return false;
+};
+
+/**
+ * Whether this cable is a console lead between a host and a switch.
+ *
+ * A console cable is management access, not a network link: you sit at the PC
+ * and configure the switch through it. It carries no Ethernet, which is why
+ * `isCableValid` says nothing here — a console lead is deliberately not a valid
+ * data connection, and so never enters the packet graph.
+ */
+export const isConsoleLink = (
+  connection: Connection,
+  source: Device,
+  target: Device
+) => {
+  if (connection.cableType !== "console") {
+    return false;
+  }
+
+  const sourceType = getDeviceCategory(source.type);
+  const targetType = getDeviceCategory(target.type);
+
+  return (
+    (sourceType === "end" && targetType === "switch") ||
+    (sourceType === "switch" && targetType === "end")
+  );
+};
+
+/**
+ * The switches this device can configure over a console lead.
+ *
+ * @return list<Device>
+ */
+export const consoleTargets = (
+  device: Device,
+  devices: Device[],
+  connections: Connection[]
+): Device[] => {
+  const byId = new Map(devices.map((d) => [d.id, d]));
+  const found: Device[] = [];
+
+  for (const connection of connections) {
+    const source = byId.get(connection.from);
+    const target = byId.get(connection.to);
+
+    if (!source || !target) {
+      continue;
+    }
+
+    if (!isConsoleLink(connection, source, target)) {
+      continue;
+    }
+
+    const other =
+      connection.from === device.id
+        ? target
+        : connection.to === device.id
+        ? source
+        : null;
+
+    if (
+      other &&
+      getDeviceCategory(other.type) === "switch" &&
+      !found.some((d) => d.id === other.id)
+    ) {
+      found.push(other);
+    }
+  }
+
+  return found;
 };
 
 export const getConnectionValidity = (
