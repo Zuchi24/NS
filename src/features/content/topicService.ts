@@ -22,7 +22,6 @@ interface ApiTopic {
   description: string | null;
   ytube_link: string | null;
   order: number;
-  challenges_count?: number;
 }
 
 function toTopic(topic: ApiTopic): Topic {
@@ -33,10 +32,6 @@ function toTopic(topic: ApiTopic): Topic {
     description: topic.description,
     videoUrl: topic.ytube_link,
     order: topic.order,
-    challengesCount: topic.challenges_count ?? null,
-    // These endpoints are staff-facing and answer about the topic, not about
-    // any one student, so there is no standing to report.
-    progress: null,
   };
 }
 

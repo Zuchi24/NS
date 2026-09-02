@@ -109,9 +109,7 @@ function toRow(challenge: Challenge, attempts: Attempt[]): ChallengeRow {
       ? "in-progress"
       : submitted.length > 0
         ? "attempted"
-        : challenge.locked
-          ? "locked"
-          : "available";
+        : "available";
 
   // The most recent submission is the one whose feedback still stands.
   const latest = submitted.reduce<Attempt | null>(

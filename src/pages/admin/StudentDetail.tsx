@@ -6,7 +6,6 @@ import {
   Circle,
   Clock,
   Mail,
-  Map,
   TrendingUp,
   Trophy,
   User,
@@ -16,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ErrorState, LoadingState } from "@/components/common/AsyncStates";
 import { fetchStudent } from "@/features/admin/adminService";
-import { standingClass, topicStatus } from "@/features/admin/format";
+import { standingClass } from "@/features/admin/format";
 import { shortDate, timeAgo } from "@/services/time";
 import { useAsync } from "@/services/useAsync";
 
@@ -31,14 +30,11 @@ export function StudentDetail() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
 
-  const { student, topics, challenges } = data;
+  const { student, challenges } = data;
   const { summary } = student;
 
   const challengesPassed = challenges.filter(
     (challenge) => challenge.passed,
-  ).length;
-  const topicsCompleted = topics.filter(
-    (topic) => topic.status === "completed",
   ).length;
 
   const percent = (count: number, of: number) =>
@@ -126,7 +122,7 @@ export function StudentDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-3">
                 <label className="text-xs font-semibold text-gray-600">
                   Challenges passed
@@ -140,24 +136,6 @@ export function StudentDetail() {
                   </div>
                   <Progress
                     value={percent(challengesPassed, challenges.length)}
-                    className="h-2"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label className="text-xs font-semibold text-gray-600">
-                  Topics completed
-                </label>
-                <div className="p-4 bg-gray-50 rounded-lg space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700">Completed</span>
-                    <span className="text-sm font-bold text-blue-600">
-                      {topicsCompleted}/{topics.length}
-                    </span>
-                  </div>
-                  <Progress
-                    value={percent(topicsCompleted, topics.length)}
                     className="h-2"
                   />
                 </div>
@@ -199,7 +177,7 @@ export function StudentDetail() {
           </p>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-6">
             <section className="space-y-4">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
@@ -260,64 +238,6 @@ export function StudentDetail() {
               </div>
             </section>
 
-            <section className="space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <Map className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-semibold text-gray-900">Roadmap</h3>
-                </div>
-                <span className="text-sm font-bold text-blue-700">
-                  {topicsCompleted}/{topics.length} completed
-                </span>
-              </div>
-              <div className="max-h-[520px] space-y-2 overflow-y-auto pr-2">
-                {topics.map((topic) => {
-                  const status = topicStatus(topic.status);
-                  const done = topic.status === "completed";
-
-                  return (
-                    <div
-                      key={topic.id}
-                      className="rounded-lg border border-gray-200 p-3"
-                    >
-                      <div className="flex items-start gap-3">
-                        {done ? (
-                          <CheckCircle2 className="mt-0.5 w-5 h-5 flex-shrink-0 text-blue-600" />
-                        ) : (
-                          <Circle className="mt-0.5 w-5 h-5 flex-shrink-0 text-gray-400" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="font-semibold text-gray-900">
-                              {topic.title}
-                            </h4>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}
-                            >
-                              {status.label}
-                            </span>
-                          </div>
-                          <div className="mt-2 flex items-center gap-2">
-                            <Progress
-                              value={topic.progressPercent}
-                              className="h-1.5 w-24"
-                            />
-                            <span className="text-xs text-gray-500">
-                              {topic.progressPercent}%
-                            </span>
-                            {topic.roadmap && (
-                              <span className="text-xs text-gray-400 truncate">
-                                · {topic.roadmap}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
           </div>
         </CardContent>
       </Card>

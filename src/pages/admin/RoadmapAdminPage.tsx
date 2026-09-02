@@ -1,15 +1,12 @@
 import { useState } from "react";
-import { BookOpen, Trophy, Video } from "lucide-react";
+import { BookOpen, Video } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   EmptyState,
   ErrorState,
   LoadingState,
 } from "@/components/common/AsyncStates";
-import {
-  fetchChallenges,
-  fetchRoadmaps,
-} from "@/features/content/contentService";
+import { fetchRoadmaps } from "@/features/content/contentService";
 import { useAsync } from "@/services/useAsync";
 import { DraftBadge, RoadmapPanel } from "./RoadmapPanel";
 import { RoadmapTopicsPanel } from "./RoadmapTopicsPanel";
@@ -26,14 +23,13 @@ import { TopicMaterialsPanel } from "./TopicMaterialsPanel";
  * and it is why the roadmap picker and the roadmap's own controls are the same
  * card: the one being managed is the one being authored.
  *
- * Challenges remain read-only here: they are authored in the seeder, and this
- * page says so rather than offering controls that would not outlive a reload.
+ * Challenges are not part of this page at all. They are a top-level feature of
+ * their own, placed in no topic and gated by no roadmap, so nothing authored
+ * here can reach one.
  */
 export function RoadmapAdminPage() {
   const { data, error, loading, reload } = useAsync(() =>
-    Promise.all([fetchRoadmaps(), fetchChallenges()]).then(
-      ([roadmaps, challenges]) => ({ roadmaps, challenges }),
-    ),
+    fetchRoadmaps().then((roadmaps) => ({ roadmaps })),
   );
 
   const [selectedRoadmapId, setSelectedRoadmapId] = useState<number | null>(
@@ -59,12 +55,6 @@ export function RoadmapAdminPage() {
 
   const selectedTopic =
     topics.find((topic) => topic.id === selectedTopicId) ?? topics[0] ?? null;
-
-  const topicChallenges = selectedTopic
-    ? (data?.challenges ?? []).filter((challenge) =>
-        challenge.topicIds.includes(selectedTopic.id),
-      )
-    : [];
 
   /**
    * A topic selection belongs to the roadmap that was showing. Carrying it
@@ -154,43 +144,6 @@ export function RoadmapAdminPage() {
                     <span className="text-gray-500">No video linked</span>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-gray-200">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-green-600" />
-                  Challenges in this topic
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {topicChallenges.length === 0 ? (
-                  <p className="text-sm text-gray-500 py-6 text-center">
-                    No challenges are placed in this topic.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {topicChallenges.map((challenge) => (
-                      <div
-                        key={challenge.id}
-                        className="rounded-md border border-gray-200 px-4 py-3"
-                      >
-                        <p className="text-sm font-semibold text-gray-900">
-                          {challenge.title}
-                        </p>
-                        {challenge.description && (
-                          <p className="text-xs text-gray-600 mt-1">
-                            {challenge.description}
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-400 mt-2">
-                          {challenge.kind.replace("_", " ")}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </CardContent>
             </Card>
 

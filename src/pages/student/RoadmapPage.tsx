@@ -1,8 +1,6 @@
 import { useNavigate } from "react-router";
-import { CheckCircle2, Lock, PlayCircle, Youtube } from "lucide-react";
-import { toast } from "sonner";
+import { Youtube } from "lucide-react";
 
-import { Progress } from "@/components/ui/progress";
 import {
   EmptyState,
   ErrorState,
@@ -14,12 +12,6 @@ import { useAsync } from "@/services/useAsync";
 
 interface TopicNode {
   topic: Topic;
-  challengeCount: number;
-  completed: boolean;
-  unlocked: boolean;
-  inProgress: boolean;
-  /** Share of the topic's required challenges passed, 0-100. */
-  percent: number;
 }
 
 /**
@@ -43,35 +35,19 @@ export function RoadmapPage() {
 
   const roadmaps = data;
 
+  // Every topic of a roadmap the student can see is open to them: a topic
+  // carries reading and watching, and nothing paces it.
   const buildNodes = (roadmap: Roadmap): TopicNode[] =>
-    roadmap.topics.map((topic) => ({
-      topic,
-      challengeCount: topic.challengesCount ?? 0,
-      completed: topic.progress?.status === "completed",
-      inProgress: topic.progress?.status === "in_progress",
-      // Locked until the server says otherwise, so a topic never opens by
-      // accident when progress is missing from the payload.
-      unlocked: topic.progress?.isUnlocked ?? false,
-      percent: topic.progress?.percent ?? 0,
-    }));
+    roadmap.topics.map((topic) => ({ topic }));
 
   const sections = roadmaps
     .filter((roadmap) => roadmap.topics.length > 0)
     .map((roadmap) => ({ roadmap, nodes: buildNodes(roadmap) }));
 
-  const allNodes = sections.flatMap((section) => section.nodes);
-  const completedCount = allNodes.filter((node) => node.completed).length;
-  const totalCount = allNodes.length;
-  const progressPercentage =
-    totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
+  const totalCount = sections.flatMap((section) => section.nodes).length;
 
-  const openTopic = (node: TopicNode) => {
-    if (!node.unlocked) {
-      toast.error("Finish the topic before this one to unlock it");
-      return;
-    }
-    navigate(`/topic/${node.topic.id}`);
-  };
+  // Nothing is paced: every topic of a roadmap the student can see is open.
+  const openTopic = (node: TopicNode) => navigate(`/topic/${node.topic.id}`);
 
   if (sections.length === 0) {
     return (
@@ -91,14 +67,10 @@ export function RoadmapPage() {
               Networking Roadmap
             </h1>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <Progress value={progressPercentage} className="h-2.5" />
-            </div>
-            <span className="text-sm font-semibold text-gray-700 tabular-nums">
-              {completedCount}/{totalCount} Complete
-            </span>
-          </div>
+          <p className="text-sm text-gray-600">
+            {totalCount} topic{totalCount === 1 ? "" : "s"} of reading and
+            watching. Read them in any order.
+          </p>
         </div>
       </div>
 
@@ -154,13 +126,7 @@ export function RoadmapPage() {
                               y1="1"
                               x2="100%"
                               y2="1"
-                              stroke={
-                                node.completed
-                                  ? "#22c55e"
-                                  : node.unlocked
-                                    ? "#3b82f6"
-                                    : "#d1d5db"
-                              }
+                              stroke="#3b82f6"
                               strokeWidth="2"
                             />
                           </svg>
@@ -170,30 +136,8 @@ export function RoadmapPage() {
                           type="button"
                           onClick={() => openTopic(node)}
                           aria-label={`Open ${node.topic.title}`}
-                          className={`relative bg-white rounded-xl shadow-md border-2 p-5 w-80 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                            node.completed
-                              ? "border-green-500 hover:shadow-lg"
-                              : node.unlocked
-                                ? "border-blue-400 hover:border-blue-500 hover:shadow-lg"
-                                : "border-gray-200 opacity-60 cursor-not-allowed"
-                          }`}
+                          className="relative bg-white rounded-xl shadow-md border-2 border-blue-400 p-5 w-80 text-left transition-all hover:border-blue-500 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                         >
-                          <div className="absolute -right-3 -top-3">
-                            {node.completed ? (
-                              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-                                <CheckCircle2 className="w-5 h-5 text-white" />
-                              </div>
-                            ) : node.unlocked ? (
-                              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shadow-lg">
-                                <div className="w-3 h-3 bg-white rounded-full" />
-                              </div>
-                            ) : (
-                              <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center shadow-lg">
-                                <Lock className="w-4 h-4 text-white" />
-                              </div>
-                            )}
-                          </div>
-
                           <h3 className="text-lg font-bold text-gray-900 mb-2 pr-6">
                             {node.topic.title}
                           </h3>
@@ -203,21 +147,7 @@ export function RoadmapPage() {
                             </p>
                           )}
 
-                          {node.inProgress && (
-                            <div className="mt-3 space-y-1">
-                              <Progress value={node.percent} className="h-1.5" />
-                              <p className="text-xs text-gray-500">In progress</p>
-                            </div>
-                          )}
-
                           <div className="mt-3 flex items-center gap-4 text-xs">
-                            <span className="flex items-center gap-1.5 text-blue-600">
-                              <PlayCircle className="w-3.5 h-3.5" />
-                              {node.challengeCount}{" "}
-                              {node.challengeCount === 1
-                                ? "challenge"
-                                : "challenges"}
-                            </span>
                             {node.topic.videoUrl && (
                               <span className="flex items-center gap-1.5 text-gray-500">
                                 <Youtube className="w-3.5 h-3.5" />

@@ -8,10 +8,7 @@ import type {
   Student,
   StudentChallenge,
   StudentDetail,
-  StudentTopic,
   Submission,
-  TopicEngagement,
-  TopicStatus,
   YearLevelCohort,
 } from "./types";
 
@@ -39,7 +36,6 @@ interface ApiOverview {
   active_students: number;
   active_within_days: number;
   challenge_completion: ApiRate;
-  roadmap_completion: ApiRate;
   submissions: { total: number; passed: number; pass_rate: number };
   year_levels_breakdown: {
     id: number;
@@ -47,28 +43,13 @@ interface ApiOverview {
     name: string;
     students: number;
     challenge_completion: ApiRate;
-    roadmap_completion: ApiRate;
   }[];
-}
-
-interface ApiTopicEngagement {
-  id: number;
-  title: string;
-  roadmap: string | null;
-  challenges: number;
-  students_reached: number;
-  students_in_progress: number;
-  students_completed: number;
-  students_total: number;
-  completion_percent: number;
-  average_minutes: number | null;
 }
 
 interface ApiChallengePerformance {
   id: number;
   title: string;
   kind: string;
-  topics: string[];
   submissions: number;
   passed_submissions: number;
   pass_rate: number;
@@ -106,8 +87,6 @@ interface ApiStudent {
   summary: {
     challenges_passed: number;
     challenges_total: number;
-    topics_completed: number;
-    topics_total: number;
     submissions: number;
     completion_percent: number;
     last_active_at: string | null;
@@ -116,22 +95,11 @@ interface ApiStudent {
   };
 }
 
-interface ApiStudentTopic {
-  id: number;
-  title: string;
-  roadmap: string | null;
-  status: TopicStatus;
-  progress_percent: number;
-  started_at: string | null;
-  completed_at: string | null;
-}
-
 interface ApiStudentChallenge {
   id: number;
   title: string;
   description: string | null;
   kind: string;
-  topics: string[];
   attempts: number;
   submissions: number;
   passed: boolean;
@@ -175,29 +143,12 @@ function toStudent(student: ApiStudent): Student {
     summary: {
       challengesPassed: student.summary.challenges_passed,
       challengesTotal: student.summary.challenges_total,
-      topicsCompleted: student.summary.topics_completed,
-      topicsTotal: student.summary.topics_total,
       submissions: student.summary.submissions,
       completionPercent: student.summary.completion_percent,
       lastActiveAt: student.summary.last_active_at,
       standing: student.summary.standing,
       standingLabel: student.summary.standing_label,
     },
-  };
-}
-
-function toTopicEngagement(topic: ApiTopicEngagement): TopicEngagement {
-  return {
-    id: topic.id,
-    title: topic.title,
-    roadmap: topic.roadmap,
-    challenges: topic.challenges,
-    studentsReached: topic.students_reached,
-    studentsInProgress: topic.students_in_progress,
-    studentsCompleted: topic.students_completed,
-    studentsTotal: topic.students_total,
-    completionPercent: topic.completion_percent,
-    averageMinutes: topic.average_minutes,
   };
 }
 
@@ -208,7 +159,6 @@ function toChallengePerformance(
     id: challenge.id,
     title: challenge.title,
     kind: challenge.kind,
-    topics: challenge.topics,
     submissions: challenge.submissions,
     passedSubmissions: challenge.passed_submissions,
     passRate: challenge.pass_rate,
@@ -233,7 +183,6 @@ export async function fetchOverview(): Promise<Overview> {
     activeStudents: data.active_students,
     activeWithinDays: data.active_within_days,
     challengeCompletion: toRate(data.challenge_completion),
-    roadmapCompletion: toRate(data.roadmap_completion),
     submissions: {
       total: data.submissions.total,
       passed: data.submissions.passed,
@@ -245,21 +194,22 @@ export async function fetchOverview(): Promise<Overview> {
       name: year.name,
       students: year.students,
       challengeCompletion: toRate(year.challenge_completion),
-      roadmapCompletion: toRate(year.roadmap_completion),
     })),
   };
 }
 
-/** Where the cohort is getting stuck, per topic and per challenge. */
+/**
+ * Where the cohort is getting stuck, per challenge.
+ *
+ * Only challenges. A topic holds reading and watching, and nothing records
+ * whether a student has done either, so the API reports nothing about one.
+ */
 export async function fetchAnalytics(): Promise<Analytics> {
   const { data } = await api.get<{
-    data: { topics: ApiTopicEngagement[]; challenges: ApiChallengePerformance[] };
+    data: { challenges: ApiChallengePerformance[] };
   }>("/admin/analytics");
 
-  return {
-    topics: data.topics.map(toTopicEngagement),
-    challenges: data.challenges.map(toChallengePerformance),
-  };
+  return { challenges: data.challenges.map(toChallengePerformance) };
 }
 
 /**
@@ -295,36 +245,23 @@ export async function fetchSectionStudents(
   return data.map(toStudent);
 }
 
-/** One student against the whole catalogue, reached or not. */
+/** One student against the whole challenge catalogue, opened or not. */
 export async function fetchStudent(studentId: number): Promise<StudentDetail> {
   const { data } = await api.get<{
     data: {
       student: ApiStudent;
-      topics: ApiStudentTopic[];
       challenges: ApiStudentChallenge[];
     };
   }>(`/admin/students/${studentId}`);
 
   return {
     student: toStudent(data.student),
-    topics: data.topics.map(
-      (topic): StudentTopic => ({
-        id: topic.id,
-        title: topic.title,
-        roadmap: topic.roadmap,
-        status: topic.status,
-        progressPercent: topic.progress_percent,
-        startedAt: topic.started_at,
-        completedAt: topic.completed_at,
-      }),
-    ),
     challenges: data.challenges.map(
       (challenge): StudentChallenge => ({
         id: challenge.id,
         title: challenge.title,
         description: challenge.description,
         kind: challenge.kind,
-        topics: challenge.topics,
         attempts: challenge.attempts,
         submissions: challenge.submissions,
         passed: challenge.passed,

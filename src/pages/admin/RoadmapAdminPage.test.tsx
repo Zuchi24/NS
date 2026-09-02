@@ -70,8 +70,6 @@ function topic(over: Partial<Topic> = {}): Topic {
     description: null,
     videoUrl: null,
     order: 0,
-    challengesCount: 0,
-    progress: null,
     ...over,
   };
 }

@@ -111,8 +111,6 @@ describe("draftOfTopic", () => {
       description: null,
       videoUrl: null,
       order: 0,
-      challengesCount: 0,
-      progress: null,
     };
 
     // A form field cannot hold null without becoming uncontrolled, so the two
@@ -187,9 +185,7 @@ describe("createTopic", () => {
       description: "Giving the network a gateway.",
       videoUrl: "https://example.com/v",
       order: 2,
-      challengesCount: 3,
       // These endpoints answer about the topic, not about any one student.
-      progress: null,
     });
   });
 });

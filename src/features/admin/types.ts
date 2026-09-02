@@ -16,7 +16,6 @@ export interface YearLevelCompletion {
   name: string;
   students: number;
   challengeCompletion: Rate;
-  roadmapCompletion: Rate;
 }
 
 export interface Overview {
@@ -39,31 +38,14 @@ export interface Overview {
   activeStudents: number;
   activeWithinDays: number;
   challengeCompletion: Rate;
-  roadmapCompletion: Rate;
   submissions: { total: number; passed: number; passRate: number };
   byYearLevel: YearLevelCompletion[];
-}
-
-export interface TopicEngagement {
-  id: number;
-  title: string;
-  roadmap: string | null;
-  challenges: number;
-  /** Students for whom the topic is open, whether or not they have started. */
-  studentsReached: number;
-  studentsInProgress: number;
-  studentsCompleted: number;
-  studentsTotal: number;
-  completionPercent: number;
-  /** Null when nobody has finished any work in it — not zero. */
-  averageMinutes: number | null;
 }
 
 export interface ChallengePerformance {
   id: number;
   title: string;
   kind: string;
-  topics: string[];
   submissions: number;
   passedSubmissions: number;
   /** Of the submissions made, the share that satisfied every rule. */
@@ -76,7 +58,6 @@ export interface ChallengePerformance {
 }
 
 export interface Analytics {
-  topics: TopicEngagement[];
   challenges: ChallengePerformance[];
 }
 
@@ -105,8 +86,6 @@ export type Standing =
 export interface StudentSummary {
   challengesPassed: number;
   challengesTotal: number;
-  topicsCompleted: number;
-  topicsTotal: number;
   /** Attempts submitted, right or wrong. */
   submissions: number;
   completionPercent: number;
@@ -126,24 +105,11 @@ export interface Student {
   summary: StudentSummary;
 }
 
-export type TopicStatus = "locked" | "unlocked" | "in_progress" | "completed";
-
-export interface StudentTopic {
-  id: number;
-  title: string;
-  roadmap: string | null;
-  status: TopicStatus;
-  progressPercent: number;
-  startedAt: string | null;
-  completedAt: string | null;
-}
-
 export interface StudentChallenge {
   id: number;
   title: string;
   description: string | null;
   kind: string;
-  topics: string[];
   attempts: number;
   submissions: number;
   passed: boolean;
@@ -153,8 +119,7 @@ export interface StudentChallenge {
 
 export interface StudentDetail {
   student: Student;
-  /** Every topic in the catalogue, including ones they have not reached. */
-  topics: StudentTopic[];
+  /** Every challenge in the catalogue, including ones never opened. */
   challenges: StudentChallenge[];
 }
 

@@ -226,10 +226,7 @@ function TopicRow({
           <p className="text-sm font-semibold text-gray-900 break-words">
             {topic.title}
           </p>
-          <p className="text-xs text-gray-500 mt-1">
-            Position {position} · {topic.challengesCount ?? 0} challenge
-            {topic.challengesCount === 1 ? "" : "s"}
-          </p>
+          <p className="text-xs text-gray-500 mt-1">Position {position}</p>
         </button>
 
         {topic.videoUrl && (

@@ -81,8 +81,6 @@ function challenge(id: number, title: string): Challenge {
     config: null,
     requiredFamilies: [],
     order: id,
-    locked: false,
-    topicIds: [],
   };
 }
 
@@ -104,11 +102,7 @@ const CATALOGUE: Challenge[] = [
  */
 const RETIRED_ID = 99;
 
-function topic(
-  id: number,
-  title: string,
-  progress: Topic["progress"] = null,
-): Topic {
+function topic(id: number, title: string): Topic {
   return {
     id,
     roadmapId: 1,
@@ -116,21 +110,6 @@ function topic(
     description: null,
     videoUrl: null,
     order: id,
-    challengesCount: 2,
-    progress,
-  };
-}
-
-/** The server's own verdict on a topic, as TopicResource sends it. */
-function standing(
-  status: NonNullable<Topic["progress"]>["status"],
-  percent: number,
-): Topic["progress"] {
-  return {
-    status,
-    percent,
-    isUnlocked: status !== "locked",
-    completedAt: status === "completed" ? T.twoDaysAgo : null,
   };
 }
 
@@ -339,8 +318,8 @@ describe("deriveStudentProgress", () => {
         CATALOGUE,
         [
           roadmap([
-            topic(1, "Hardware and Cabling", standing("unlocked", 0)),
-            topic(2, "Your First LAN", standing("locked", 0)),
+            topic(1, "Hardware and Cabling"),
+            topic(2, "Your First LAN"),
           ]),
         ],
       );
@@ -348,7 +327,6 @@ describe("deriveStudentProgress", () => {
       expect(result).toMatchObject({
         challengesPassed: 0,
         challengesInProgress: 0,
-        topicsCompleted: 0,
         // The catalogue is still there to be measured against.
         challengesTotal: 4,
         topicsTotal: 2,
@@ -362,7 +340,6 @@ describe("deriveStudentProgress", () => {
       expect(result.challengesTotal).toBe(0);
       expect(result.topicsTotal).toBe(0);
       expect(percentOf(result.challengesPassed, result.challengesTotal)).toBe(0);
-      expect(percentOf(result.topicsCompleted, result.topicsTotal)).toBe(0);
     });
   });
 
@@ -382,8 +359,8 @@ describe("deriveStudentProgress", () => {
         CATALOGUE,
         [
           roadmap([
-            topic(1, "Hardware and Cabling", standing("completed", 100)),
-            topic(2, "Your First LAN", standing("in_progress", 33)),
+            topic(1, "Hardware and Cabling"),
+            topic(2, "Your First LAN"),
           ]),
         ],
       );
@@ -392,7 +369,6 @@ describe("deriveStudentProgress", () => {
         challengesPassed: 2,
         challengesTotal: 4,
         challengesInProgress: 1,
-        topicsCompleted: 1,
         topicsTotal: 2,
       });
 
@@ -425,11 +401,11 @@ describe("deriveStudentProgress", () => {
         [],
         CATALOGUE,
         [
-          roadmap([topic(1, "Hardware and Cabling", standing("completed", 100))]),
+          roadmap([topic(1, "Hardware and Cabling")]),
           roadmap(
             [
-              topic(2, "Addressing the Network", standing("completed", 100)),
-              topic(3, "Growing the Network", standing("locked", 0)),
+              topic(2, "Addressing the Network"),
+              topic(3, "Growing the Network"),
             ],
             2,
           ),
@@ -437,53 +413,26 @@ describe("deriveStudentProgress", () => {
       );
 
       expect(result.topicsTotal).toBe(3);
-      expect(result.topicsCompleted).toBe(2);
     });
   });
 
-  describe("topic completion comes from the server", () => {
-    it("counts the topics the server marked completed, and no others", () => {
+  describe("topics", () => {
+    it("counts how much reading the catalogue holds, and nothing more", () => {
+      // Nothing records whether a student has done a topic's reading, so the
+      // only honest figure is how many topics there are.
       const result = deriveStudentProgress(
-        [],
+        CATALOGUE.map((entry) => passed(entry.id)),
         CATALOGUE,
         [
           roadmap([
-            topic(1, "Hardware and Cabling", standing("completed", 100)),
-            topic(2, "Your First LAN", standing("in_progress", 50)),
-            topic(3, "Addressing the Network", standing("unlocked", 0)),
-            topic(4, "Growing the Network", standing("locked", 0)),
+            topic(1, "Hardware and Cabling"),
+            topic(2, "Your First LAN"),
           ]),
         ],
       );
 
-      // No attempts at all, yet a topic still reads completed: the verdict is
-      // the server's, and this must report it rather than second-guess it.
-      expect(result.topicsCompleted).toBe(1);
-    });
-
-    it("does not infer completion from passing every challenge", () => {
-      // Every challenge in the catalogue passed, but the server has not marked
-      // the topic completed. The unlock and completion rules live on the
-      // server, so the dashboard follows it rather than working it out again.
-      const result = deriveStudentProgress(
-        CATALOGUE.map((entry) => passed(entry.id)),
-        CATALOGUE,
-        [roadmap([topic(1, "Hardware and Cabling", standing("in_progress", 90))])],
-      );
-
+      expect(result.topicsTotal).toBe(2);
       expect(result.challengesPassed).toBe(4);
-      expect(result.topicsCompleted).toBe(0);
-    });
-
-    it("treats a topic with no progress row as not completed", () => {
-      const result = deriveStudentProgress(
-        [],
-        CATALOGUE,
-        [roadmap([topic(1, "Hardware and Cabling")])],
-      );
-
-      expect(result.topicsCompleted).toBe(0);
-      expect(result.topicsTotal).toBe(1);
     });
   });
 

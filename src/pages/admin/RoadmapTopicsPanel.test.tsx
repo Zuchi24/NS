@@ -46,8 +46,6 @@ function topic(over: Partial<Topic> = {}): Topic {
     description: "Building a machine and making a cable.",
     videoUrl: null,
     order: 0,
-    challengesCount: 2,
-    progress: null,
     ...over,
   };
 }
@@ -106,12 +104,6 @@ describe("RoadmapTopicsPanel", () => {
     // topics unlock after which.
     expect(screen.getByText(/position 1/i)).toBeInTheDocument();
     expect(screen.getByText(/position 3/i)).toBeInTheDocument();
-  });
-
-  it("counts the challenges placed in each topic", () => {
-    renderWith([topic({ challengesCount: 1 })]);
-
-    expect(screen.getByText(/1 challenge$/i)).toBeInTheDocument();
   });
 
   /*
