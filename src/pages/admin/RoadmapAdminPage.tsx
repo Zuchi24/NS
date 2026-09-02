@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { BookOpen, Trophy, Video } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import {
   EmptyState,
   ErrorState,
@@ -12,6 +11,7 @@ import {
   fetchRoadmaps,
 } from "@/features/content/contentService";
 import { useAsync } from "@/services/useAsync";
+import { DraftBadge, RoadmapPanel } from "./RoadmapPanel";
 import { RoadmapTopicsPanel } from "./RoadmapTopicsPanel";
 import { TopicMaterialsPanel } from "./TopicMaterialsPanel";
 
@@ -22,27 +22,13 @@ import { TopicMaterialsPanel } from "./TopicMaterialsPanel";
  * One roadmap at a time. Topic order only means anything within a roadmap — it
  * is what decides which topics unlock after which — so authoring it across a
  * flattened list of every roadmap at once would be showing an order that does
- * not exist. Picking a roadmap first is what makes "move this up" answerable.
+ * not exist. Picking a roadmap first is what makes "move this up" answerable,
+ * and it is why the roadmap picker and the roadmap's own controls are the same
+ * card: the one being managed is the one being authored.
  *
  * Challenges remain read-only here: they are authored in the seeder, and this
  * page says so rather than offering controls that would not outlive a reload.
  */
-/**
- * Says a roadmap is not out yet.
- *
- * Only ever rendered on the admin side, because only staff are sent an
- * unpublished roadmap in the first place — the API filters them out of a
- * student's list, so this is labelling what staff can see rather than hiding
- * anything from anyone. Matches the "Draft" mark the materials panel uses.
- */
-function DraftBadge() {
-  return (
-    <span className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
-      Draft
-    </span>
-  );
-}
-
 export function RoadmapAdminPage() {
   const { data, error, loading, reload } = useAsync(() =>
     Promise.all([fetchRoadmaps(), fetchChallenges()]).then(
@@ -55,26 +41,21 @@ export function RoadmapAdminPage() {
   );
   const [selectedTopicId, setSelectedTopicId] = useState<number | null>(null);
 
-  const roadmaps = useMemo(() => data?.roadmaps ?? [], [data]);
-
   if (loading) return <LoadingState label="Loading catalogue…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
 
-  if (roadmaps.length === 0) {
-    return (
-      <EmptyState
-        title="No roadmaps yet"
-        description="The catalogue is empty. Roadmaps are seeded from the backend; topics are authored here once one exists."
-      />
-    );
-  }
+  const roadmaps = data?.roadmaps ?? [];
 
   // Falls back to the first rather than to nothing, so the page always has a
-  // roadmap in view — including right after the selected one's last topic goes.
+  // roadmap in view — including right after the selected one is deleted. Null
+  // only when there is genuinely nothing yet, which is a catalogue waiting for
+  // its first roadmap rather than an error.
   const roadmap =
-    roadmaps.find((entry) => entry.id === selectedRoadmapId) ?? roadmaps[0];
+    roadmaps.find((entry) => entry.id === selectedRoadmapId) ??
+    roadmaps[0] ??
+    null;
 
-  const topics = roadmap.topics;
+  const topics = roadmap?.topics ?? [];
 
   const selectedTopic =
     topics.find((topic) => topic.id === selectedTopicId) ?? topics[0] ?? null;
@@ -85,66 +66,51 @@ export function RoadmapAdminPage() {
       )
     : [];
 
+  /**
+   * A topic selection belongs to the roadmap that was showing. Carrying it
+   * across would leave the panels describing a topic no longer in the list.
+   */
+  const showRoadmap = (roadmapId: number | null) => {
+    setSelectedRoadmapId(roadmapId);
+    setSelectedTopicId(null);
+  };
+
   return (
     <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
       <div className="space-y-6">
-        <Card className="border-gray-200">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              Roadmap
-              {!roadmap.isPublished && <DraftBadge />}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Label htmlFor="roadmap-picker">Authoring</Label>
-            <select
-              id="roadmap-picker"
-              value={roadmap.id}
-              onChange={(event) => {
-                setSelectedRoadmapId(Number(event.target.value));
-                // The topic selection belongs to the roadmap that was showing;
-                // carrying it across would leave the panels below describing a
-                // topic that is no longer in the list.
-                setSelectedTopicId(null);
-              }}
-              className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              {roadmaps.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {/* Marked in the option text as well as beside the title: a
-                      native select shows only the chosen row when closed, so a
-                      badge alone would not say which of the others are drafts. */}
-                  {entry.isPublished ? entry.title : `${entry.title} (draft)`}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-600">{roadmap.description}</p>
-
-            {!roadmap.isPublished && (
-              <p className="text-xs text-amber-700">
-                This roadmap is unpublished. Students cannot see it, or anything
-                in it, until it is published — but you can author it now.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <RoadmapTopicsPanel
-          // Keyed on the roadmap so switching resets the panel's own form
-          // rather than leaving a half-written topic pointed at another
-          // roadmap.
-          key={roadmap.id}
-          roadmapId={roadmap.id}
-          roadmapTitle={roadmap.title}
-          topics={topics}
-          selectedTopicId={selectedTopic?.id ?? null}
-          onSelect={setSelectedTopicId}
-          onChanged={reload}
+        <RoadmapPanel
+          roadmaps={roadmaps}
+          roadmap={roadmap}
+          onSelect={showRoadmap}
+          onChanged={(next) => {
+            showRoadmap(next);
+            reload();
+          }}
         />
+
+        {roadmap && (
+          <RoadmapTopicsPanel
+            // Keyed on the roadmap so switching resets the panel's own form
+            // rather than leaving a half-written topic pointed at another
+            // roadmap.
+            key={roadmap.id}
+            roadmapId={roadmap.id}
+            roadmapTitle={roadmap.title}
+            topics={topics}
+            selectedTopicId={selectedTopic?.id ?? null}
+            onSelect={setSelectedTopicId}
+            onChanged={reload}
+          />
+        )}
       </div>
 
       <div className="space-y-6">
-        {selectedTopic === null ? (
+        {roadmap === null ? (
+          <EmptyState
+            title="Nothing to author yet"
+            description="Add a roadmap on the left. Topics, and the learning materials in them, hang off one."
+          />
+        ) : selectedTopic === null ? (
           <EmptyState
             title="No topics in this roadmap"
             description="Add the first topic on the left, then attach its materials here."

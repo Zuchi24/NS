@@ -7,6 +7,7 @@ import { ApiError } from "@/services/api";
 import {
   downloadMaterial,
   readableSize,
+  videoEmbedUrl,
   youtubeId,
 } from "@/features/content/materialService";
 import type { LearningMaterial, MaterialKind } from "@/features/content/types";
@@ -47,7 +48,9 @@ export function MaterialList({ materials }: { materials: LearningMaterial[] }) {
 
 function MaterialRow({ material }: { material: LearningMaterial }) {
   const Icon = ICON[material.kind];
-  const videoId = material.kind === "video" ? youtubeId(material.url) : null;
+  // Only for the hosts whose player can be addressed from a share link. A video
+  // anywhere else is still a video; it opens where it lives.
+  const embed = material.kind === "video" ? videoEmbedUrl(material.url) : null;
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 bg-white">
@@ -77,11 +80,11 @@ function MaterialRow({ material }: { material: LearningMaterial }) {
       </div>
 
       {/* A video is worth playing in place; the others are a single action. */}
-      {videoId && (
+      {embed && (
         <div className="relative w-full pb-[56.25%] bg-gray-900 rounded-lg overflow-hidden mt-4">
           <iframe
             className="absolute top-0 left-0 w-full h-full"
-            src={`https://www.youtube.com/embed/${videoId}`}
+            src={embed}
             title={material.title}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
@@ -141,7 +144,11 @@ function MaterialAction({ material }: { material: LearningMaterial }) {
         }
       >
         <ExternalLink className="w-4 h-4 mr-2" />
-        {material.kind === "video" ? "Watch on YouTube" : "Open link"}
+        {material.kind === "video"
+          ? youtubeId(material.url)
+            ? "Watch on YouTube"
+            : "Watch video"
+          : "Open link"}
       </Button>
     </div>
   );

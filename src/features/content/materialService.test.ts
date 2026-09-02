@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { readableSize, validateDraft, youtubeId } from "./materialService";
+import {
+  readableSize,
+  validateDraft,
+  videoEmbedUrl,
+  youtubeId,
+} from "./materialService";
 import type { MaterialDraft } from "./materialService";
 
 /**
@@ -53,15 +58,6 @@ describe("validateDraft", () => {
     }
   });
 
-  it("requires a YouTube address for a video", () => {
-    const errors = validateDraft(
-      draft({ kind: "video", url: "https://example.com/not-a-video" }),
-      { isNew: true },
-    );
-
-    expect(errors.url).toBeDefined();
-  });
-
   it("accepts the shapes a YouTube link is pasted in", () => {
     for (const url of [
       "https://www.youtube.com/watch?v=abcdefghijk",
@@ -71,6 +67,30 @@ describe("validateDraft", () => {
       expect(validateDraft(draft({ kind: "video", url }), { isNew: true }))
         .toEqual({});
     }
+  });
+
+  it("accepts a video hosted somewhere other than YouTube", () => {
+    // The API takes any http(s) address for a video, so refusing these here
+    // rejected work the server would have accepted — a Google Drive recording
+    // is the shape most of this material actually arrives in.
+    for (const url of [
+      "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view?usp=sharing",
+      "https://vimeo.com/123456789",
+      "https://media.university.edu/lectures/subnetting.mp4",
+    ]) {
+      expect(
+        validateDraft(draft({ kind: "video", url }), { isNew: true }),
+      ).toEqual({});
+    }
+  });
+
+  it("still refuses a video address a browser cannot open", () => {
+    const errors = validateDraft(
+      draft({ kind: "video", url: "javascript:alert(1)" }),
+      { isNew: true },
+    );
+
+    expect(errors.url).toBeDefined();
   });
 
   it("requires a file on a new file material", () => {
@@ -119,6 +139,28 @@ describe("youtubeId", () => {
   it("returns null for nothing and for a non-video address", () => {
     expect(youtubeId(null)).toBeNull();
     expect(youtubeId("https://example.com/article")).toBeNull();
+  });
+});
+
+describe("videoEmbedUrl", () => {
+  it("builds a YouTube player address from any of its link shapes", () => {
+    expect(videoEmbedUrl("https://youtu.be/abcdefghijk")).toBe(
+      "https://www.youtube.com/embed/abcdefghijk",
+    );
+  });
+
+  it("builds a Google Drive preview from a share link", () => {
+    expect(
+      videoEmbedUrl(
+        "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view?usp=sharing",
+      ),
+    ).toBe("https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/preview");
+  });
+
+  it("has no player to build for anywhere else, which is not an error", () => {
+    // The material is still valid; the student opens it where it lives.
+    expect(videoEmbedUrl("https://vimeo.com/123456789")).toBeNull();
+    expect(videoEmbedUrl(null)).toBeNull();
   });
 });
 

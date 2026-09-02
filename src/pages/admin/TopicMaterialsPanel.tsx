@@ -432,9 +432,10 @@ function MaterialForm({
             onChange={(e) => set("file", e.target.files?.[0] ?? null)}
           />
           <p className="text-xs text-gray-600">
-            PDF, Office documents, images, text or zip. Up to 20 MB. Files are
-            stored privately and only released to students who can open this
-            topic.
+            PDF, Office documents (including PPT and PPTX), images, text or zip.
+            Up to 20 MB. Files are stored privately and only released to students
+            who can open this topic. Video belongs under the video kind, as a
+            link.
           </p>
           {existingFile && !draft.file && (
             <p className="text-xs text-gray-600">
@@ -446,7 +447,7 @@ function MaterialForm({
       ) : (
         <div key="url-field" className="space-y-2">
           <Label htmlFor="material-url">
-            {draft.kind === "video" ? "YouTube address" : "Web address"}
+            {draft.kind === "video" ? "Video address" : "Web address"}
           </Label>
           <Input
             id="material-url"
@@ -454,6 +455,13 @@ function MaterialForm({
             placeholder="https://"
             onChange={(e) => set("url", e.target.value)}
           />
+          {draft.kind === "video" && (
+            <p className="text-xs text-gray-600">
+              A YouTube link, a Google Drive share link, or any other https
+              address the video plays at. NetSim points at video rather than
+              hosting it; upload PDFs and slide decks as a file instead.
+            </p>
+          )}
           {errors.url && <FieldError message={errors.url} />}
         </div>
       )}

@@ -208,10 +208,15 @@ export function readableSize(bytes: number | null): string | null {
 }
 
 /**
- * The video id out of whatever shape the link was saved in.
+ * The YouTube video id out of whatever shape the link was saved in.
  *
  * Lives here rather than in a page because both the student view and the
  * authoring form need it, and two copies would drift.
+ *
+ * Null for anything that is not YouTube — including a perfectly good video
+ * hosted somewhere else. That is a question about which player to build, not
+ * about whether the address is allowed; validateDraft below does not consult
+ * this.
  */
 export function youtubeId(url: string | null): string | null {
   if (!url) return null;
@@ -231,12 +236,47 @@ export function youtubeId(url: string | null): string | null {
   return /^[\w-]{6,}$/.test(url.trim()) ? url.trim() : null;
 }
 
+/** A Google Drive file id out of a share link, or null. */
+function driveFileId(url: string): string | null {
+  const match = url.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
+
+  return match ? match[1] : null;
+}
+
+/**
+ * An address that plays this video inside the page, or null to just link out.
+ *
+ * Only the two hosts whose embed URL can be derived from a share link are
+ * recognised. Everything else is still a perfectly valid video material — it
+ * opens where it lives instead, which is what an embed nobody can build would
+ * have to fall back to anyway.
+ */
+export function videoEmbedUrl(url: string | null): string | null {
+  if (!url) return null;
+
+  const youtube = youtubeId(url);
+
+  if (youtube) return `https://www.youtube.com/embed/${youtube}`;
+
+  const drive = driveFileId(url);
+
+  return drive ? `https://drive.google.com/file/d/${drive}/preview` : null;
+}
+
 /**
  * What is wrong with this draft, per field, or nothing.
  *
  * The server validates all of this again and is the authority; this exists so
  * an author is told before a round trip, and so the message names the field
- * they need to fix.
+ * they need to fix. Which is also why it asks exactly what the server asks and
+ * no more: a rule enforced only here is a rule that rejects work the API would
+ * have taken, and the author has no way to appeal it.
+ *
+ * A video is any address a browser can open — YouTube, a Google Drive share
+ * link, a university's own recording. The platform hosts documents (PDF and
+ * slide decks, through the file kind) and points at video rather than storing
+ * it, so refusing everything but YouTube refused most of the material staff
+ * actually have.
  */
 export function validateDraft(
   draft: MaterialDraft,
@@ -257,8 +297,6 @@ export function validateDraft(
     errors.url = "Add the web address.";
   } else if (!/^https?:\/\/\S+$/i.test(draft.url.trim())) {
     errors.url = "The address must start with http:// or https://.";
-  } else if (draft.kind === "video" && !youtubeId(draft.url)) {
-    errors.url = "That does not look like a YouTube link.";
   }
 
   return errors;

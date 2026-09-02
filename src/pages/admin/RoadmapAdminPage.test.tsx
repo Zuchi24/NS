@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { RoadmapAdminPage } from "./RoadmapAdminPage";
@@ -34,9 +40,27 @@ vi.mock("./TopicMaterialsPanel", () => ({
   TopicMaterialsPanel: () => <div data-testid="materials-panel" />,
 }));
 
+// The roadmap writes go to their own service; stubbed so these say what the
+// page does with a write rather than exercising the network layer again.
+vi.mock("@/features/content/roadmapService", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/features/content/roadmapService")
+  >();
+
+  return {
+    ...actual,
+    createRoadmap: vi.fn(),
+    updateRoadmap: vi.fn(),
+    publishRoadmap: vi.fn(),
+    unpublishRoadmap: vi.fn(),
+    deleteRoadmap: vi.fn(),
+  };
+});
+
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const content = await import("@/features/content/contentService");
+const roadmapService = await import("@/features/content/roadmapService");
 
 function topic(over: Partial<Topic> = {}): Topic {
   return {
@@ -177,5 +201,97 @@ describe("RoadmapAdminPage", () => {
     await renderWith([]);
 
     expect(screen.getByText(/no roadmaps yet/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * The roadmap layer and the topic layer, on one page.
+ *
+ * These are about the seam between them rather than about either panel's own
+ * behaviour — that a write to a roadmap reloads the catalogue and leaves the
+ * right one selected, and that selecting a roadmap still puts its topics in
+ * front of the author, which is the whole reason the picker is here.
+ */
+describe("managing roadmaps alongside their topics", () => {
+  it("keeps managing the selected roadmap's topics", async () => {
+    const user = userEvent.setup();
+
+    await renderWith([roadmap(), draft]);
+
+    await user.selectOptions(screen.getByLabelText(/authoring/i), "2");
+
+    // The topics panel is the thing the selection exists to feed.
+    expect(
+      screen.getByText(/1 topic in Unreleased roadmap/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /add topic/i }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Unreleased topic").length).toBeGreaterThan(0);
+  });
+
+  it("reloads the catalogue and lands on the roadmap just created", async () => {
+    const user = userEvent.setup();
+    const created = roadmap({
+      id: 3,
+      title: "Network Security",
+      description: "New.",
+      isPublished: false,
+      topics: [],
+    });
+
+    await renderWith([roadmap()]);
+
+    vi.mocked(roadmapService.createRoadmap).mockResolvedValueOnce(created);
+    // The reload sees the roadmap the write added.
+    vi.mocked(content.fetchRoadmaps).mockResolvedValue([roadmap(), created]);
+
+    await user.click(screen.getByRole("button", { name: /new roadmap/i }));
+    await user.type(screen.getByLabelText(/^title$/i), "Network Security");
+    await user.click(
+      within(screen.getByRole("form")).getByRole("button", {
+        name: /^add roadmap$/i,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/authoring/i)).toHaveValue("3"),
+    );
+
+    // The new roadmap is a draft with nothing in it, and the page says so
+    // rather than leaving the author on the roadmap they were on before.
+    expect(screen.getByText(/is unpublished/i)).toBeInTheDocument();
+    expect(screen.getByText(/no topics in this roadmap/i)).toBeInTheDocument();
+  });
+
+  it("falls back to what is left after the selected roadmap is deleted", async () => {
+    const user = userEvent.setup();
+
+    await renderWith([roadmap(), draft]);
+
+    await user.selectOptions(screen.getByLabelText(/authoring/i), "2");
+
+    vi.mocked(roadmapService.deleteRoadmap).mockResolvedValueOnce(undefined);
+    vi.mocked(content.fetchRoadmaps).mockResolvedValue([roadmap()]);
+
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    await user.click(screen.getByRole("button", { name: /delete roadmap/i }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/authoring/i)).toHaveValue("1"),
+    );
+
+    expect(
+      screen.queryByRole("option", { name: "Unreleased roadmap (draft)" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers a create form on an empty catalogue instead of a dead end", async () => {
+    await renderWith([]);
+
+    expect(
+      screen.getByRole("button", { name: /new roadmap/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/nothing to author yet/i)).toBeInTheDocument();
   });
 });

@@ -221,7 +221,32 @@ describe("TopicMaterialsPanel", () => {
       expect(service.createMaterial).not.toHaveBeenCalled();
     });
 
-    it("refuses a video that is not a YouTube address", async () => {
+    it("takes a video hosted somewhere other than YouTube", async () => {
+      // The API accepts any http(s) address for a video, and a Google Drive
+      // share link is how most of this material arrives. Refusing it here
+      // rejected work the server would have taken.
+      await renderWith([]);
+
+      await userEvent.click(
+        screen.getByRole("button", { name: /add material/i }),
+      );
+      await userEvent.type(screen.getByLabelText(/title/i), "Recorded lecture");
+      await userEvent.selectOptions(screen.getByLabelText(/type/i), "video");
+      await userEvent.type(
+        screen.getByLabelText(/video address/i),
+        "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view",
+      );
+      await userEvent.click(submitButton(/^add material$/i));
+
+      await waitFor(() => expect(service.createMaterial).toHaveBeenCalled());
+
+      expect(vi.mocked(service.createMaterial).mock.calls[0][1]).toMatchObject({
+        kind: "video",
+        url: "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view",
+      });
+    });
+
+    it("still refuses a video address a browser cannot open", async () => {
       await renderWith([]);
 
       await userEvent.click(
@@ -230,12 +255,12 @@ describe("TopicMaterialsPanel", () => {
       await userEvent.type(screen.getByLabelText(/title/i), "Not a video");
       await userEvent.selectOptions(screen.getByLabelText(/type/i), "video");
       await userEvent.type(
-        screen.getByLabelText(/youtube address/i),
-        "https://example.com/article",
+        screen.getByLabelText(/video address/i),
+        "javascript:alert(1)",
       );
       await userEvent.click(submitButton(/^add material$/i));
 
-      expect(await screen.findByRole("alert")).toHaveTextContent(/youtube/i);
+      expect(await screen.findByRole("alert")).toHaveTextContent(/http/i);
       expect(service.createMaterial).not.toHaveBeenCalled();
     });
 
