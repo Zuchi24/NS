@@ -81,6 +81,13 @@ export function RoadmapPage() {
   }
 
   return (
+    /*
+      Out of the gutter StudentLayout puts every page in, so the title bar below
+      reaches both edges of the scroller the way the app header above it does.
+      The size is not a guess: it is StudentLayout's PAGE_GUTTER, and a test
+      holds the two together, because a negative margin that stops matching the
+      padding it cancels is a page hanging over its own edges.
+    */
     <div className="-m-8">
       <div className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
@@ -174,8 +181,16 @@ function RoadmapPath({
           </h2>
         </span>
 
+        {/*
+          w-full before the cap, because this sits in a flex column: without a
+          width a flex item is sized to its content, so max-w-xl stopped being a
+          ceiling and became the width — 576px of paragraph inside a 485px
+          phone, which was the whole of the sideways scroll this page had.
+          break-words handles the rest, since a description can arrive as one
+          unbroken run of characters.
+        */}
         {roadmap.description && (
-          <p className="text-sm text-gray-600 lg:text-center max-w-xl">
+          <p className="w-full text-sm text-gray-600 lg:text-center max-w-xl break-words">
             {roadmap.description}
           </p>
         )}
@@ -279,7 +294,7 @@ function TopicNode({
   onOpen: () => void;
 }) {
   return (
-    <li className="relative pl-14 lg:pl-0 lg:grid lg:grid-cols-[1fr_4rem_1fr] lg:items-center">
+    <li className="relative min-w-0 pl-14 lg:pl-0 lg:grid lg:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] lg:items-center">
       {/* The arm from the spine to the card. On a phone every card is to the
           right of the line; from lg it reaches out to whichever side the card
           is on, and its inner end disappears under the node. */}
@@ -297,22 +312,22 @@ function TopicNode({
       <div
         className={
           cardOnLeft
-            ? "lg:col-start-1 lg:justify-self-end"
-            : "lg:col-start-3 lg:justify-self-start"
+            ? "min-w-0 lg:col-start-1 lg:justify-self-end"
+            : "min-w-0 lg:col-start-3 lg:justify-self-start"
         }
       >
         <button
           type="button"
           onClick={onOpen}
           aria-label={`Open ${topic.title}`}
-          className="group w-full lg:max-w-sm text-left bg-white rounded-xl border-2 border-blue-200 shadow-sm p-5 transition-all hover:border-blue-400 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="group w-full min-w-0 lg:max-w-sm text-left bg-white rounded-xl border-2 border-blue-200 shadow-sm p-5 transition-all hover:border-blue-400 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         >
-          <h3 className="text-base sm:text-lg font-bold text-gray-900 group-hover:text-blue-700">
+          <h3 className="text-base sm:text-lg font-bold text-gray-900 group-hover:text-blue-700 break-words">
             {topic.title}
           </h3>
 
           {topic.description && (
-            <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3">
+            <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 break-words">
               {topic.description}
             </p>
           )}

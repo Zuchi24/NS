@@ -18,7 +18,17 @@ import { fetchCohorts } from '@/features/admin/adminService';
 import { useAuth } from '@/features/auth/useAuth';
 import { useAsync } from '@/services/useAsync';
 
-const navItems = [
+/**
+ * Where the sidebar can send an admin, exported so a test can hold these
+ * against the route table.
+ *
+ * A destination here that no route matches is not a compile error — it is a
+ * 404 the first time somebody clicks it, which is exactly how the achievements
+ * link would have failed had it been added to only one of the two places. The
+ * two buttons rendered outside this list, Students and Profile, are checked
+ * alongside it.
+ */
+export const ADMIN_NAV_ITEMS = [
   { name: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
   { name: 'Analytics', icon: BarChart3, path: '/admin/analytics' },
   { name: 'Roadmap', icon: Map, path: '/admin/roadmap' },
@@ -62,7 +72,7 @@ export function AdminSidebar() {
         </div>
 
         <nav className="space-y-1">
-          {navItems.map((item) => (
+          {ADMIN_NAV_ITEMS.map((item) => (
             <button
               key={item.name}
               onClick={() => navigate(item.path)}

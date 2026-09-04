@@ -11,6 +11,7 @@ import {
 import userEvent from "@testing-library/user-event";
 
 import { RoadmapPage } from "./RoadmapPage";
+import { PAGE_GUTTER } from "@/layouts/StudentLayout";
 import { TOPIC_DESCRIPTION_MAX } from "@/features/content/topicService";
 import type { Roadmap, Topic } from "@/features/content/types";
 
@@ -98,6 +99,45 @@ beforeEach(() => {
 });
 
 afterEach(cleanup);
+
+describe("fitting inside the student layout", () => {
+  /**
+   * The one piece of this page's layout that is not this page's to decide.
+   *
+   * StudentLayout puts every page in a gutter and leaves the scroller itself
+   * unpadded, so that a sticky page header pins to the top of the viewport
+   * rather than to the inside of a padding box. This page's title bar runs to
+   * both edges, and the only way for a child to get back out of an ancestor's
+   * padding is a negative margin of exactly that size.
+   *
+   * CSS cannot state that relationship, so it is stated here. If the layout's
+   * gutter changes and this margin does not, the roadmap hangs over its own
+   * edges and scrolls sideways, which is precisely what it used to do.
+   */
+  it("bleeds back out of exactly the gutter the layout puts it in", async () => {
+    const { container } = await renderWith([roadmapOf(3)]);
+
+    const expected = `-m-${PAGE_GUTTER.replace(/^p-/, "")}`;
+
+    expect(PAGE_GUTTER).toMatch(/^p-\d+$/);
+    expect(container.firstElementChild).toHaveClass(expected);
+  });
+
+  it("lets a long unbroken word wrap instead of widening the page", async () => {
+    // A roadmap description is authored text and can arrive as one run of
+    // characters with nowhere to break. Before this it set the width of the
+    // paragraph, and the paragraph set the width of the page.
+    const roadmap = roadmapOf(1);
+
+    await renderWith([{ ...roadmap, description: "x".repeat(300) }]);
+
+    const description = screen.getByText("x".repeat(300));
+
+    // w-full so the cap below is a ceiling rather than the width itself, in a
+    // flex column where an item is otherwise sized to its content.
+    expect(description).toHaveClass("w-full", "max-w-xl", "break-words");
+  });
+});
 
 describe("RoadmapPage", () => {
   it("draws every topic of a short roadmap as a node on the path", async () => {
