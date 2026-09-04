@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  TOPIC_DESCRIPTION_MAX,
   createTopic,
   draftOfTopic,
+  overviewLength,
   reorderTopics,
   updateTopic,
   validateTopicDraft,
@@ -99,6 +101,77 @@ describe("validateTopicDraft", () => {
     ]) {
       expect(validateTopicDraft(draft({ videoUrl }))).toEqual({});
     }
+  });
+});
+
+/**
+ * The overview's length, at the character it turns on.
+ *
+ * The limit is enforced here and again by the API, and the two have to agree
+ * exactly: one character of daylight between them is either a draft the form
+ * sends and the server refuses, or work the server would have taken and the
+ * form would not let through.
+ */
+describe("the overview limit", () => {
+  it("is the number both ends are built from", () => {
+    expect(TOPIC_DESCRIPTION_MAX).toBe(280);
+  });
+
+  it("accepts an overview up to the limit", () => {
+    for (const length of [0, 1, TOPIC_DESCRIPTION_MAX - 1, TOPIC_DESCRIPTION_MAX]) {
+      expect(
+        validateTopicDraft(draft({ description: "a".repeat(length) })).description,
+      ).toBeUndefined();
+    }
+  });
+
+  it("refuses an overview past the limit, and says how far past", () => {
+    for (const length of [TOPIC_DESCRIPTION_MAX + 1, 350, 500, 5000]) {
+      const message = validateTopicDraft(
+        draft({ description: "a".repeat(length) }),
+      ).description;
+
+      expect(message).toContain(String(TOPIC_DESCRIPTION_MAX));
+      // The actual length, so an author knows how much has to go.
+      expect(message).toContain(String(length));
+    }
+  });
+
+  it("does not count the spaces it would trim off anyway", () => {
+    // The trimmed text is what gets stored and what the server counts, so a
+    // trailing newline must not be what tips an overview over the limit.
+    const padded = `${"a".repeat(TOPIC_DESCRIPTION_MAX)}   \n`;
+
+    expect(validateTopicDraft(draft({ description: padded })).description)
+      .toBeUndefined();
+  });
+
+  it("counts characters, not UTF-16 units", () => {
+    // Laravel counts with mb_strlen, so 280 emoji are 280 characters and it
+    // stores them. String.length would call the same text 560 and refuse a
+    // draft the API would have taken.
+    const emoji = "😀".repeat(TOPIC_DESCRIPTION_MAX);
+
+    expect(emoji.length).toBe(TOPIC_DESCRIPTION_MAX * 2);
+    expect(overviewLength(emoji)).toBe(TOPIC_DESCRIPTION_MAX);
+    expect(validateTopicDraft(draft({ description: emoji })).description)
+      .toBeUndefined();
+
+    expect(
+      validateTopicDraft(draft({ description: "😀".repeat(TOPIC_DESCRIPTION_MAX + 1) }))
+        .description,
+    ).toBeDefined();
+  });
+
+  it("does not touch an overview that predates it", () => {
+    // Nothing here shortens anything: an over-limit draft comes back with an
+    // error against the field, and the text the author wrote intact.
+    const long = "b".repeat(TOPIC_DESCRIPTION_MAX + 400);
+    const over = draft({ description: long });
+
+    expect(validateTopicDraft(over).description).toBeDefined();
+    expect(over.description).toBe(long);
+    expect(over.description).toHaveLength(TOPIC_DESCRIPTION_MAX + 400);
   });
 });
 
