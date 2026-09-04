@@ -20,6 +20,59 @@ const TOKEN_KEY = "netsim-token";
 /** Laravel's 422 body: one array of messages per rejected field. */
 export type ValidationErrors = Record<string, string[]>;
 
+/**
+ * What to say when the response body was not the API's own JSON.
+ *
+ * A failure that came from the API carries its own message, and that is what
+ * the caller should see. This is for the ones that never reached it: a web
+ * server refusing an upload before PHP runs, a proxy timing out, an HTML error
+ * page. "Request failed (413)" is a status code read aloud; these at least say
+ * what kind of thing went wrong and what might be done about it.
+ */
+function statusMessage(status: number): string {
+  switch (status) {
+    case 413:
+      return "The server refused that upload as too large. Try a smaller file, or add it as a link.";
+    case 401:
+      return "Your session has expired. Sign in again.";
+    case 403:
+      return "You do not have permission to do that.";
+    case 404:
+      return "That is not there any more.";
+    case 419:
+      return "Your session has expired. Sign in again.";
+    case 429:
+      return "That is too many requests at once. Wait a moment and try again.";
+    case 500:
+    case 502:
+    case 503:
+    case 504:
+      return "The server had a problem with that. Try again in a moment.";
+    default:
+      return `The server refused that request (${status}).`;
+  }
+}
+
+/**
+ * The error behind a failed response.
+ *
+ * Laravel's own message is preferred over anything invented here — it is
+ * written for the person reading it and names the field it is about. The
+ * fallback is only for a body that is not the API's JSON at all, which is
+ * exactly when a bare status code is least use to anyone.
+ */
+function errorFrom(
+  status: number,
+  payload: { message?: string; errors?: ValidationErrors } | null,
+): ApiError {
+  const message =
+    typeof payload?.message === "string" && payload.message.trim() !== ""
+      ? payload.message
+      : statusMessage(status);
+
+  return new ApiError(message, status, payload?.errors ?? {});
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -107,11 +160,7 @@ async function request<T>(
       authToken.clear();
     }
 
-    throw new ApiError(
-      payload?.message ?? `Request failed (${response.status})`,
-      response.status,
-      payload?.errors ?? {},
-    );
+    throw errorFrom(response.status, payload);
   }
 
   return payload as T;
@@ -152,11 +201,7 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
       authToken.clear();
     }
 
-    throw new ApiError(
-      payload?.message ?? `Request failed (${response.status})`,
-      response.status,
-      payload?.errors ?? {},
-    );
+    throw errorFrom(response.status, payload);
   }
 
   return payload as T;
@@ -194,11 +239,7 @@ async function download(path: string): Promise<Blob> {
     // The body of a failed download is JSON, not the file.
     const payload = await response.json().catch(() => null);
 
-    throw new ApiError(
-      payload?.message ?? `Request failed (${response.status})`,
-      response.status,
-      payload?.errors ?? {},
-    );
+    throw errorFrom(response.status, payload);
   }
 
   return response.blob();

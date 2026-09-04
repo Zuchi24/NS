@@ -63,6 +63,23 @@ export async function fetchTopicMaterials(
   return page.data.map(toMaterial);
 }
 
+/**
+ * The largest file the API will store, in megabytes.
+ *
+ * Mirrors `uploads.max_kilobytes` on the server, which is the authority: this
+ * is here so an author is told before spending a minute uploading something
+ * that was never going to be accepted. It is deliberately not smaller than the
+ * server's limit — a rule that rejects what the API would have taken is a rule
+ * the author cannot appeal.
+ *
+ * The server may accept less than this when PHP's own upload limits are set
+ * below it, and says so in the size it actually accepts rather than failing
+ * silently — see App\Support\UploadLimit and the backend README.
+ */
+export const MAX_UPLOAD_MEGABYTES = 20;
+
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MEGABYTES * 1024 * 1024;
+
 /** What the author is saving. A file or a url, matching the kind. */
 export interface MaterialDraft {
   title: string;
@@ -292,6 +309,13 @@ export function validateDraft(
     // An edit keeps the file it already has unless a new one is chosen.
     if (isNew && !draft.file) {
       errors.file = "Choose a file to upload.";
+    } else if (draft.file && draft.file.size > MAX_UPLOAD_BYTES) {
+      // The same ceiling the API enforces, asked here so a large file is
+      // refused in the moment rather than after it has been sent.
+      errors.file =
+        `That file is ${readableSize(draft.file.size)}. The most that can be ` +
+        `uploaded is ${MAX_UPLOAD_MEGABYTES} MB — compress it, or add it as a ` +
+        `link instead.`;
     }
   } else if (draft.url.trim() === "") {
     errors.url = "Add the web address.";

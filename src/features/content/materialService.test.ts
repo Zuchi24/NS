@@ -1,12 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  createMaterial,
   readableSize,
+  updateMaterial,
   validateDraft,
   videoEmbedUrl,
   youtubeId,
 } from "./materialService";
 import type { MaterialDraft } from "./materialService";
+import { api } from "@/services/api";
 
 /**
  * The material form's own arithmetic and rules.
@@ -28,6 +31,92 @@ function draft(over: Partial<MaterialDraft> = {}): MaterialDraft {
     ...over,
   };
 }
+
+/**
+ * What actually goes on the wire.
+ *
+ * The API reads `file`, `title`, `kind`, `url` and `is_published`; a form that
+ * spells any of them differently gets a 422 about a missing field rather than
+ * about the file, which is a long way to walk to find a typo. These pin the
+ * names against the ones StoreLearningMaterialRequest validates.
+ */
+describe("the multipart body", () => {
+  const upload = vi.fn();
+
+  beforeEach(() => {
+    upload.mockReset().mockResolvedValue({
+      data: {
+        id: 1,
+        topic_id: 7,
+        title: "Diagram",
+        description: null,
+        kind: "file",
+        kind_label: "File",
+        filename: "diagram.webp",
+        mime_type: "image/webp",
+        size_bytes: 44,
+        order: 0,
+        is_published: true,
+      },
+    });
+
+    vi.spyOn(api, "upload").mockImplementation(upload);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** The FormData the service built for the last call. */
+  function sentForm(): FormData {
+    return upload.mock.calls[0][1] as FormData;
+  }
+
+  it("sends a file under the field name the API validates", async () => {
+    const file = new File([new Uint8Array([0x52, 0x49, 0x46, 0x46])], "diagram.webp", {
+      type: "image/webp",
+    });
+
+    await createMaterial(7, draft({ kind: "file", file, title: "Diagram" }));
+
+    expect(upload).toHaveBeenCalledWith(
+      "/admin/topics/7/materials",
+      expect.any(FormData),
+    );
+
+    const form = sentForm();
+
+    // `file`, not `upload` or `attachment`.
+    expect(form.get("file")).toBe(file);
+    expect(form.get("title")).toBe("Diagram");
+    expect(form.get("kind")).toBe("file");
+    // Booleans cross multipart as strings Laravel reads as booleans.
+    expect(form.get("is_published")).toBe("1");
+    // The kind decides which of the two is sent; never both.
+    expect(form.has("url")).toBe(false);
+  });
+
+  it("sends a url material's address and no file part", async () => {
+    await createMaterial(7, draft({ kind: "link" }));
+
+    const form = sentForm();
+
+    expect(form.get("url")).toBe("https://example.com/primer");
+    expect(form.has("file")).toBe(false);
+  });
+
+  it("spoofs the method on an edit, because multipart does not survive PATCH", async () => {
+    const file = new File(["PK"], "handout.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+
+    await updateMaterial(12, draft({ kind: "file", file }));
+
+    expect(upload).toHaveBeenCalledWith("/admin/materials/12", expect.any(FormData));
+    expect(sentForm().get("_method")).toBe("PATCH");
+    expect(sentForm().get("file")).toBe(file);
+  });
+});
 
 describe("validateDraft", () => {
   it("accepts a well-formed link", () => {

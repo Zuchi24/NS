@@ -336,6 +336,121 @@ describe("TopicMaterialsPanel", () => {
       );
     });
 
+    it("uploads an image, which is a file like any other", async () => {
+      await renderWith([]);
+
+      vi.mocked(service.createMaterial).mockResolvedValueOnce(first);
+
+      await userEvent.click(
+        screen.getByRole("button", { name: /add material/i }),
+      );
+      await userEvent.type(screen.getByLabelText(/title/i), "Topology diagram");
+      await userEvent.selectOptions(screen.getByLabelText(/type/i), "file");
+
+      // WebP and Word documents are what the upload bug refused; both go the
+      // same way as the PDF above, and nothing about the kind is special. The
+      // bytes are a RIFF header, which is what the server reads to decide.
+      const image = new File(
+        [new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x24, 0, 0, 0, 0x57, 0x45, 0x42, 0x50])],
+        "diagram.webp",
+        { type: "image/webp" },
+      );
+
+      await userEvent.upload(screen.getByLabelText(/^file$/i), image);
+      await userEvent.click(submitButton(/^add material$/i));
+
+      await waitFor(() =>
+        expect(service.createMaterial).toHaveBeenCalledWith(
+          7,
+          expect.objectContaining({ kind: "file", file: image }),
+        ),
+      );
+    });
+
+    it("uploads a word document", async () => {
+      await renderWith([]);
+
+      vi.mocked(service.createMaterial).mockResolvedValueOnce(first);
+
+      await userEvent.click(
+        screen.getByRole("button", { name: /add material/i }),
+      );
+      await userEvent.type(screen.getByLabelText(/title/i), "Lab handout");
+      await userEvent.selectOptions(screen.getByLabelText(/type/i), "file");
+
+      const doc = new File(["PK"], "handout.docx", {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      await userEvent.upload(screen.getByLabelText(/^file$/i), doc);
+      await userEvent.click(submitButton(/^add material$/i));
+
+      await waitFor(() =>
+        expect(service.createMaterial).toHaveBeenCalledWith(
+          7,
+          expect.objectContaining({ kind: "file", file: doc }),
+        ),
+      );
+    });
+
+    it("refuses a file over the limit before sending it anywhere", async () => {
+      await renderWith([]);
+
+      await userEvent.click(
+        screen.getByRole("button", { name: /add material/i }),
+      );
+      await userEvent.type(screen.getByLabelText(/title/i), "Enormous");
+      await userEvent.selectOptions(screen.getByLabelText(/type/i), "file");
+
+      const huge = new File(["x"], "video.png", { type: "image/png" });
+
+      // A real 30 MB file cannot be built in a test and does not need to be:
+      // what is checked is the size the browser reports.
+      Object.defineProperty(huge, "size", { value: 30 * 1024 * 1024 });
+
+      await userEvent.upload(screen.getByLabelText(/^file$/i), huge);
+      await userEvent.click(submitButton(/^add material$/i));
+
+      // The size it is, the size allowed, and what to do instead — rather than
+      // a minute spent uploading something that was never going to be taken.
+      const alert = await screen.findByRole("alert");
+
+      expect(alert).toHaveTextContent(/30 MB/);
+      expect(alert).toHaveTextContent(/20 MB/);
+      expect(service.createMaterial).not.toHaveBeenCalled();
+    });
+
+    it("shows what the server says when it is the one refusing the size", async () => {
+      await renderWith([]);
+
+      // Under the app's own ceiling, so the client sends it — and PHP's limit,
+      // which only the server knows, turns it back. The message names the size
+      // that server actually accepts rather than failing generically.
+      vi.mocked(service.createMaterial).mockRejectedValueOnce(
+        new ApiError("That file is larger than 2 MB.", 422, {
+          file: [
+            "That file is larger than 2 MB, which is the most this server " +
+              "accepts. Compress it, or add it as a link instead.",
+          ],
+        }),
+      );
+
+      await userEvent.click(
+        screen.getByRole("button", { name: /add material/i }),
+      );
+      await userEvent.type(screen.getByLabelText(/title/i), "Photo");
+      await userEvent.selectOptions(screen.getByLabelText(/type/i), "file");
+      await userEvent.upload(
+        screen.getByLabelText(/^file$/i),
+        new File(["x"], "photo.jpg", { type: "image/jpeg" }),
+      );
+      await userEvent.click(submitButton(/^add material$/i));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /larger than 2 MB, which is the most this server accepts/i,
+      );
+    });
+
     it("shows the server's own field errors when it rejects the draft", async () => {
       await renderWith([]);
 
