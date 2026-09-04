@@ -10,6 +10,7 @@ import {
   GraduationCap,
   Map,
   BarChart3,
+  Award,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/components/ui/utils';
@@ -21,6 +22,7 @@ const navItems = [
   { name: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
   { name: 'Analytics', icon: BarChart3, path: '/admin/analytics' },
   { name: 'Roadmap', icon: Map, path: '/admin/roadmap' },
+  { name: 'Achievements', icon: Award, path: '/admin/achievements' },
 ];
 
 export function AdminSidebar() {
