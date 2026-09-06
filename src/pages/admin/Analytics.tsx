@@ -19,7 +19,19 @@ export function Analytics() {
 
   const { challenges } = data;
 
-  const students = challenges[0]?.studentsAttempted ?? 0;
+  /*
+   * The busiest challenge, which is what the card below says this is.
+   *
+   * Reading challenges[0] agreed with that only by coincidence: the API returns
+   * the catalogue in its authored order, and the first challenge is usually the
+   * most attempted simply because it comes first. Reorder the catalogue, or
+   * publish a challenge people take up faster, and the figure would keep the
+   * label while quietly reporting something else.
+   */
+  const busiest = challenges.reduce(
+    (most, challenge) => Math.max(most, challenge.studentsAttempted),
+    0,
+  );
   const submissions = challenges.reduce(
     (sum, challenge) => sum + challenge.submissions,
     0,
@@ -60,7 +72,7 @@ export function Analytics() {
     },
     {
       label: "Students attempting",
-      value: String(students),
+      value: String(busiest),
       note: `on the busiest of ${challenges.length} challenge${challenges.length === 1 ? "" : "s"}`,
       icon: Users,
       color: "text-orange-600",
