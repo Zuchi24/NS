@@ -726,23 +726,23 @@ const getBuildStateImage = (state: BuildState): BuildStateConfig | null => {
   // HOW TO POSITION: Use left/top for X/Y offset (negative = shift that direction)
   const stateImages: Record<BuildState, BuildStateConfig> = {
     // State 0: Empty case
-    "empty": { src: "/pc-case.png", left: -10, top: 110, width: 0, height: 0, scale: 2 },
+    "empty": { src: "/pc-case.webp", left: -10, top: 110, width: 0, height: 0, scale: 2 },
     // State 1: Motherboard
-    "motherboard": { src: "/build-state-0.png", left: -10, top: 110, width: 0, height: 0, scale: 2 },
+    "motherboard": { src: "/build-state-0.webp", left: -10, top: 110, width: 0, height: 0, scale: 2 },
     // State 2: CPU
-    "cpu": { src: "/build-state-1.png", left: -10, top: 110, width: 0, height: 0, scale: 2 },
+    "cpu": { src: "/build-state-1.webp", left: -10, top: 110, width: 0, height: 0, scale: 2 },
     // State 3: CPU Cooler
-    "cpu-cooler": { src: "/build-state-2.png", left: -10, top: 110, width: 0, height: 0, scale: 2 },
+    "cpu-cooler": { src: "/build-state-2.webp", left: -10, top: 110, width: 0, height: 0, scale: 2 },
     // State 4: RAM
-    "ram": { src: "/build-state-3.png", left: -10, top: 110, width: 0, height: 0, scale: 2 },
+    "ram": { src: "/build-state-3.webp", left: -10, top: 110, width: 0, height: 0, scale: 2 },
     // State 5: GPU
-    "gpu": { src: "/build-state-4.png", left: -10, top: 110, width: 0, height: 0, scale: 2 },
+    "gpu": { src: "/build-state-4.webp", left: -10, top: 110, width: 0, height: 0, scale: 2 },
     // State 6: SSD
-    "ssd": { src: "/build-state-5.png", left: -10, top: 110, width: 0, height: 0, scale: 2 },
+    "ssd": { src: "/build-state-5.webp", left: -10, top: 110, width: 0, height: 0, scale: 2 },
     // State 7: Case Fan
-    "case-fan": { src: "/build-state-6.png", left: -10, top: 110, width: 0, height: 0, scale: 2 },
+    "case-fan": { src: "/build-state-6.webp", left: -10, top: 110, width: 0, height: 0, scale: 2 },
     // State 8: PSU (Full Build)
-    "psu": { src: "/build-state-7.png", left:  -10, top: 110, width: 0, height: 0, scale: 2 },
+    "psu": { src: "/build-state-7.webp", left:  -10, top: 110, width: 0, height: 0, scale: 2 },
   };
   
   return stateImages[state] || null;
@@ -752,9 +752,9 @@ const getBuildStateImage = (state: BuildState): BuildStateConfig | null => {
 // These images coexist with the main build state image
 const getComponentSeparateImage = (componentId: ComponentType): string => {
   const separateImages: Record<ComponentType, string> = {
-    "ssd": "/build-state-5.png",      // SSD image
-    "case-fan": "/build-state-6.png", // Case fan image
-    "psu": "/build-state-7.png",      // PSU image
+    "ssd": "/build-state-5.webp",      // SSD image
+    "case-fan": "/build-state-6.webp", // Case fan image
+    "psu": "/build-state-7.webp",      // PSU image
     "motherboard": "",
     "cpu": "",
     "cpu-cooler": "",
