@@ -1,0 +1,68 @@
+name: CI
+
+# Feature branches as well as main: the team works on branches and opens pull
+# requests between them, so waiting for a merge to find a broken suite would be
+# finding it too late.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# A second push to the same branch makes the first run pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 22 because it is what the project is developed on and the only line
+      # every dependency accepts: vite wants ^18 || ^20 || >=22 and vitest
+      # wants ^20 || ^22 || >=24. Nothing here declares an engines field, so
+      # this file is where that decision now lives.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # `npm ci`, not `npm install`: package-lock.json is the only lockfile in
+      # the repository, and this fails loudly if it drifts from package.json
+      # rather than quietly resolving something new.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Tests
+        run: npm test
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Production build
+        run: npm run build
+
+      # Production dependencies only, and not blocking.
+      #
+      # The full audit reports seven advisories, six of which are in build and
+      # test tooling — vite's dev server, tar, postcss, browserslist, nanoid,
+      # @babel/core — that never reach a browser. Narrowing to what actually
+      # ships leaves one: react-router. Its advisories are SSR, RSC and
+      # framework-mode issues, and this is a client-only SPA (createRoot plus
+      # createBrowserRouter, no renderToString, no hydrateRoot, no server), so
+      # they do not apply. The two that could apply to a SPA are open redirects
+      # through a navigation target the attacker controls, and nothing here
+      # navigates to user input: the only search parameter read anywhere is
+      # `attempt`, and it is put through Number() before use.
+      #
+      # So this reports rather than blocks, because blocking would mean a red
+      # build from day one over an advisory that was assessed and found not to
+      # apply. Upgrading react-router is a decision of its own, not something
+      # to smuggle in with CI.
+      - name: Security audit (production dependencies)
+        continue-on-error: true
+        run: npm audit --omit=dev
