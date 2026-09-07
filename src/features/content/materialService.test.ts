@@ -2,13 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createMaterial,
+  openMaterial,
   readableSize,
   updateMaterial,
   validateDraft,
   videoEmbedUrl,
+  viewerFor,
   youtubeId,
 } from "./materialService";
 import type { MaterialDraft } from "./materialService";
+import type { LearningMaterial } from "./types";
 import { api } from "@/services/api";
 
 /**
@@ -263,5 +266,163 @@ describe("readableSize", () => {
 
   it("has nothing to say about an unknown size", () => {
     expect(readableSize(null)).toBeNull();
+  });
+});
+
+
+/**
+ * Which materials can be read in the page, and how one is fetched to be read.
+ *
+ * The rule is about what a browser can display, not about what an author
+ * uploaded: a deck and a spreadsheet are perfectly good materials with nowhere
+ * in a page to be shown, so they keep the download they always had.
+ */
+
+function fileMaterial(over: Partial<LearningMaterial> = {}): LearningMaterial {
+  return {
+    id: 1,
+    topicId: 7,
+    title: "Lab worksheet",
+    description: null,
+    kind: "file",
+    kindLabel: "File",
+    url: null,
+    downloadUrl: "http://127.0.0.1:8000/api/materials/1/download",
+    filename: "worksheet.pdf",
+    mimeType: "application/pdf",
+    sizeBytes: 2048,
+    order: 0,
+    isPublished: true,
+    ...over,
+  };
+}
+
+describe("viewerFor", () => {
+  it("shows a PDF in the page", () => {
+    expect(viewerFor(fileMaterial())).toBe("pdf");
+  });
+
+  it("shows the image types the API accepts", () => {
+    for (const mimeType of [
+      "image/png",
+      "image/jpeg",
+      "image/gif",
+      "image/webp",
+    ]) {
+      expect(viewerFor(fileMaterial({ mimeType }))).toBe("image");
+    }
+  });
+
+  it("reads a content type however it was cased", () => {
+    expect(viewerFor(fileMaterial({ mimeType: "Application/PDF" }))).toBe("pdf");
+  });
+
+  it("has no viewer for the files a browser cannot display", () => {
+    for (const mimeType of [
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/msword",
+      "application/vnd.ms-excel",
+      "application/zip",
+      "text/csv",
+    ]) {
+      expect(viewerFor(fileMaterial({ mimeType }))).toBeNull();
+    }
+  });
+
+  it("has no viewer for a material with no recorded type", () => {
+    expect(viewerFor(fileMaterial({ mimeType: null }))).toBeNull();
+  });
+
+  it("has no viewer for a link or a video", () => {
+    const link = fileMaterial({
+      kind: "link",
+      url: "https://example.com/primer",
+      downloadUrl: null,
+      mimeType: null,
+    });
+
+    expect(viewerFor(link)).toBeNull();
+    expect(viewerFor({ ...link, kind: "video" })).toBeNull();
+  });
+});
+
+describe("openMaterial", () => {
+  const objectUrls = { create: vi.fn(), revoke: vi.fn() };
+
+  beforeEach(() => {
+    objectUrls.create.mockReset().mockReturnValue("blob:netsim/1");
+    objectUrls.revoke.mockReset();
+
+    // Not present outside a browser, and the point of these is what the
+    // service does with the blob rather than what a browser makes of it.
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: objectUrls.create,
+      revokeObjectURL: objectUrls.revoke,
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("fetches through the API route, not a storage path", async () => {
+    const download = vi
+      .spyOn(api, "download")
+      .mockResolvedValue(new Blob(["%PDF-1.7"], { type: "application/pdf" }));
+
+    const opened = await openMaterial(fileMaterial());
+
+    // The origin and /api prefix are the client's to add, and the private
+    // storage path never appears at all.
+    expect(download).toHaveBeenCalledWith("/materials/1/download");
+    expect(opened.href).toBe("blob:netsim/1");
+  });
+
+  it("reports the type the response gave, not the type the row claimed", async () => {
+    vi.spyOn(api, "download").mockResolvedValue(
+      new Blob(["<html>"], { type: "text/html" }),
+    );
+
+    // The row says application/pdf. What actually arrived is what the caller
+    // has to decide on, because that is what would be rendered.
+    const opened = await openMaterial(fileMaterial());
+
+    expect(opened.type).toBe("text/html");
+  });
+
+  it("hands back the means to release it", async () => {
+    vi.spyOn(api, "download").mockResolvedValue(
+      new Blob(["x"], { type: "image/png" }),
+    );
+
+    const opened = await openMaterial(fileMaterial({ mimeType: "image/png" }));
+
+    expect(objectUrls.revoke).not.toHaveBeenCalled();
+
+    opened.revoke();
+
+    expect(objectUrls.revoke).toHaveBeenCalledWith("blob:netsim/1");
+  });
+
+  it("refuses a material that has no file", async () => {
+    const download = vi.spyOn(api, "download");
+
+    await expect(
+      openMaterial(fileMaterial({ downloadUrl: null })),
+    ).rejects.toThrow(/no file/i);
+
+    expect(download).not.toHaveBeenCalled();
+  });
+
+  it("lets the server's refusal through", async () => {
+    vi.spyOn(api, "download").mockRejectedValue(
+      new Error("This action is unauthorized."),
+    );
+
+    await expect(openMaterial(fileMaterial())).rejects.toThrow(
+      "This action is unauthorized.",
+    );
   });
 });

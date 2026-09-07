@@ -5,6 +5,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { MaterialList } from "./MaterialList";
+import { ApiError } from "@/services/api";
 import type { LearningMaterial } from "@/features/content/types";
 
 /**
@@ -21,12 +22,15 @@ vi.mock("@/features/content/materialService", async (importOriginal) => {
     typeof import("@/features/content/materialService")
   >();
 
-  return { ...actual, downloadMaterial: vi.fn() };
+  // viewerFor stays real: which files can be shown is the rule under test.
+  return { ...actual, downloadMaterial: vi.fn(), openMaterial: vi.fn() };
 });
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const { downloadMaterial } = await import("@/features/content/materialService");
+const { downloadMaterial, openMaterial } = await import(
+  "@/features/content/materialService"
+);
 const { toast } = await import("sonner");
 
 function material(over: Partial<LearningMaterial> = {}): LearningMaterial {
@@ -68,8 +72,42 @@ const videoMaterial = material({
   url: "https://www.youtube.com/watch?v=abcdefghijk",
 });
 
+const imageMaterial = material({
+  id: 4,
+  title: "Straight-through pinout",
+  kind: "file",
+  kindLabel: "File",
+  url: null,
+  downloadUrl: "http://127.0.0.1:8000/api/materials/4/download",
+  filename: "pinout.png",
+  mimeType: "image/png",
+  sizeBytes: 40960,
+});
+
+const deckMaterial = material({
+  id: 5,
+  title: "Week 3 slides",
+  kind: "file",
+  kindLabel: "File",
+  url: null,
+  downloadUrl: "http://127.0.0.1:8000/api/materials/5/download",
+  filename: "week-3.pptx",
+  mimeType:
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  sizeBytes: 1048576,
+});
+
+/** What openMaterial resolves to: bytes already in the tab, and their type. */
+function opened(type: string) {
+  return { href: `blob:netsim/${type}`, type, revoke: vi.fn() };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  // clearAllMocks forgets calls but keeps implementations, and these are set
+  // per test — a resolved value left behind would answer the next one.
+  vi.mocked(openMaterial).mockReset();
+  vi.mocked(downloadMaterial).mockReset();
 });
 
 afterEach(cleanup);
@@ -190,6 +228,156 @@ describe("MaterialList", () => {
       await userEvent.click(screen.getByRole("button", { name: /download/i }));
 
       await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    });
+  });
+
+  /*
+   * Reading a file in the page.
+   *
+   * A picture and a PDF can be read here; everything else keeps the download it
+   * always had. Nothing is fetched until somebody asks for it, and what comes
+   * back is released when they are done — a topic of twenty handouts should
+   * cost nothing to open.
+   */
+  describe("viewing a file in the page", () => {
+    it("offers to show a picture", () => {
+      render(<MaterialList materials={[imageMaterial]} />);
+
+      expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
+      // The download is an addition, not a replacement.
+      expect(
+        screen.getByRole("button", { name: /download/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("offers to show a PDF", () => {
+      render(<MaterialList materials={[fileMaterial]} />);
+
+      expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
+    });
+
+    it("offers no viewer for a slide deck", () => {
+      render(<MaterialList materials={[deckMaterial]} />);
+
+      // Nothing a browser ships can show a deck, so it is download-only.
+      expect(screen.queryByRole("button", { name: "View" })).toBeNull();
+      expect(
+        screen.getByRole("button", { name: /download/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("offers no viewer for a link or a video", () => {
+      render(<MaterialList materials={[material(), videoMaterial]} />);
+
+      expect(screen.queryByRole("button", { name: "View" })).toBeNull();
+    });
+
+    it("fetches nothing until it is asked to", () => {
+      render(<MaterialList materials={[imageMaterial, fileMaterial]} />);
+
+      expect(openMaterial).not.toHaveBeenCalled();
+    });
+
+    it("shows a picture through the API, not a storage path", async () => {
+      vi.mocked(openMaterial).mockResolvedValue(opened("image/png"));
+
+      const { container } = render(<MaterialList materials={[imageMaterial]} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "View" }));
+
+      const image = await screen.findByRole("img", {
+        name: imageMaterial.title,
+      });
+
+      expect(openMaterial).toHaveBeenCalledWith(imageMaterial);
+      expect(image).toHaveAttribute("src", "blob:netsim/image/png");
+      // The private path must never reach the page, viewer or not.
+      expect(container.innerHTML).not.toContain("learning-materials/");
+    });
+
+    it("shows a PDF in a sandboxed frame", async () => {
+      vi.mocked(openMaterial).mockResolvedValue(opened("application/pdf"));
+
+      const { container } = render(<MaterialList materials={[fileMaterial]} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "View" }));
+
+      await waitFor(() =>
+        expect(container.querySelector("iframe")).not.toBeNull(),
+      );
+
+      const frame = container.querySelector("iframe")!;
+
+      expect(frame).toHaveAttribute("src", "blob:netsim/application/pdf");
+      // An address made from a blob carries this page's origin, so whatever
+      // goes in a frame is sandboxed out of it.
+      expect(frame).toHaveAttribute("sandbox", "");
+    });
+
+    it("refuses to frame a file that did not arrive as a PDF", async () => {
+      const response = opened("text/html");
+      vi.mocked(openMaterial).mockResolvedValue(response);
+
+      const { container } = render(<MaterialList materials={[fileMaterial]} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "View" }));
+
+      // The row said PDF and the response did not. The response is what is
+      // about to be rendered, so the response is what decides.
+      expect(await screen.findByText(/did not arrive as a PDF/)).toBeInTheDocument();
+      expect(container.querySelector("iframe")).toBeNull();
+      expect(response.revoke).toHaveBeenCalled();
+    });
+
+    it("says while it is opening", async () => {
+      let settle: (value: ReturnType<typeof opened>) => void = () => {};
+      vi.mocked(openMaterial).mockReturnValue(
+        new Promise((resolve) => {
+          settle = resolve;
+        }),
+      );
+
+      render(<MaterialList materials={[imageMaterial]} />);
+      await userEvent.click(screen.getByRole("button", { name: "View" }));
+
+      expect(screen.getByText(/Opening/)).toBeInTheDocument();
+
+      settle(opened("image/png"));
+
+      await screen.findByRole("img", { name: imageMaterial.title });
+      expect(screen.queryByText(/Opening/)).toBeNull();
+    });
+
+    it("says what went wrong, in the server's own words", async () => {
+      vi.mocked(openMaterial).mockRejectedValue(
+        new ApiError("This action is unauthorized.", 403),
+      );
+
+      render(<MaterialList materials={[imageMaterial]} />);
+      await userEvent.click(screen.getByRole("button", { name: "View" }));
+
+      // A topic can be withdrawn while a student has it open.
+      expect(
+        await screen.findByText("This action is unauthorized."),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("img")).toBeNull();
+    });
+
+    it("releases the file when the viewer is closed", async () => {
+      const response = opened("image/png");
+      vi.mocked(openMaterial).mockResolvedValue(response);
+
+      render(<MaterialList materials={[imageMaterial]} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "View" }));
+      await screen.findByRole("img", { name: imageMaterial.title });
+
+      await userEvent.click(screen.getByRole("button", { name: /hide/i }));
+
+      expect(screen.queryByRole("img", { name: imageMaterial.title })).toBeNull();
+      // An object URL outlives the document unless it is let go of.
+      expect(response.revoke).toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
     });
   });
 });

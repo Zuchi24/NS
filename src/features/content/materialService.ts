@@ -325,3 +325,66 @@ export function validateDraft(
 
   return errors;
 }
+
+/**
+ * Which of the two viewers, if either, can show this material in the page.
+ *
+ * Read from the material's own content type rather than its filename, because
+ * that is what the server detected from the bytes it actually stored. A kind
+ * that is not here is not a failure — it is a file a browser has no business
+ * rendering, and it keeps the download it always had.
+ *
+ * PowerPoint is deliberately absent. Nothing a browser ships can display a
+ * deck, and the only ways to fake it are converting it on the server or handing
+ * the file to somebody else's viewer, neither of which is in this phase.
+ */
+export type MaterialViewer = "image" | "pdf";
+
+const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+export function viewerFor(material: LearningMaterial): MaterialViewer | null {
+  if (material.kind !== "file" || !material.downloadUrl) return null;
+
+  const type = (material.mimeType ?? "").toLowerCase();
+
+  if (type === "application/pdf") return "pdf";
+  if (IMAGE_TYPES.includes(type)) return "image";
+
+  return null;
+}
+
+/**
+ * Fetches an uploaded material for display in the page.
+ *
+ * The same authenticated route the download uses, and the same reason for going
+ * through it: the bytes sit on a private disk, the token travels in a header,
+ * and a plain `src` on an image or a frame would send no token and get a 401.
+ * So the file is fetched here and shown from an address that points at bytes
+ * already in this tab.
+ *
+ * The caller owns what comes back and must call revoke() when the viewer
+ * closes — an object URL lives as long as the document unless it is released.
+ *
+ * `type` is the blob's own content type, which is what the server said the
+ * bytes are. The caller checks it rather than trusting the material row: the
+ * row is what was recorded at upload, and only the response says what is
+ * actually about to be rendered.
+ */
+export async function openMaterial(material: LearningMaterial): Promise<{
+  href: string;
+  type: string;
+  revoke: () => void;
+}> {
+  if (!material.downloadUrl) {
+    throw new Error("That material has no file to show.");
+  }
+
+  const blob = await api.download(pathOf(material.downloadUrl));
+  const href = URL.createObjectURL(blob);
+
+  return {
+    href,
+    type: blob.type.toLowerCase(),
+    revoke: () => URL.revokeObjectURL(href),
+  };
+}
