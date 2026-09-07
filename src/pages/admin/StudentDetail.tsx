@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
   ArrowLeft,
@@ -6,19 +6,141 @@ import {
   Circle,
   Clock,
   Mail,
-  Map,
   TrendingUp,
   Trophy,
   User,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ErrorState, LoadingState } from "@/components/common/AsyncStates";
-import { fetchStudent } from "@/features/admin/adminService";
-import { standingClass, topicStatus } from "@/features/admin/format";
+import {
+  fetchCohorts,
+  fetchStudent,
+  moveStudentToSection,
+} from "@/features/admin/adminService";
+import { standingClass } from "@/features/admin/format";
+import type { SectionSummary, Student } from "@/features/admin/types";
 import { shortDate, timeAgo } from "@/services/time";
 import { useAsync } from "@/services/useAsync";
+
+/**
+ * Moving a student into another section.
+ *
+ * The only thing on this page that writes anything. It exists because a student
+ * chooses their own section when they sign up and can choose wrong, and every
+ * instructor figure is grouped by section — so one wrong choice otherwise skews
+ * two rosters for as long as the account lives.
+ *
+ * Only open sections are offered, which is the same rule the server enforces.
+ * The list is fetched when the form opens rather than with the page: most
+ * visits to a student are to read their progress, and the timetable is not part
+ * of that.
+ */
+function MoveSection({
+  student,
+  onMoved,
+}: {
+  student: Student;
+  onMoved: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [choice, setChoice] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+
+  const loadSections = useCallback(
+    () => (open ? fetchCohorts() : Promise.resolve(null)),
+    [open],
+  );
+  const { data: cohorts, error, loading } = useAsync(loadSections, [open]);
+
+  /*
+   * Every open section across every year level. A student can be moved between
+   * years as well as within one — a repeating student is the ordinary case —
+   * so the list is not narrowed to the year they are in now.
+   */
+  const sections: { yearLevel: string; section: SectionSummary }[] = (
+    cohorts ?? []
+  ).flatMap((year) =>
+    year.sections
+      .filter((section) => section.isActive)
+      .map((section) => ({ yearLevel: year.name, section })),
+  );
+
+  const save = async () => {
+    if (!choice) return;
+
+    setBusy(true);
+
+    try {
+      await moveStudentToSection(student.id, Number(choice));
+      toast.success(`Moved ${student.fullName}.`);
+      setOpen(false);
+      setChoice("");
+      onMoved();
+    } catch (e) {
+      // The server refuses a closed or missing section with a 422 whose message
+      // says so; that is the one worth showing.
+      toast.error(e instanceof Error ? e.message : "Could not move them.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        className="mt-2"
+        onClick={() => setOpen(true)}
+      >
+        Move to another section
+      </Button>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      {loading && <p className="text-xs text-gray-500">Loading sections…</p>}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+
+      {cohorts && (
+        <select
+          aria-label="Section"
+          value={choice}
+          onChange={(event) => setChoice(event.target.value)}
+          className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">Choose a section…</option>
+          {sections.map(({ yearLevel, section }) => (
+            <option key={section.id} value={section.id}>
+              {yearLevel} - {section.name}
+            </option>
+          ))}
+        </select>
+      )}
+
+      <div className="flex gap-2">
+        <Button size="sm" disabled={busy || !choice} onClick={save}>
+          {busy ? "Moving…" : "Move"}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          onClick={() => {
+            setOpen(false);
+            setChoice("");
+          }}
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function StudentDetail() {
   const { year, sectionId, studentId } = useParams();
@@ -31,14 +153,11 @@ export function StudentDetail() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
 
-  const { student, topics, challenges } = data;
+  const { student, challenges } = data;
   const { summary } = student;
 
   const challengesPassed = challenges.filter(
     (challenge) => challenge.passed,
-  ).length;
-  const topicsCompleted = topics.filter(
-    (topic) => topic.status === "completed",
   ).length;
 
   const percent = (count: number, of: number) =>
@@ -96,6 +215,7 @@ export function StudentDetail() {
                   ? `${student.section.yearLevel} - ${student.section.name}`
                   : "Not placed in a section"}
               </p>
+              <MoveSection student={student} onMoved={reload} />
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-600">
@@ -126,7 +246,7 @@ export function StudentDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-3">
                 <label className="text-xs font-semibold text-gray-600">
                   Challenges passed
@@ -140,24 +260,6 @@ export function StudentDetail() {
                   </div>
                   <Progress
                     value={percent(challengesPassed, challenges.length)}
-                    className="h-2"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label className="text-xs font-semibold text-gray-600">
-                  Topics completed
-                </label>
-                <div className="p-4 bg-gray-50 rounded-lg space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700">Completed</span>
-                    <span className="text-sm font-bold text-blue-600">
-                      {topicsCompleted}/{topics.length}
-                    </span>
-                  </div>
-                  <Progress
-                    value={percent(topicsCompleted, topics.length)}
                     className="h-2"
                   />
                 </div>
@@ -199,7 +301,7 @@ export function StudentDetail() {
           </p>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-6">
             <section className="space-y-4">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
@@ -260,64 +362,6 @@ export function StudentDetail() {
               </div>
             </section>
 
-            <section className="space-y-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <Map className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-semibold text-gray-900">Roadmap</h3>
-                </div>
-                <span className="text-sm font-bold text-blue-700">
-                  {topicsCompleted}/{topics.length} completed
-                </span>
-              </div>
-              <div className="max-h-[520px] space-y-2 overflow-y-auto pr-2">
-                {topics.map((topic) => {
-                  const status = topicStatus(topic.status);
-                  const done = topic.status === "completed";
-
-                  return (
-                    <div
-                      key={topic.id}
-                      className="rounded-lg border border-gray-200 p-3"
-                    >
-                      <div className="flex items-start gap-3">
-                        {done ? (
-                          <CheckCircle2 className="mt-0.5 w-5 h-5 flex-shrink-0 text-blue-600" />
-                        ) : (
-                          <Circle className="mt-0.5 w-5 h-5 flex-shrink-0 text-gray-400" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="font-semibold text-gray-900">
-                              {topic.title}
-                            </h4>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}
-                            >
-                              {status.label}
-                            </span>
-                          </div>
-                          <div className="mt-2 flex items-center gap-2">
-                            <Progress
-                              value={topic.progressPercent}
-                              className="h-1.5 w-24"
-                            />
-                            <span className="text-xs text-gray-500">
-                              {topic.progressPercent}%
-                            </span>
-                            {topic.roadmap && (
-                              <span className="text-xs text-gray-400 truncate">
-                                · {topic.roadmap}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
           </div>
         </CardContent>
       </Card>

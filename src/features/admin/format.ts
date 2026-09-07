@@ -1,4 +1,4 @@
-import type { Standing, TopicStatus } from "./types";
+import type { Standing } from "./types";
 
 /** Shared wording and colour for the instructor pages, so a student's
  * standing reads the same wherever it appears. */
@@ -12,20 +12,6 @@ const STANDING_CLASSES: Record<Standing, string> = {
 
 export function standingClass(standing: Standing): string {
   return STANDING_CLASSES[standing];
-}
-
-const TOPIC_STATUS: Record<TopicStatus, { label: string; className: string }> = {
-  completed: { label: "Completed", className: "bg-green-100 text-green-700" },
-  in_progress: { label: "In progress", className: "bg-blue-100 text-blue-700" },
-  unlocked: { label: "Open", className: "bg-gray-100 text-gray-600" },
-  locked: { label: "Locked", className: "bg-gray-100 text-gray-500" },
-};
-
-export function topicStatus(status: TopicStatus): {
-  label: string;
-  className: string;
-} {
-  return TOPIC_STATUS[status];
 }
 
 /** Bands a completion figure for a progress bar or a dot. */

@@ -12,6 +12,7 @@ export function AdminLayout() {
   const getPageTitle = () => {
     const path = location.pathname;
 
+    if (path.includes('/admin/achievements')) return 'Achievements';
     if (path.includes('/admin/roadmap')) return 'Roadmap Content';
     if (path.includes('/admin/analytics')) return 'Analytics & Insights';
     if (path.includes('/admin/profile')) return 'Admin Profile';

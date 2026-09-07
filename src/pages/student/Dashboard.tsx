@@ -245,20 +245,6 @@ export function Dashboard() {
                   </div>
 
                   {/* Roadmap Progress */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium text-gray-700">
-                        Roadmap Progress
-                      </span>
-                      <span className="text-gray-900 font-semibold">
-                        {data.topicsCompleted}/{data.topicsTotal}
-                      </span>
-                    </div>
-                    <Progress
-                      value={percentOf(data.topicsCompleted, data.topicsTotal)}
-                      className="h-2"
-                    />
-                  </div>
                 </div>
               </CardContent>
             </Card>

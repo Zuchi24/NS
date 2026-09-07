@@ -1,46 +1,31 @@
-import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
   ArrowLeft,
   BookOpen,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
   Lock,
   Play,
-  PlayCircle,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { useAuth } from "@/features/auth/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import {
   EmptyState,
   ErrorState,
   LoadingState,
 } from "@/components/common/AsyncStates";
-import {
-  challengeRoute,
-  fetchMyAttempts,
-  fetchTopic,
-  startAttempt,
-} from "@/features/content/contentService";
+import { fetchTopic } from "@/features/content/contentService";
 import { fetchTopicMaterials, youtubeId } from "@/features/content/materialService";
 import { MaterialList } from "@/features/content/components/MaterialList";
-import type {
-  Attempt,
-  Challenge,
-  LearningMaterial,
-  Topic,
-} from "@/features/content/types";
+import type { LearningMaterial, Topic } from "@/features/content/types";
 import { ApiError } from "@/services/api";
 import { useAsync } from "@/services/useAsync";
 
 /**
- * One topic: what it covers, its video, the challenges placed in it, and how
+ * One topic: what it covers, its video, its learning materials, and how
  * far the student has got.
  *
  * Everything here is the server's — including whether the topic is open at all.
@@ -54,28 +39,8 @@ type TopicView =
   | {
       locked: false;
       detail: Awaited<ReturnType<typeof fetchTopic>>;
-      attempts: Attempt[];
       materials: LearningMaterial[];
     };
-
-type ChallengeState = "available" | "in-progress" | "attempted" | "passed";
-
-function stateOf(challenge: Challenge, attempts: Attempt[]): ChallengeState {
-  const mine = attempts.filter((a) => a.challengeId === challenge.id);
-  const submitted = mine.filter((a) => a.status === "completed");
-
-  if (submitted.some((a) => a.passed)) return "passed";
-  if (mine.some((a) => a.status === "in_progress")) return "in-progress";
-
-  return submitted.length > 0 ? "attempted" : "available";
-}
-
-const STATE_LABEL: Record<ChallengeState, string> = {
-  available: "Start",
-  "in-progress": "Continue",
-  attempted: "Try Again",
-  passed: "Passed",
-};
 
 export function TopicDetailsPage() {
   const { isAdmin } = useAuth();
@@ -83,17 +48,14 @@ export function TopicDetailsPage() {
   const { topicId } = useParams();
   const id = Number(topicId);
 
-  const [starting, setStarting] = useState<number | null>(null);
-
   const { data, error, loading, reload } = useAsync<TopicView>(async () => {
     try {
-      const [detail, attempts, materials] = await Promise.all([
+      const [detail, materials] = await Promise.all([
         fetchTopic(id),
-        fetchMyAttempts(),
         fetchTopicMaterials(id),
       ]);
 
-      return { locked: false, detail, attempts, materials };
+      return { locked: false, detail, materials };
     } catch (e) {
       // A locked topic is a 403 by design, not a failure worth an error page.
       if (e instanceof ApiError && e.status === 403) {
@@ -161,46 +123,19 @@ export function TopicDetailsPage() {
     );
   }
 
-  const { topic, challenges, roadmapTitle, siblings } = data.detail;
-  const attempts = data.attempts;
+  const { topic, roadmapTitle, siblings } = data.detail;
   const materials = data.materials;
-  const progress = topic.progress;
 
   const index = siblings.findIndex((sibling) => sibling.id === topic.id);
   const previous = index > 0 ? siblings[index - 1] : null;
   const next =
     index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : null;
 
-  const goTo = (sibling: Topic | null) => {
-    if (!sibling) return;
-
-    // The roadmap decides what is open; paging must not walk around it.
-    if (sibling.progress?.isUnlocked === false) {
-      toast.error("Finish the topic before that one to unlock it");
-      return;
-    }
-
-    navigate(`/topic/${sibling.id}`);
-  };
-
-  const open = async (challenge: Challenge) => {
-    setStarting(challenge.id);
-
-    try {
-      const attempt = await startAttempt(challenge.id);
-      navigate(challengeRoute(challenge, attempt.id));
-    } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "Could not start the challenge",
-      );
-      setStarting(null);
-    }
-  };
+  // Nothing is paced: every topic of a roadmap the student can see is open.
+  const goTo = (sibling: Topic | null) =>
+    sibling && navigate(`/topic/${sibling.id}`);
 
   const videoId = youtubeId(topic.videoUrl);
-  const passedCount = challenges.filter(
-    (challenge) => stateOf(challenge, attempts) === "passed",
-  ).length;
 
   return shell(
     <>
@@ -228,67 +163,6 @@ export function TopicDetailsPage() {
               </CardContent>
             </Card>
           )}
-
-          {/* The challenges placed in this topic, in the topic's own order. */}
-          <Card className="border border-gray-200 shadow-sm bg-white">
-            <CardContent className="p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">
-                Challenges
-              </h2>
-
-              {challenges.length === 0 ? (
-                <p className="text-sm text-gray-500">
-                  No challenges have been placed in this topic yet.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {challenges.map((challenge) => {
-                    const state = stateOf(challenge, attempts);
-                    const isPassed = state === "passed";
-
-                    return (
-                      <div
-                        key={challenge.id}
-                        className="flex items-center justify-between gap-4 p-4 border border-gray-200 rounded-lg"
-                      >
-                        <div className="flex items-start gap-3 min-w-0">
-                          {isPassed ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                          ) : (
-                            <PlayCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                          )}
-                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-900">
-                              {challenge.title}
-                            </p>
-                            {challenge.description && (
-                              <p className="text-sm text-gray-600 line-clamp-2">
-                                {challenge.description}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <Button
-                          size="sm"
-                          variant={isPassed ? "outline" : "default"}
-                          onClick={() => open(challenge)}
-                          disabled={starting === challenge.id}
-                          className="flex-shrink-0"
-                        >
-                          {starting === challenge.id
-                            ? "Opening…"
-                            : isPassed
-                              ? "Try Again"
-                              : STATE_LABEL[state]}
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
           {/* The topic's own materials, as its author ordered them. The API
               serves these only for a topic the student may open, so reaching
@@ -365,57 +239,6 @@ export function TopicDetailsPage() {
             </CardContent>
           </Card>
 
-          {/* Progress is earned by passing challenges — there is nothing to
-              mark by hand. */}
-          <Card className="border border-gray-200 shadow-sm">
-            <CardContent className="p-5">
-              <h3 className="text-lg font-bold text-gray-900 mb-3">
-                Your Progress
-              </h3>
-
-              <div
-                className={`flex items-center gap-3 p-3 rounded-lg ${
-                  progress?.status === "completed" ? "bg-green-50" : "bg-gray-50"
-                }`}
-              >
-                {progress?.status === "completed" ? (
-                  <>
-                    <CheckCircle2 className="w-6 h-6 text-green-600" />
-                    <div>
-                      <p className="font-semibold text-green-700">Completed</p>
-                      <p className="text-xs text-green-600">
-                        Every required challenge passed.
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-6 h-6 rounded-full border-2 border-gray-300" />
-                    <div>
-                      <p className="font-semibold text-gray-700">
-                        {progress?.status === "in_progress"
-                          ? "In progress"
-                          : "Not started"}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Pass this topic's challenges to complete it.
-                      </p>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {challenges.length > 0 && (
-                <div className="mt-4 space-y-1.5">
-                  <Progress value={progress?.percent ?? 0} className="h-2" />
-                  <p className="text-xs text-gray-500 tabular-nums">
-                    {passedCount} of {challenges.length} challenges passed
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
           <Card className="border border-gray-200 shadow-sm">
             <CardContent className="p-5">
               <h3 className="text-lg font-bold text-gray-900 mb-3">
@@ -437,9 +260,6 @@ export function TopicDetailsPage() {
                   onClick={() => goTo(next)}
                   disabled={!next}
                 >
-                  {next?.progress?.isUnlocked === false && (
-                    <Lock className="w-3.5 h-3.5 mr-2 text-gray-400" />
-                  )}
                   Next Topic
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>

@@ -9,17 +9,14 @@ export interface Paginated<T> {
   };
 }
 
-export type TopicStatus = "locked" | "unlocked" | "in_progress" | "completed";
-
-/** Where one student stands on one topic, as the server works it out. */
-export interface TopicProgress {
-  status: TopicStatus;
-  /** Share of the topic's required challenges passed, 0-100. */
-  percent: number;
-  isUnlocked: boolean;
-  completedAt: string | null;
-}
-
+/**
+ * One part of a roadmap: reading, watching, and the material attached to it.
+ *
+ * A topic holds no challenges and paces nothing. Every topic of a published
+ * roadmap is open to any signed-in student, so there is no standing to report
+ * and no lock to show — what gates a topic is whether its roadmap has been
+ * published, which the server answers by refusing the request.
+ */
 export interface Topic {
   id: number;
   roadmapId: number;
@@ -27,13 +24,6 @@ export interface Topic {
   description: string | null;
   videoUrl: string | null;
   order: number;
-  /** Present when the topic was loaded with its counts. */
-  challengesCount: number | null;
-  /**
-   * The student's own standing. Null when the topic was loaded without it —
-   * never derive it on the client, the server owns the unlock rules.
-   */
-  progress: TopicProgress | null;
 }
 
 export interface Roadmap {
@@ -88,13 +78,6 @@ export interface Challenge {
    */
   requiredFamilies: string[];
   order: number;
-  /**
-   * True when every topic holding this challenge is still locked. A challenge
-   * placed in no topic is never locked — it stands on its own.
-   */
-  locked: boolean;
-  /** The topics this challenge is placed in. Empty for a catalogue-only one. */
-  topicIds: number[];
 }
 
 export type AttemptStatus = "in_progress" | "completed" | "abandoned";

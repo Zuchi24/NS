@@ -19,6 +19,7 @@ import { ErrorState, LoadingState } from "@/components/common/AsyncStates";
 import { ApiError } from "@/services/api";
 import { useAsync } from "@/services/useAsync";
 import {
+  MAX_UPLOAD_MEGABYTES,
   createMaterial,
   deleteMaterial,
   fetchTopicMaterials,
@@ -433,9 +434,9 @@ function MaterialForm({
           />
           <p className="text-xs text-gray-600">
             PDF, Office documents (including PPT and PPTX), images, text or zip.
-            Up to 20 MB. Files are stored privately and only released to students
-            who can open this topic. Video belongs under the video kind, as a
-            link.
+            Up to {MAX_UPLOAD_MEGABYTES} MB. Files are stored privately and only
+            released to students who can open this topic. Video belongs under the
+            video kind, as a link.
           </p>
           {existingFile && !draft.file && (
             <p className="text-xs text-gray-600">

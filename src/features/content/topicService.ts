@@ -22,7 +22,6 @@ interface ApiTopic {
   description: string | null;
   ytube_link: string | null;
   order: number;
-  challenges_count?: number;
 }
 
 function toTopic(topic: ApiTopic): Topic {
@@ -33,10 +32,6 @@ function toTopic(topic: ApiTopic): Topic {
     description: topic.description,
     videoUrl: topic.ytube_link,
     order: topic.order,
-    challengesCount: topic.challenges_count ?? null,
-    // These endpoints are staff-facing and answer about the topic, not about
-    // any one student, so there is no standing to report.
-    progress: null,
   };
 }
 
@@ -138,6 +133,36 @@ export async function reorderTopics(
 }
 
 /**
+ * How long a topic's overview may be, in characters.
+ *
+ * The same number the API enforces — StoreTopicRequest::DESCRIPTION_MAX_CHARACTERS
+ * — and it has to stay that way: a form that allows more produces a draft the
+ * server refuses, and one that allows less refuses work the server would have
+ * taken. It is an overview, not the topic's content: about three lines in the
+ * card the student roadmap draws it in, which is what keeps a path of them
+ * readable.
+ */
+export const TOPIC_DESCRIPTION_MAX = 280;
+
+/**
+ * How long an overview is, counted the way the server counts it.
+ *
+ * `String.length` counts UTF-16 units, so anything outside the basic plane —
+ * an emoji, most rarer scripts — reads as two. Laravel's `max` rule counts
+ * characters with mb_strlen, which reads it as one. Left alone, a form built on
+ * `.length` refuses an overview of 280 emoji that the API would have stored,
+ * and there is no way for the author to appeal it. Spreading the string counts
+ * code points, which is what mb_strlen counts.
+ *
+ * The text is trimmed first because that is what gets stored: toPayload sends
+ * the trimmed value, and Laravel trims incoming strings again before it
+ * validates them, so trailing spaces can never be what puts an overview over.
+ */
+export function overviewLength(description: string): number {
+  return [...description.trim()].length;
+}
+
+/**
  * What is wrong with this draft, per field, or nothing.
  *
  * The server validates all of this again and has the final say; this exists so
@@ -145,13 +170,23 @@ export async function reorderTopics(
  */
 export function validateTopicDraft(
   draft: TopicDraft,
-): Partial<Record<"title" | "videoUrl", string>> {
-  const errors: Partial<Record<"title" | "videoUrl", string>> = {};
+): Partial<Record<"title" | "description" | "videoUrl", string>> {
+  const errors: Partial<Record<"title" | "description" | "videoUrl", string>> =
+    {};
 
   if (draft.title.trim() === "") {
     errors.title = "Give the topic a title.";
   } else if (draft.title.trim().length > 255) {
     errors.title = "Keep the title under 255 characters.";
+  }
+
+  // The same count the server will make, on the same text it will store.
+  const overview = overviewLength(draft.description);
+
+  if (overview > TOPIC_DESCRIPTION_MAX) {
+    errors.description =
+      `Keep the overview to ${TOPIC_DESCRIPTION_MAX} characters or fewer. ` +
+      `That one is ${overview}.`;
   }
 
   // Optional, but if there is one it has to be an address a browser can open —

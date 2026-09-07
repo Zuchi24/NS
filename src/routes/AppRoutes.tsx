@@ -203,6 +203,12 @@ export const routes: RouteObject[] = [
             }),
           },
           {
+            path: "achievements",
+            lazy: async () => ({
+              Component: (await import("@/pages/admin/AchievementAdminPage")).AchievementAdminPage,
+            }),
+          },
+          {
             path: "profile",
             lazy: async () => ({ Component: (await import("@/pages/admin/AdminProfile")).AdminProfile }),
           },

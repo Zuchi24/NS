@@ -34,8 +34,8 @@ vi.mock("@/features/content/contentService", async (importOriginal) => {
   };
 });
 
-// The materials panel does its own fetching; stubbed so these tests are about
-// the page rather than about what hangs off the selected topic.
+// The materials panel does its own fetching, and hangs off whichever topic
+// card is open; stubbed so these tests are about the page rather than about it.
 vi.mock("./TopicMaterialsPanel", () => ({
   TopicMaterialsPanel: () => <div data-testid="materials-panel" />,
 }));
@@ -70,8 +70,6 @@ function topic(over: Partial<Topic> = {}): Topic {
     description: null,
     videoUrl: null,
     order: 0,
-    challengesCount: 0,
-    progress: null,
     ...over,
   };
 }
@@ -174,9 +172,9 @@ describe("RoadmapAdminPage", () => {
     await user.selectOptions(screen.getByLabelText(/authoring/i), "2");
 
     // Selecting the draft is only useful if its topics come with it — that is
-    // what the authoring panel works on. The title appears twice on the page,
-    // in the authoring list and again as the selected topic's heading.
-    expect(screen.getAllByText("Unreleased topic").length).toBeGreaterThan(0);
+    // what the authoring panel works on. Each topic is one card, folded until
+    // the author opens it.
+    expect(screen.getByText("Unreleased topic")).toBeInTheDocument();
     expect(screen.getByText(/1 topic in Unreleased roadmap/i)).toBeInTheDocument();
   });
 

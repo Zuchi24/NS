@@ -73,9 +73,6 @@ export function SectionView() {
                       Challenges passed
                     </th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
-                      Topics done
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
                       Last active
                     </th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
@@ -121,10 +118,6 @@ export function SectionView() {
                             {student.summary.challengesTotal}
                           </span>
                         </div>
-                      </td>
-                      <td className="py-4 px-4 text-sm text-gray-600">
-                        {student.summary.topicsCompleted}/
-                        {student.summary.topicsTotal}
                       </td>
                       <td className="py-4 px-4 text-sm text-gray-600">
                         {timeAgo(student.summary.lastActiveAt)}

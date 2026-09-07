@@ -1,5 +1,4 @@
 import {
-  Activity,
   AlertTriangle,
   BookOpen,
   Trophy,
@@ -46,14 +45,6 @@ export function Dashboard() {
       icon: Trophy,
       color: "text-green-600",
       bgColor: "bg-green-100",
-    },
-    {
-      title: "Roadmap Completion",
-      value: `${overview.roadmapCompletion.percent}%`,
-      note: `${overview.roadmapCompletion.count} of ${overview.roadmapCompletion.possible} topics done`,
-      icon: Activity,
-      color: "text-orange-600",
-      bgColor: "bg-orange-100",
     },
   ];
 
@@ -208,13 +199,6 @@ export function Dashboard() {
               data={overview.byYearLevel}
               measure="challengeCompletion"
               unit="passed"
-            />
-            <CompletionChart
-              title="Roadmap completion by year level"
-              description="Of every topic each student could have finished, the share that has been finished"
-              data={overview.byYearLevel}
-              measure="roadmapCompletion"
-              unit="topics"
             />
           </div>
         </>

@@ -4,23 +4,24 @@ import type {
   ChallengePerformance,
   Overview,
   Rate,
+  SectionState,
   Standing,
   Student,
   StudentChallenge,
   StudentDetail,
-  StudentTopic,
   Submission,
-  TopicEngagement,
-  TopicStatus,
   YearLevelCohort,
 } from "./types";
 
 /**
- * Reads the instructor endpoints.
+ * The instructor endpoints.
  *
- * They are read-only — every figure is derived from students' attempts, so
- * there is nothing here to write back. As with the rest of the app the API
- * answers in snake_case, and nothing outside this file has to know that.
+ * The monitoring half is read-only — every figure is derived from students'
+ * attempts, so there is nothing there to write back. The two writes at the
+ * bottom are the exception, and they are the whole of what an instructor may
+ * change about enrolment: whether a section is open, and which section a
+ * student is in. As with the rest of the app the API answers in snake_case, and
+ * nothing outside this file has to know that.
  */
 
 interface ApiRate {
@@ -39,7 +40,6 @@ interface ApiOverview {
   active_students: number;
   active_within_days: number;
   challenge_completion: ApiRate;
-  roadmap_completion: ApiRate;
   submissions: { total: number; passed: number; pass_rate: number };
   year_levels_breakdown: {
     id: number;
@@ -47,28 +47,13 @@ interface ApiOverview {
     name: string;
     students: number;
     challenge_completion: ApiRate;
-    roadmap_completion: ApiRate;
   }[];
-}
-
-interface ApiTopicEngagement {
-  id: number;
-  title: string;
-  roadmap: string | null;
-  challenges: number;
-  students_reached: number;
-  students_in_progress: number;
-  students_completed: number;
-  students_total: number;
-  completion_percent: number;
-  average_minutes: number | null;
 }
 
 interface ApiChallengePerformance {
   id: number;
   title: string;
   kind: string;
-  topics: string[];
   submissions: number;
   passed_submissions: number;
   pass_rate: number;
@@ -88,6 +73,7 @@ interface ApiYearLevel {
     name: string;
     capacity: number | null;
     students_count: number;
+    is_active: boolean;
   }[];
 }
 
@@ -106,8 +92,6 @@ interface ApiStudent {
   summary: {
     challenges_passed: number;
     challenges_total: number;
-    topics_completed: number;
-    topics_total: number;
     submissions: number;
     completion_percent: number;
     last_active_at: string | null;
@@ -116,22 +100,11 @@ interface ApiStudent {
   };
 }
 
-interface ApiStudentTopic {
-  id: number;
-  title: string;
-  roadmap: string | null;
-  status: TopicStatus;
-  progress_percent: number;
-  started_at: string | null;
-  completed_at: string | null;
-}
-
 interface ApiStudentChallenge {
   id: number;
   title: string;
   description: string | null;
   kind: string;
-  topics: string[];
   attempts: number;
   submissions: number;
   passed: boolean;
@@ -175,29 +148,12 @@ function toStudent(student: ApiStudent): Student {
     summary: {
       challengesPassed: student.summary.challenges_passed,
       challengesTotal: student.summary.challenges_total,
-      topicsCompleted: student.summary.topics_completed,
-      topicsTotal: student.summary.topics_total,
       submissions: student.summary.submissions,
       completionPercent: student.summary.completion_percent,
       lastActiveAt: student.summary.last_active_at,
       standing: student.summary.standing,
       standingLabel: student.summary.standing_label,
     },
-  };
-}
-
-function toTopicEngagement(topic: ApiTopicEngagement): TopicEngagement {
-  return {
-    id: topic.id,
-    title: topic.title,
-    roadmap: topic.roadmap,
-    challenges: topic.challenges,
-    studentsReached: topic.students_reached,
-    studentsInProgress: topic.students_in_progress,
-    studentsCompleted: topic.students_completed,
-    studentsTotal: topic.students_total,
-    completionPercent: topic.completion_percent,
-    averageMinutes: topic.average_minutes,
   };
 }
 
@@ -208,7 +164,6 @@ function toChallengePerformance(
     id: challenge.id,
     title: challenge.title,
     kind: challenge.kind,
-    topics: challenge.topics,
     submissions: challenge.submissions,
     passedSubmissions: challenge.passed_submissions,
     passRate: challenge.pass_rate,
@@ -233,7 +188,6 @@ export async function fetchOverview(): Promise<Overview> {
     activeStudents: data.active_students,
     activeWithinDays: data.active_within_days,
     challengeCompletion: toRate(data.challenge_completion),
-    roadmapCompletion: toRate(data.roadmap_completion),
     submissions: {
       total: data.submissions.total,
       passed: data.submissions.passed,
@@ -245,21 +199,22 @@ export async function fetchOverview(): Promise<Overview> {
       name: year.name,
       students: year.students,
       challengeCompletion: toRate(year.challenge_completion),
-      roadmapCompletion: toRate(year.roadmap_completion),
     })),
   };
 }
 
-/** Where the cohort is getting stuck, per topic and per challenge. */
+/**
+ * Where the cohort is getting stuck, per challenge.
+ *
+ * Only challenges. A topic holds reading and watching, and nothing records
+ * whether a student has done either, so the API reports nothing about one.
+ */
 export async function fetchAnalytics(): Promise<Analytics> {
   const { data } = await api.get<{
-    data: { topics: ApiTopicEngagement[]; challenges: ApiChallengePerformance[] };
+    data: { challenges: ApiChallengePerformance[] };
   }>("/admin/analytics");
 
-  return {
-    topics: data.topics.map(toTopicEngagement),
-    challenges: data.challenges.map(toChallengePerformance),
-  };
+  return { challenges: data.challenges.map(toChallengePerformance) };
 }
 
 /**
@@ -280,6 +235,7 @@ export async function fetchCohorts(): Promise<YearLevelCohort[]> {
       name: section.name,
       capacity: section.capacity,
       studentsCount: section.students_count,
+      isActive: section.is_active,
     })),
   }));
 }
@@ -295,43 +251,32 @@ export async function fetchSectionStudents(
   return data.map(toStudent);
 }
 
-/** One student against the whole catalogue, reached or not. */
+/** One student against the whole challenge catalogue, opened or not. */
 export async function fetchStudent(studentId: number): Promise<StudentDetail> {
   const { data } = await api.get<{
     data: {
       student: ApiStudent;
-      topics: ApiStudentTopic[];
       challenges: ApiStudentChallenge[];
     };
   }>(`/admin/students/${studentId}`);
 
   return {
     student: toStudent(data.student),
-    topics: data.topics.map(
-      (topic): StudentTopic => ({
-        id: topic.id,
-        title: topic.title,
-        roadmap: topic.roadmap,
-        status: topic.status,
-        progressPercent: topic.progress_percent,
-        startedAt: topic.started_at,
-        completedAt: topic.completed_at,
-      }),
-    ),
-    challenges: data.challenges.map(
-      (challenge): StudentChallenge => ({
-        id: challenge.id,
-        title: challenge.title,
-        description: challenge.description,
-        kind: challenge.kind,
-        topics: challenge.topics,
-        attempts: challenge.attempts,
-        submissions: challenge.submissions,
-        passed: challenge.passed,
-        passedAt: challenge.passed_at,
-        lastAttemptAt: challenge.last_attempt_at,
-      }),
-    ),
+    challenges: data.challenges.map(toStudentChallenge),
+  };
+}
+
+function toStudentChallenge(challenge: ApiStudentChallenge): StudentChallenge {
+  return {
+    id: challenge.id,
+    title: challenge.title,
+    description: challenge.description,
+    kind: challenge.kind,
+    attempts: challenge.attempts,
+    submissions: challenge.submissions,
+    passed: challenge.passed,
+    passedAt: challenge.passed_at,
+    lastAttemptAt: challenge.last_attempt_at,
   };
 }
 
@@ -357,4 +302,88 @@ export async function fetchRecentSubmissions(limit = 20): Promise<Submission[]> 
     requirements: submission.requirements,
     submittedAt: submission.submitted_at,
   }));
+}
+
+/**
+ * The section state as the server left it, which is what the caller redraws
+ * from rather than assuming the move went the way it asked.
+ */
+interface ApiSection {
+  id: number;
+  name: string;
+  capacity: number | null;
+  is_active: boolean;
+}
+
+function toSectionState(section: ApiSection): SectionState {
+  return {
+    id: section.id,
+    name: section.name,
+    capacity: section.capacity,
+    isActive: section.is_active,
+  };
+}
+
+/**
+ * Reopens a section to new sign-ups.
+ *
+ * Nothing about the students in it changes — they never left. Its own route
+ * rather than a field on an edit, because opening a section is a decision about
+ * a term rather than a correction.
+ */
+export async function activateSection(
+  sectionId: number,
+): Promise<SectionState> {
+  const { data } = await api.post<{ data: ApiSection }>(
+    `/admin/sections/${sectionId}/activate`,
+    {},
+  );
+
+  return toSectionState(data);
+}
+
+/**
+ * Closes a section to new sign-ups.
+ *
+ * The roster stays, and so does everything its students have done: the only
+ * thing that changes is whether the sign-up form offers it. Reversible, which
+ * is why this needs no confirmation of the kind retiring an achievement does.
+ */
+export async function deactivateSection(
+  sectionId: number,
+): Promise<SectionState> {
+  const { data } = await api.post<{ data: ApiSection }>(
+    `/admin/sections/${sectionId}/deactivate`,
+    {},
+  );
+
+  return toSectionState(data);
+}
+
+/**
+ * Moves a student into another open section.
+ *
+ * The one thing an instructor writes about a student, and it exists because a
+ * student picks their own section at sign-up and can pick wrong. Only the
+ * section is sent: nothing else about an account is an instructor's to change.
+ *
+ * The server refuses a closed or missing section with a 422, and the message it
+ * gives is the one worth showing — it says the section is not open for
+ * enrolment, which is what the instructor needs to know.
+ */
+export async function moveStudentToSection(
+  studentId: number,
+  sectionId: number,
+): Promise<StudentDetail> {
+  const { data } = await api.put<{
+    data: {
+      student: ApiStudent;
+      challenges: ApiStudentChallenge[];
+    };
+  }>(`/admin/students/${studentId}`, { section_id: sectionId });
+
+  return {
+    student: toStudent(data.student),
+    challenges: data.challenges.map(toStudentChallenge),
+  };
 }

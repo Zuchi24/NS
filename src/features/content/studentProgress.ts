@@ -31,7 +31,7 @@ export interface StudentProgress {
   challengesTotal: number;
   /** Challenges with an attempt still open. */
   challengesInProgress: number;
-  topicsCompleted: number;
+  /** How much reading the catalogue holds. Nothing records whether it is done. */
   topicsTotal: number;
   /**
    * Where the student stands on each challenge they have opened, newest first.
@@ -93,11 +93,6 @@ export function deriveStudentProgress(
     challengesInProgress: countDistinctChallenges(
       counted.filter((attempt) => attempt.status === "in_progress"),
     ),
-    // The server decides what "completed" means for a topic; this counts the
-    // rows it marked, rather than inferring completion from attempts.
-    topicsCompleted: topics.filter(
-      (topic) => topic.progress?.status === "completed",
-    ).length,
     topicsTotal: topics.length,
     // Already ordered by the server, and already one per challenge. Copied so
     // the caller's array is never handed out to be mutated.

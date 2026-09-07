@@ -17,9 +17,21 @@ export function Analytics() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
 
-  const { topics, challenges } = data;
+  const { challenges } = data;
 
-  const students = topics[0]?.studentsTotal ?? 0;
+  /*
+   * The busiest challenge, which is what the card below says this is.
+   *
+   * Reading challenges[0] agreed with that only by coincidence: the API returns
+   * the catalogue in its authored order, and the first challenge is usually the
+   * most attempted simply because it comes first. Reorder the catalogue, or
+   * publish a challenge people take up faster, and the figure would keep the
+   * label while quietly reporting something else.
+   */
+  const busiest = challenges.reduce(
+    (most, challenge) => Math.max(most, challenge.studentsAttempted),
+    0,
+  );
   const submissions = challenges.reduce(
     (sum, challenge) => sum + challenge.submissions,
     0,
@@ -39,21 +51,13 @@ export function Analytics() {
         ) / timed.length,
       )
     : null;
-  const topicsCompleted = topics.reduce(
-    (sum, topic) => sum + topic.studentsCompleted,
-    0,
-  );
-
   const metrics = [
     {
-      label: "Topic completion",
-      value:
-        students > 0 && topics.length > 0
-          ? `${Math.round(
-              (topicsCompleted / (students * topics.length)) * 100,
-            )}%`
-          : "—",
-      note: `${topicsCompleted} of ${students * topics.length} student-topic pairs`,
+      label: "Challenges passed",
+      value: String(
+        challenges.reduce((sum, challenge) => sum + challenge.studentsPassed, 0),
+      ),
+      note: `across ${challenges.length} challenge${challenges.length === 1 ? "" : "s"}`,
       icon: Activity,
       color: "text-green-600",
       bgColor: "bg-green-100",
@@ -67,9 +71,9 @@ export function Analytics() {
       bgColor: "bg-blue-100",
     },
     {
-      label: "Students",
-      value: String(students),
-      note: `across ${topics.length} topics and ${challenges.length} challenges`,
+      label: "Students attempting",
+      value: String(busiest),
+      note: `on the busiest of ${challenges.length} challenge${challenges.length === 1 ? "" : "s"}`,
       icon: Users,
       color: "text-orange-600",
       bgColor: "bg-orange-100",
@@ -120,92 +124,6 @@ export function Analytics() {
 
       <Card className="border-gray-200">
         <CardHeader>
-          <CardTitle className="text-lg">Topic engagement</CardTitle>
-          <p className="text-sm text-gray-600 mt-2">
-            How far the cohort has got into each topic. &ldquo;Reached&rdquo; is
-            how many students the topic is open to.
-          </p>
-        </CardHeader>
-        <CardContent>
-          {topics.length === 0 ? (
-            <EmptyState
-              title="No topics yet"
-              description="Topics appear here once the catalogue has some."
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
-                      Topic
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
-                      Reached
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
-                      In progress
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
-                      Completed
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
-                      Avg time
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
-                      Completion
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topics.map((topic) => (
-                    <tr
-                      key={topic.id}
-                      className="border-b border-gray-100 hover:bg-gray-50"
-                    >
-                      <td className="py-4 px-4">
-                        <p className="font-medium text-gray-900">
-                          {topic.title}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {topic.challenges} challenge
-                          {topic.challenges === 1 ? "" : "s"}
-                        </p>
-                      </td>
-                      <td className="py-4 px-4 text-sm text-gray-600">
-                        {topic.studentsReached}/{topic.studentsTotal}
-                      </td>
-                      <td className="py-4 px-4 text-sm text-gray-600">
-                        {topic.studentsInProgress}
-                      </td>
-                      <td className="py-4 px-4 text-sm text-gray-600">
-                        {topic.studentsCompleted}
-                      </td>
-                      <td className="py-4 px-4 text-sm text-gray-600">
-                        {minutes(topic.averageMinutes)}
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-2">
-                          <Progress
-                            value={topic.completionPercent}
-                            className="h-2 w-24"
-                          />
-                          <span className="text-sm text-gray-600">
-                            {topic.completionPercent}%
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-gray-200">
-        <CardHeader>
           <CardTitle className="text-lg">Challenge performance</CardTitle>
           <p className="text-sm text-gray-600 mt-2">
             A challenge nobody has submitted for shows no rate, rather than a
@@ -227,11 +145,6 @@ export function Analytics() {
                       <span className="font-medium text-gray-900">
                         {challenge.title}
                       </span>
-                      {challenge.topics.length > 0 && (
-                        <span className="ml-2 text-xs text-gray-500">
-                          {challenge.topics.join(", ")}
-                        </span>
-                      )}
                     </div>
                     <div className="flex items-center gap-4 text-sm">
                       <span className="text-gray-600">

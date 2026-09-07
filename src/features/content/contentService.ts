@@ -8,7 +8,6 @@ import type {
   RequirementResult,
   Roadmap,
   Topic,
-  TopicProgress,
 } from "./types";
 
 /**
@@ -25,15 +24,7 @@ interface ApiTopic {
   description: string | null;
   ytube_link: string | null;
   order: number;
-  challenges_count?: number;
-  challenges?: ApiChallenge[];
   roadmap?: ApiRoadmap;
-  progress?: {
-    status: TopicProgress["status"];
-    progress_percent: number;
-    is_unlocked: boolean;
-    completed_at: string | null;
-  } | null;
 }
 
 interface ApiRoadmap {
@@ -54,8 +45,6 @@ interface ApiChallenge {
   config?: Challenge["config"];
   required_families?: string[];
   order: number;
-  is_locked?: boolean;
-  topics?: ApiTopic[];
 }
 
 interface ApiAttempt {
@@ -88,15 +77,6 @@ function toTopic(topic: ApiTopic): Topic {
     description: topic.description,
     videoUrl: topic.ytube_link,
     order: topic.order,
-    challengesCount: topic.challenges_count ?? null,
-    progress: topic.progress
-      ? {
-          status: topic.progress.status,
-          percent: topic.progress.progress_percent,
-          isUnlocked: topic.progress.is_unlocked,
-          completedAt: topic.progress.completed_at,
-        }
-      : null,
   };
 }
 
@@ -113,10 +93,6 @@ function toChallenge(challenge: ApiChallenge): Challenge {
     config: challenge.config ?? null,
     requiredFamilies: challenge.required_families ?? [],
     order: challenge.order,
-    // Absent wherever the API did not measure it against a student; an
-    // unmeasured challenge is not a locked one.
-    locked: challenge.is_locked ?? false,
-    topicIds: (challenge.topics ?? []).map((topic) => topic.id),
   };
 }
 
@@ -206,8 +182,6 @@ export async function fetchRoadmaps(): Promise<Roadmap[]> {
 /** One topic with everything its page shows. */
 export interface TopicDetail {
   topic: Topic;
-  /** The challenges placed here, in the order the topic sets. */
-  challenges: Challenge[];
   roadmapTitle: string;
   /**
    * Every topic of the same roadmap in order, this one included — what the
@@ -226,13 +200,12 @@ export async function fetchTopic(id: number): Promise<TopicDetail> {
 
   return {
     topic: toTopic(data),
-    challenges: (data.challenges ?? []).map(toChallenge),
     roadmapTitle: data.roadmap?.title ?? "",
     siblings: (data.roadmap?.topics ?? []).map(toTopic),
   };
 }
 
-/** The whole challenge catalogue, placed in a topic or not. */
+/** The whole challenge catalogue. */
 export async function fetchChallenges(): Promise<Challenge[]> {
   return (await fetchAll<ApiChallenge>("/challenges")).map(toChallenge);
 }

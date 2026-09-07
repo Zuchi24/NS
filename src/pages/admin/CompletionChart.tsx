@@ -28,8 +28,8 @@ export function CompletionChart({
   title: string;
   description: string;
   data: YearLevelCompletion[];
-  /** Which of the two completion figures to plot. */
-  measure: "challengeCompletion" | "roadmapCompletion";
+  /** Which completion figure to plot. */
+  measure: "challengeCompletion";
   /** What the counts under each bar are counting. */
   unit: string;
 }) {
