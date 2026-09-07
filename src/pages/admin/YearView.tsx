@@ -113,10 +113,14 @@ export function YearView() {
                 <h3 className="text-lg font-bold text-gray-900 mb-1">
                   {section.name}
                 </h3>
+                {/* "of 40" read as a cap, and nothing enforces one: a section
+                    takes a forty-first student without complaint. The seat
+                    count is what the timetable intended, not a limit. */}
                 <p className="text-sm text-gray-600">
                   {section.studentsCount} student
                   {section.studentsCount !== 1 ? "s" : ""}
-                  {section.capacity !== null && ` of ${section.capacity}`}
+                  {section.capacity !== null &&
+                    ` · ${section.capacity}-seat guideline`}
                 </p>
               </button>
 
