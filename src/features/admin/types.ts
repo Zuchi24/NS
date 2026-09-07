@@ -64,8 +64,34 @@ export interface Analytics {
 export interface SectionSummary {
   id: number;
   name: string;
+  /**
+   * Advisory. Nothing enforces it at sign-up, so this is what the timetable
+   * intended rather than a limit the server keeps.
+   */
   capacity: number | null;
   studentsCount: number;
+  /**
+   * Whether the sign-up form still offers this section.
+   *
+   * Closed sections are listed to instructors — their roster is still theirs to
+   * read, and closing has to be undoable — so a page showing them has to say
+   * which is which rather than assume every section it was given is open.
+   */
+  isActive: boolean;
+}
+
+/**
+ * A section as an administrator's action leaves it.
+ *
+ * Narrower than SectionSummary: opening or closing a section says nothing about
+ * how many students are in it, so the answer does not carry a head count that
+ * would only be a stale copy of the one the drilldown already has.
+ */
+export interface SectionState {
+  id: number;
+  name: string;
+  capacity: number | null;
+  isActive: boolean;
 }
 
 export interface YearLevelCohort {

@@ -4,6 +4,7 @@ import type {
   ChallengePerformance,
   Overview,
   Rate,
+  SectionState,
   Standing,
   Student,
   StudentChallenge,
@@ -13,11 +14,14 @@ import type {
 } from "./types";
 
 /**
- * Reads the instructor endpoints.
+ * The instructor endpoints.
  *
- * They are read-only — every figure is derived from students' attempts, so
- * there is nothing here to write back. As with the rest of the app the API
- * answers in snake_case, and nothing outside this file has to know that.
+ * The monitoring half is read-only — every figure is derived from students'
+ * attempts, so there is nothing there to write back. The two writes at the
+ * bottom are the exception, and they are the whole of what an instructor may
+ * change about enrolment: whether a section is open, and which section a
+ * student is in. As with the rest of the app the API answers in snake_case, and
+ * nothing outside this file has to know that.
  */
 
 interface ApiRate {
@@ -69,6 +73,7 @@ interface ApiYearLevel {
     name: string;
     capacity: number | null;
     students_count: number;
+    is_active: boolean;
   }[];
 }
 
@@ -230,6 +235,7 @@ export async function fetchCohorts(): Promise<YearLevelCohort[]> {
       name: section.name,
       capacity: section.capacity,
       studentsCount: section.students_count,
+      isActive: section.is_active,
     })),
   }));
 }
@@ -256,19 +262,21 @@ export async function fetchStudent(studentId: number): Promise<StudentDetail> {
 
   return {
     student: toStudent(data.student),
-    challenges: data.challenges.map(
-      (challenge): StudentChallenge => ({
-        id: challenge.id,
-        title: challenge.title,
-        description: challenge.description,
-        kind: challenge.kind,
-        attempts: challenge.attempts,
-        submissions: challenge.submissions,
-        passed: challenge.passed,
-        passedAt: challenge.passed_at,
-        lastAttemptAt: challenge.last_attempt_at,
-      }),
-    ),
+    challenges: data.challenges.map(toStudentChallenge),
+  };
+}
+
+function toStudentChallenge(challenge: ApiStudentChallenge): StudentChallenge {
+  return {
+    id: challenge.id,
+    title: challenge.title,
+    description: challenge.description,
+    kind: challenge.kind,
+    attempts: challenge.attempts,
+    submissions: challenge.submissions,
+    passed: challenge.passed,
+    passedAt: challenge.passed_at,
+    lastAttemptAt: challenge.last_attempt_at,
   };
 }
 
@@ -294,4 +302,88 @@ export async function fetchRecentSubmissions(limit = 20): Promise<Submission[]> 
     requirements: submission.requirements,
     submittedAt: submission.submitted_at,
   }));
+}
+
+/**
+ * The section state as the server left it, which is what the caller redraws
+ * from rather than assuming the move went the way it asked.
+ */
+interface ApiSection {
+  id: number;
+  name: string;
+  capacity: number | null;
+  is_active: boolean;
+}
+
+function toSectionState(section: ApiSection): SectionState {
+  return {
+    id: section.id,
+    name: section.name,
+    capacity: section.capacity,
+    isActive: section.is_active,
+  };
+}
+
+/**
+ * Reopens a section to new sign-ups.
+ *
+ * Nothing about the students in it changes — they never left. Its own route
+ * rather than a field on an edit, because opening a section is a decision about
+ * a term rather than a correction.
+ */
+export async function activateSection(
+  sectionId: number,
+): Promise<SectionState> {
+  const { data } = await api.post<{ data: ApiSection }>(
+    `/admin/sections/${sectionId}/activate`,
+    {},
+  );
+
+  return toSectionState(data);
+}
+
+/**
+ * Closes a section to new sign-ups.
+ *
+ * The roster stays, and so does everything its students have done: the only
+ * thing that changes is whether the sign-up form offers it. Reversible, which
+ * is why this needs no confirmation of the kind retiring an achievement does.
+ */
+export async function deactivateSection(
+  sectionId: number,
+): Promise<SectionState> {
+  const { data } = await api.post<{ data: ApiSection }>(
+    `/admin/sections/${sectionId}/deactivate`,
+    {},
+  );
+
+  return toSectionState(data);
+}
+
+/**
+ * Moves a student into another open section.
+ *
+ * The one thing an instructor writes about a student, and it exists because a
+ * student picks their own section at sign-up and can pick wrong. Only the
+ * section is sent: nothing else about an account is an instructor's to change.
+ *
+ * The server refuses a closed or missing section with a 422, and the message it
+ * gives is the one worth showing — it says the section is not open for
+ * enrolment, which is what the instructor needs to know.
+ */
+export async function moveStudentToSection(
+  studentId: number,
+  sectionId: number,
+): Promise<StudentDetail> {
+  const { data } = await api.put<{
+    data: {
+      student: ApiStudent;
+      challenges: ApiStudentChallenge[];
+    };
+  }>(`/admin/students/${studentId}`, { section_id: sectionId });
+
+  return {
+    student: toStudent(data.student),
+    challenges: data.challenges.map(toStudentChallenge),
+  };
 }

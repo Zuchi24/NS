@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
   ArrowLeft,
@@ -10,14 +10,137 @@ import {
   Trophy,
   User,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ErrorState, LoadingState } from "@/components/common/AsyncStates";
-import { fetchStudent } from "@/features/admin/adminService";
+import {
+  fetchCohorts,
+  fetchStudent,
+  moveStudentToSection,
+} from "@/features/admin/adminService";
 import { standingClass } from "@/features/admin/format";
+import type { SectionSummary, Student } from "@/features/admin/types";
 import { shortDate, timeAgo } from "@/services/time";
 import { useAsync } from "@/services/useAsync";
+
+/**
+ * Moving a student into another section.
+ *
+ * The only thing on this page that writes anything. It exists because a student
+ * chooses their own section when they sign up and can choose wrong, and every
+ * instructor figure is grouped by section — so one wrong choice otherwise skews
+ * two rosters for as long as the account lives.
+ *
+ * Only open sections are offered, which is the same rule the server enforces.
+ * The list is fetched when the form opens rather than with the page: most
+ * visits to a student are to read their progress, and the timetable is not part
+ * of that.
+ */
+function MoveSection({
+  student,
+  onMoved,
+}: {
+  student: Student;
+  onMoved: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [choice, setChoice] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+
+  const loadSections = useCallback(
+    () => (open ? fetchCohorts() : Promise.resolve(null)),
+    [open],
+  );
+  const { data: cohorts, error, loading } = useAsync(loadSections, [open]);
+
+  /*
+   * Every open section across every year level. A student can be moved between
+   * years as well as within one — a repeating student is the ordinary case —
+   * so the list is not narrowed to the year they are in now.
+   */
+  const sections: { yearLevel: string; section: SectionSummary }[] = (
+    cohorts ?? []
+  ).flatMap((year) =>
+    year.sections
+      .filter((section) => section.isActive)
+      .map((section) => ({ yearLevel: year.name, section })),
+  );
+
+  const save = async () => {
+    if (!choice) return;
+
+    setBusy(true);
+
+    try {
+      await moveStudentToSection(student.id, Number(choice));
+      toast.success(`Moved ${student.fullName}.`);
+      setOpen(false);
+      setChoice("");
+      onMoved();
+    } catch (e) {
+      // The server refuses a closed or missing section with a 422 whose message
+      // says so; that is the one worth showing.
+      toast.error(e instanceof Error ? e.message : "Could not move them.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        className="mt-2"
+        onClick={() => setOpen(true)}
+      >
+        Move to another section
+      </Button>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      {loading && <p className="text-xs text-gray-500">Loading sections…</p>}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+
+      {cohorts && (
+        <select
+          aria-label="Section"
+          value={choice}
+          onChange={(event) => setChoice(event.target.value)}
+          className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">Choose a section…</option>
+          {sections.map(({ yearLevel, section }) => (
+            <option key={section.id} value={section.id}>
+              {yearLevel} - {section.name}
+            </option>
+          ))}
+        </select>
+      )}
+
+      <div className="flex gap-2">
+        <Button size="sm" disabled={busy || !choice} onClick={save}>
+          {busy ? "Moving…" : "Move"}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          onClick={() => {
+            setOpen(false);
+            setChoice("");
+          }}
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function StudentDetail() {
   const { year, sectionId, studentId } = useParams();
@@ -92,6 +215,7 @@ export function StudentDetail() {
                   ? `${student.section.yearLevel} - ${student.section.name}`
                   : "Not placed in a section"}
               </p>
+              <MoveSection student={student} onMoved={reload} />
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-600">
