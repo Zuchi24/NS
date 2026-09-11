@@ -24,6 +24,45 @@ export interface Topic {
   description: string | null;
   videoUrl: string | null;
   order: number;
+  /**
+   * The topic this one is a section of, or null if it is a topic of the
+   * roadmap in its own right.
+   *
+   * Sent on every topic, so a row can be told apart from where it was found.
+   * A response written before subtopics existed says nothing here, which reads
+   * as a root topic — which is what every topic was.
+   */
+  parentId: number | null;
+  /**
+   * The sections inside this topic.
+   *
+   * Absent unless the caller asked for them: the topic page and the authoring
+   * tree do, the roadmap's table of contents does not. Empty means a topic
+   * with no sections, which is not the same as not having asked.
+   */
+  subtopics?: Subtopic[];
+}
+
+/**
+ * A section inside a topic, and what it holds.
+ *
+ * The same row as a topic, seen in its other role — which is why it carries no
+ * `subtopics` of its own. The hierarchy is one level deep and the server keeps
+ * it that way, so there is nowhere further down for this type to describe.
+ *
+ * It paces nothing either. A section is a heading with materials under it: no
+ * standing, no lock, no challenges of its own — those stay with the topic
+ * holding it.
+ */
+export interface Subtopic {
+  id: number;
+  roadmapId: number;
+  parentId: number;
+  title: string;
+  description: string | null;
+  order: number;
+  /** Its own materials, as its author ordered them. */
+  materials: LearningMaterial[];
 }
 
 export interface Roadmap {

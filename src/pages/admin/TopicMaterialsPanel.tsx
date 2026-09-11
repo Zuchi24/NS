@@ -66,7 +66,30 @@ const EMPTY_DRAFT: MaterialDraft = {
 /** Which material the form is editing, or that it is adding a new one. */
 type Editing = { mode: "new" } | { mode: "edit"; material: LearningMaterial };
 
-export function TopicMaterialsPanel({ topicId }: { topicId: number }) {
+/**
+ * Which kind of row this panel is authoring the materials of.
+ *
+ * A section is a topic row, so the panel itself needs no change to work on one
+ * — the endpoints take either. This only decides the line under the heading,
+ * which is the one place the panel says out loud whose list this is. Worth
+ * saying: a section's panel is opened from inside its parent's branch, and an
+ * author who has scrolled past the row that opened it should still be able to
+ * tell a section's materials from the topic's own.
+ */
+type MaterialsOwner = "topic" | "section";
+
+const OWNER_CAPTION: Record<MaterialsOwner, string> = {
+  topic: "What students see on this topic, in this order.",
+  section: "What students see in this section of the topic, in this order.",
+};
+
+export function TopicMaterialsPanel({
+  topicId,
+  owner = "topic",
+}: {
+  topicId: number;
+  owner?: MaterialsOwner;
+}) {
   const load = useCallback(() => fetchTopicMaterials(topicId), [topicId]);
   const { data, error, loading, reload } = useAsync(load, [topicId]);
 
@@ -122,9 +145,7 @@ export function TopicMaterialsPanel({ topicId }: { topicId: number }) {
             <FileText className="w-5 h-5 text-blue-600" />
             Learning materials
           </CardTitle>
-          <p className="text-sm text-gray-600 mt-2">
-            What students see on this topic, in this order.
-          </p>
+          <p className="text-sm text-gray-600 mt-2">{OWNER_CAPTION[owner]}</p>
         </div>
 
         <Button

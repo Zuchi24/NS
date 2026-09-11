@@ -59,6 +59,7 @@ function topic(over: Partial<Topic> = {}): Topic {
     title: "Hardware and Cabling",
     description: "Building a machine and making a cable.",
     videoUrl: null,
+    parentId: null,
     order: 0,
     ...over,
   };

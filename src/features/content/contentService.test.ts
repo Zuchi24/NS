@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fetchRoadmaps } from "./contentService";
+import { fetchRoadmaps, fetchSubtopic, fetchTopic } from "./contentService";
 
 /**
  * Reading the roadmap list.
@@ -122,5 +122,292 @@ describe("fetchRoadmaps", () => {
     const [roadmap] = await fetchRoadmaps();
 
     expect(roadmap.isPublished).toBe(true);
+  });
+});
+
+/**
+ * Sections, as they arrive from the API.
+ *
+ * Two things worth pinning in the mapping rather than only in the UI. A
+ * response that says nothing about a parent describes a topic of the roadmap —
+ * which is what every topic was before sections existed, so an old response
+ * must not start reading as a section. And a section's materials go through the
+ * material service's own mapper, so a nested material and a fetched one are the
+ * same shape rather than two that happen to agree today.
+ */
+describe("subtopics", () => {
+  const topicWithSections = {
+    id: 1,
+    roadmap_id: 1,
+    parent_id: null,
+    title: "Networking Fundamentals",
+    description: null,
+    ytube_link: null,
+    order: 0,
+    roadmap: { id: 1, title: "Essentials", description: "", order: 0, is_published: true, topics: [] },
+    subtopics: [
+      {
+        id: 101,
+        roadmap_id: 1,
+        parent_id: 1,
+        title: "OSI Model",
+        description: "Seven layers.",
+        order: 0,
+        materials: [
+          {
+            id: 10,
+            topic_id: 101,
+            title: "Layer chart",
+            description: null,
+            kind: "link",
+            kind_label: "Link",
+            url: "https://example.com/chart",
+            filename: null,
+            mime_type: null,
+            size_bytes: null,
+            order: 0,
+            is_published: true,
+          },
+        ],
+      },
+    ],
+  };
+
+  it("reads a topic's sections and their materials", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: topicWithSections });
+
+    const detail = await fetchTopic(1);
+
+    expect(detail.subtopics).toHaveLength(1);
+    expect(detail.subtopics[0]).toMatchObject({
+      id: 101,
+      parentId: 1,
+      roadmapId: 1,
+      title: "OSI Model",
+      description: "Seven layers.",
+      order: 0,
+    });
+
+    // Mapped by the material service, so `url` and `downloadUrl` are both
+    // present and normalised rather than one being absent.
+    expect(detail.subtopics[0].materials[0]).toMatchObject({
+      id: 10,
+      topicId: 101,
+      title: "Layer chart",
+      url: "https://example.com/chart",
+      downloadUrl: null,
+    });
+  });
+
+  it("reads a topic with no sections as having none", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { ...topicWithSections, subtopics: [] },
+    });
+
+    expect((await fetchTopic(1)).subtopics).toEqual([]);
+  });
+
+  it("treats a response that says nothing about sections as having none", async () => {
+    const { subtopics: _ignored, ...withoutKey } = topicWithSections;
+    vi.mocked(api.get).mockResolvedValue({ data: withoutKey });
+
+    const detail = await fetchTopic(1);
+
+    // A response from before sections existed. It describes a topic of the
+    // roadmap with nothing inside it, which is exactly what it was.
+    expect(detail.subtopics).toEqual([]);
+    expect(detail.topic.parentId).toBeNull();
+  });
+
+  it("asks for sections only when they are wanted", async () => {
+    vi.mocked(api.get).mockResolvedValue(page([live]));
+
+    await fetchRoadmaps();
+    expect(vi.mocked(api.get).mock.calls[0][0]).toContain("include=topics");
+    expect(vi.mocked(api.get).mock.calls[0][0]).not.toContain("subtopics");
+
+    vi.clearAllMocks();
+    vi.mocked(api.get).mockResolvedValue(page([live]));
+
+    await fetchRoadmaps({ withSubtopics: true });
+    expect(vi.mocked(api.get).mock.calls[0][0]).toContain(
+      "include=topics,subtopics",
+    );
+  });
+});
+
+/**
+ * Opening one section.
+ *
+ * A section only learns which topic holds it by being asked for, so this is two
+ * requests rather than one — and the second is where everything the page shows
+ * comes from, because a topic's response already nests its sections with their
+ * materials. What these pin is that shape: the right two ids are asked for, in
+ * that order, and the section is picked out of the parent's list rather than
+ * rebuilt from the first response.
+ *
+ * The null cases matter as much as the happy one. This route addresses sections
+ * and nothing else, so an id that names a topic of the roadmap has to come back
+ * as "not a section" rather than as a half-built page — and so does one that
+ * has since been moved out from under the topic that was holding it.
+ */
+describe("fetchSubtopic", () => {
+  const section = {
+    id: 101,
+    roadmap_id: 1,
+    parent_id: 1,
+    title: "OSI Model",
+    description: "Seven layers.",
+    ytube_link: null,
+    order: 0,
+    roadmap: {
+      id: 1,
+      title: "Essentials",
+      description: "",
+      order: 0,
+      is_published: true,
+      topics: [],
+    },
+  };
+
+  const parent = {
+    id: 1,
+    roadmap_id: 1,
+    parent_id: null,
+    title: "Networking Fundamentals",
+    description: "How a network holds together.",
+    ytube_link: null,
+    order: 0,
+    roadmap: {
+      id: 1,
+      title: "Essentials",
+      description: "",
+      order: 0,
+      is_published: true,
+      topics: [],
+    },
+    subtopics: [
+      {
+        id: 101,
+        roadmap_id: 1,
+        parent_id: 1,
+        title: "OSI Model",
+        description: "Seven layers.",
+        order: 0,
+        materials: [
+          {
+            id: 10,
+            topic_id: 101,
+            title: "Layer chart",
+            description: null,
+            kind: "link",
+            kind_label: "Link",
+            url: "https://example.com/chart",
+            filename: null,
+            mime_type: null,
+            size_bytes: null,
+            order: 0,
+            is_published: true,
+          },
+        ],
+      },
+      {
+        id: 102,
+        roadmap_id: 1,
+        parent_id: 1,
+        title: "TCP/IP",
+        description: null,
+        order: 1,
+        materials: [],
+      },
+    ],
+  };
+
+  /** Answers the section's own request, then its parent's. */
+  function serve() {
+    vi.mocked(api.get)
+      .mockResolvedValueOnce({ data: section })
+      .mockResolvedValueOnce({ data: parent });
+  }
+
+  it("asks for the section, then the topic it names as its parent", async () => {
+    serve();
+
+    await fetchSubtopic(101);
+
+    // The parent id is not known until the first response arrives, which is
+    // the whole reason this is two requests and not one.
+    expect(vi.mocked(api.get).mock.calls.map((call) => call[0])).toEqual([
+      "/topics/101",
+      "/topics/1",
+    ]);
+  });
+
+  it("reads the section out of its parent's own list", async () => {
+    serve();
+
+    const detail = await fetchSubtopic(101);
+
+    expect(detail?.subtopic).toMatchObject({
+      id: 101,
+      parentId: 1,
+      roadmapId: 1,
+      title: "OSI Model",
+      description: "Seven layers.",
+    });
+
+    // Its materials come with it. Taking them from here rather than asking the
+    // materials endpoint is what keeps this to two requests.
+    expect(detail?.subtopic.materials).toHaveLength(1);
+    expect(detail?.subtopic.materials[0]).toMatchObject({
+      id: 10,
+      topicId: 101,
+      title: "Layer chart",
+      url: "https://example.com/chart",
+      downloadUrl: null,
+    });
+  });
+
+  it("names the topic and roadmap the section sits in", async () => {
+    serve();
+
+    const detail = await fetchSubtopic(101);
+
+    expect(detail?.parent).toMatchObject({
+      id: 1,
+      title: "Networking Fundamentals",
+      parentId: null,
+    });
+    expect(detail?.roadmapTitle).toBe("Essentials");
+  });
+
+  it("pages through the topic's sections rather than the roadmap's topics", async () => {
+    serve();
+
+    const detail = await fetchSubtopic(101);
+
+    // Sections of this topic, in their authored order, this one included.
+    // Walking the roadmap's topics here would step a student out of the topic
+    // they are reading without saying so.
+    expect(detail?.siblings.map((sibling) => sibling.id)).toEqual([101, 102]);
+  });
+
+  it("refuses an id that names a topic of the roadmap", async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({ data: parent });
+
+    // A root topic has a page of its own and this route is not it. Answered
+    // without a second request, since there is no parent to fetch.
+    expect(await fetchSubtopic(1)).toBeNull();
+    expect(vi.mocked(api.get)).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a section its parent no longer holds", async () => {
+    vi.mocked(api.get)
+      .mockResolvedValueOnce({ data: { ...section, id: 999 } })
+      .mockResolvedValueOnce({ data: parent });
+
+    // Moved out from under the topic between the two requests, or pointing at
+    // a parent that never held it. Either way there is no page to draw.
+    expect(await fetchSubtopic(999)).toBeNull();
   });
 });

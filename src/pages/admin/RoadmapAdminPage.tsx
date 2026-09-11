@@ -31,7 +31,9 @@ import { RoadmapTopicsPanel } from "./RoadmapTopicsPanel";
  */
 export function RoadmapAdminPage() {
   const { data, error, loading, reload } = useAsync(() =>
-    fetchRoadmaps().then((roadmaps) => ({ roadmaps })),
+    // With subtopics: this page draws the hierarchy, so it needs the sections
+    // inside each topic as well as the topics themselves.
+    fetchRoadmaps({ withSubtopics: true }).then((roadmaps) => ({ roadmaps })),
   );
 
   const [selectedRoadmapId, setSelectedRoadmapId] = useState<number | null>(

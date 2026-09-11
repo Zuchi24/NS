@@ -28,6 +28,12 @@ import { useAsync } from "@/services/useAsync";
  * One topic: what it covers, its video, its learning materials, and how
  * far the student has got.
  *
+ * Its subtopics are deliberately absent. Each of them has a page of its own,
+ * reached by clicking it on the roadmap, and that page is where its materials
+ * are drawn — so listing them again here would be the same reading in two
+ * places and a topic page that grew with every subtopic added to it. What this
+ * page holds is the topic's own, and nothing else's.
+ *
  * Everything here is the server's — including whether the topic is open at all.
  * The roadmap locks topics in order and the API refuses a locked one outright,
  * so a student who types its URL gets the locked state, not its contents.
@@ -164,9 +170,14 @@ export function TopicDetailsPage() {
             </Card>
           )}
 
-          {/* The topic's own materials, as its author ordered them. The API
-              serves these only for a topic the student may open, so reaching
-              this card at all is already the answer to whether they may. */}
+          {/* The topic's own materials, as its author ordered them, and the
+              only ones on this page. The API serves these only for a topic the
+              student may open, so reaching this card at all is already the
+              answer to whether they may.
+
+              One heading, whether or not the topic is divided into subtopics: a
+              subtopic's materials are on the subtopic's own page, so there is
+              nothing left here for this list to be told apart from. */}
           <Card className="border border-gray-200 shadow-sm bg-white">
             <CardContent className="p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">

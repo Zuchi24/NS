@@ -11,7 +11,14 @@ import type { LearningMaterial, MaterialKind, Paginated } from "./types";
  * same functions and simply never reach a student.
  */
 
-interface ApiMaterial {
+/**
+ * A material as the API sends it.
+ *
+ * Exported alongside toMaterial() so the endpoints that nest materials —
+ * a topic's sections carry theirs inline — read them through this one mapper
+ * rather than growing a second spelling of the same row.
+ */
+export interface ApiMaterial {
   id: number;
   topic_id: number;
   title: string;
@@ -27,7 +34,7 @@ interface ApiMaterial {
   is_published: boolean;
 }
 
-function toMaterial(material: ApiMaterial): LearningMaterial {
+export function toMaterial(material: ApiMaterial): LearningMaterial {
   return {
     id: material.id,
     topicId: material.topic_id,

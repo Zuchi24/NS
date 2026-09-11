@@ -50,6 +50,7 @@ const EXPECTED_PATHS = [
   "/achievements",
   "/profile",
   "/topic/:topicId",
+  "/subtopic/:subtopicId",
   // Simulations
   "/simulations",
   "/activities",

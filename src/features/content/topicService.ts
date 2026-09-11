@@ -18,6 +18,7 @@ import type { Topic } from "./types";
 interface ApiTopic {
   id: number;
   roadmap_id: number;
+  parent_id: number | null;
   title: string;
   description: string | null;
   ytube_link: string | null;
@@ -32,6 +33,7 @@ function toTopic(topic: ApiTopic): Topic {
     description: topic.description,
     videoUrl: topic.ytube_link,
     order: topic.order,
+    parentId: topic.parent_id ?? null,
   };
 }
 
@@ -199,4 +201,113 @@ export function validateTopicDraft(
   }
 
   return errors;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Subtopics
+|--------------------------------------------------------------------------
+|
+| A subtopic is a section inside a topic, and on the wire it is a topic row
+| like any other — which is why editing and deleting one go through
+| updateTopic() and deleteTopic() above rather than through anything of their
+| own. Only two operations need to know about the parent, and they are the two
+| that decide where a section sits: creating one, and reordering them.
+*/
+
+/**
+ * What the author is writing when they add a section.
+ *
+ * Title and overview, and no video. A topic leads with one headline tutorial;
+ * a section inside it is a heading with materials under it, and a video that
+ * belongs to it belongs in those materials, where it can be titled, described
+ * and ordered alongside everything else. The column still accepts one — the
+ * API is unchanged — this form simply does not offer a second place to put
+ * video, which is how the two would drift.
+ */
+export interface SubtopicDraft {
+  title: string;
+  description: string;
+}
+
+export const EMPTY_SUBTOPIC_DRAFT: SubtopicDraft = {
+  title: "",
+  description: "",
+};
+
+export function draftOfSubtopic(subtopic: {
+  title: string;
+  description: string | null;
+}): SubtopicDraft {
+  return {
+    title: subtopic.title,
+    description: subtopic.description ?? "",
+  };
+}
+
+/**
+ * Checks a section's draft against the same rules a topic's is held to.
+ *
+ * The overview limit is one column and one server rule, so it is one check
+ * here too — validateTopicDraft with an empty video, which can never fail the
+ * video rule. Only the fields this form actually has come back.
+ */
+export function validateSubtopicDraft(
+  draft: SubtopicDraft,
+): Partial<Record<"title" | "description", string>> {
+  const { title, description } = validateTopicDraft({
+    ...draft,
+    videoUrl: "",
+  });
+
+  return {
+    ...(title ? { title } : {}),
+    ...(description ? { description } : {}),
+  };
+}
+
+/**
+ * Adds a section to a topic.
+ *
+ * The parent is in the path rather than the body: "add a section inside this
+ * topic" and "add a topic to this roadmap" are different requests to different
+ * URLs, so one can never be mistaken for the other. Which roadmap it lands in
+ * is the server's to decide, from the parent.
+ *
+ * It joins the end of its parent's sections. Moving it is its own action, the
+ * same as it is for a topic.
+ */
+export async function createSubtopic(
+  parentTopicId: number,
+  draft: SubtopicDraft,
+): Promise<Topic> {
+  const { data } = await api.post<{ data: ApiTopic }>(
+    `/admin/topics/${parentTopicId}/subtopics`,
+    { title: draft.title.trim(), description: draft.description.trim() || null },
+  );
+
+  return toTopic(data);
+}
+
+/**
+ * Stores a new running order for one topic's sections.
+ *
+ * Scoped to the parent, and the server keeps it that way: this list may name
+ * that topic's sections and nothing else — not a topic of the roadmap, not a
+ * section of a different topic. So reordering sections cannot reach the
+ * roadmap's own order, and reordering the roadmap cannot reach theirs.
+ *
+ * The whole list goes, for the same reason topics do: a partial one would
+ * renumber the sections it left out.
+ */
+export async function reorderSubtopics(
+  parentTopicId: number,
+  subtopicIds: number[],
+): Promise<Topic[]> {
+  const { data } = await api.put<{ data: ApiTopic[] }>(
+    `/admin/topics/${parentTopicId}/subtopics/order`,
+    { topic_ids: subtopicIds },
+  );
+
+  return data.map(toTopic);
 }

@@ -145,6 +145,16 @@ export const routes: RouteObject[] = [
           Component: (await import("@/pages/student/TopicDetailsPage")).TopicDetailsPage,
         }),
       },
+      // A section of a topic, opened the same way a topic is. Alongside the
+      // topic route rather than nested under it: a section is addressed by its
+      // own id, so its URL never has to name the topic holding it, and the page
+      // stays reachable if the section is moved to another one.
+      {
+        path: "/subtopic/:subtopicId",
+        lazy: async () => ({
+          Component: (await import("@/pages/student/SubtopicDetailsPage")).SubtopicDetailsPage,
+        }),
+      },
     ],
   },
 

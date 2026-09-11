@@ -5,6 +5,8 @@ import {
   BookOpen,
   ChevronDown,
   ChevronRight,
+  CornerDownRight,
+  FileText,
   Pencil,
   Plus,
   Trash2,
@@ -26,18 +28,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/services/api";
 import {
+  EMPTY_SUBTOPIC_DRAFT,
   EMPTY_TOPIC_DRAFT,
   TOPIC_DESCRIPTION_MAX,
+  createSubtopic,
   createTopic,
   deleteTopic,
+  draftOfSubtopic,
   draftOfTopic,
   overviewLength,
+  reorderSubtopics,
   reorderTopics,
   updateTopic,
+  validateSubtopicDraft,
   validateTopicDraft,
 } from "@/features/content/topicService";
-import type { TopicDraft } from "@/features/content/topicService";
-import type { Topic } from "@/features/content/types";
+import type {
+  SubtopicDraft,
+  TopicDraft,
+} from "@/features/content/topicService";
+import type { Subtopic, Topic } from "@/features/content/types";
 import { TopicMaterialsPanel } from "./TopicMaterialsPanel";
 
 /**
@@ -62,8 +72,18 @@ import { TopicMaterialsPanel } from "./TopicMaterialsPanel";
  * several cards are unfolded between them.
  */
 
-/** Which topic the form is editing, or that it is adding a new one. */
-type Editing = { mode: "new" } | { mode: "edit"; topic: Topic };
+/**
+ * What form is open, if any.
+ *
+ * One at a time across the whole panel, topics and sections alike: two forms
+ * open at once is two drafts an author can lose track of, and the tree is what
+ * they are reading to decide where anything goes.
+ */
+type Editing =
+  | { mode: "new" }
+  | { mode: "edit"; topic: Topic }
+  | { mode: "new-subtopic"; parent: Topic }
+  | { mode: "edit-subtopic"; subtopic: Subtopic; parent: Topic };
 
 export function RoadmapTopicsPanel({
   roadmapId,
@@ -88,10 +108,34 @@ export function RoadmapTopicsPanel({
    */
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
+  /**
+   * The one section that is open, if any — the same rule as topics, and for
+   * the same reason.
+   *
+   * Held apart from `expandedId` rather than folded into it because the two
+   * are read differently: a topic's branch is drawn whether or not its card is
+   * open, so a section can be opened without its parent being. They are still
+   * mutually exclusive, which is the point — an open node of either kind
+   * mounts a materials panel, and a panel is a fetch. One open node is one
+   * fetch, however the author got there.
+   */
+  const [expandedSubtopicId, setExpandedSubtopicId] = useState<number | null>(
+    null,
+  );
+
   const editingTopicId = editing?.mode === "edit" ? editing.topic.id : null;
 
-  const toggle = (topicId: number) =>
+  const toggle = (topicId: number) => {
+    setExpandedSubtopicId(null);
     setExpandedId((current) => (current === topicId ? null : topicId));
+  };
+
+  const toggleSubtopic = (subtopicId: number) => {
+    setExpandedId(null);
+    setExpandedSubtopicId((current) =>
+      current === subtopicId ? null : subtopicId,
+    );
+  };
 
   const move = async (index: number, direction: -1 | 1) => {
     const next = [...topics];
@@ -127,8 +171,11 @@ export function RoadmapTopicsPanel({
       toast.success(`Removed “${topic.title}”.`);
 
       // Nothing is left to open once the topic is gone; leaving its id behind
-      // would open whatever the server hands back under that id next.
+      // would open whatever the server hands back under that id next. The
+      // sections inside it go with it, so an open one of those is stale too —
+      // and this is the only place that knows the deletion happened.
       setExpandedId((current) => (current === topic.id ? null : current));
+      setExpandedSubtopicId(null);
       onChanged();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not delete.");
@@ -193,6 +240,24 @@ export function RoadmapTopicsPanel({
                     setExpandedId(topic.id);
                   }}
                   onDelete={() => remove(topic)}
+                  onAddSubtopic={() => {
+                    setEditing({ mode: "new-subtopic", parent: topic });
+                    setExpandedId(topic.id);
+                  }}
+                  editingSubtopicId={
+                    editing?.mode === "edit-subtopic" &&
+                    editing.parent.id === topic.id
+                      ? editing.subtopic.id
+                      : null
+                  }
+                  onEditSubtopic={(subtopic) => {
+                    setEditing({ mode: "edit-subtopic", subtopic, parent: topic });
+                    setExpandedId(topic.id);
+                  }}
+                  onCloseSubtopicForm={() => setEditing(null)}
+                  expandedSubtopicId={expandedSubtopicId}
+                  onToggleSubtopic={toggleSubtopic}
+                  onChanged={onChanged}
                 >
                   {editingTopicId === topic.id && (
                     <TopicEditForm
@@ -210,6 +275,22 @@ export function RoadmapTopicsPanel({
             ))}
           </ul>
         )}
+
+        <AddSubtopicDialog
+          parent={editing?.mode === "new-subtopic" ? editing.parent : null}
+          onClose={() => setEditing(null)}
+          onCreated={(saved) => {
+            setEditing(null);
+            // Onto the section that was just written, open, with its materials
+            // panel already mounted — that is the next thing an author does to
+            // a section, and the dialog says so. The parent's branch is drawn
+            // whether or not its card is open, so the new row is on screen
+            // without opening the card around it.
+            setExpandedId(null);
+            setExpandedSubtopicId(saved.id);
+            onChanged();
+          }}
+        />
 
         <AddTopicDialog
           roadmapId={roadmapId}
@@ -242,6 +323,13 @@ function TopicCard({
   onDown,
   onEdit,
   onDelete,
+  onAddSubtopic,
+  editingSubtopicId,
+  onEditSubtopic,
+  onCloseSubtopicForm,
+  expandedSubtopicId,
+  onToggleSubtopic,
+  onChanged,
   children,
 }: {
   topic: Topic;
@@ -257,6 +345,15 @@ function TopicCard({
   onDown: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onAddSubtopic: () => void;
+  /** Which of this topic's sections is being rewritten, if any. */
+  editingSubtopicId: number | null;
+  onEditSubtopic: (subtopic: Subtopic) => void;
+  onCloseSubtopicForm: () => void;
+  /** Which section anywhere in the panel is open, if any. */
+  expandedSubtopicId: number | null;
+  onToggleSubtopic: (subtopicId: number) => void;
+  onChanged: () => void;
   /** The edit form, when this is the topic being edited. */
   children?: React.ReactNode;
 }) {
@@ -383,6 +480,17 @@ function TopicCard({
               <ArrowDown className="w-4 h-4" />
             </Button>
             <Button
+              size="sm"
+              variant="ghost"
+              className="text-blue-700 hover:text-blue-800 hover:bg-blue-50"
+              aria-label={`Add subtopic to ${topic.title}`}
+              disabled={busy}
+              onClick={onAddSubtopic}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Subtopic
+            </Button>
+            <Button
               size="icon"
               variant="ghost"
               aria-label={`Edit ${topic.title}`}
@@ -402,6 +510,29 @@ function TopicCard({
           </div>
         )}
       </div>
+
+      {/* The sections inside this topic, drawn whether or not the card is
+          open. Everything else on a folded card is one line on purpose, and
+          this is the deliberate exception: the hierarchy is the thing an
+          author is reading the list to understand, and a tree that only
+          appears once you open a topic is not a tree you can scan. Two or
+          three short rows per topic is what it costs.
+
+          A section can therefore be opened onto its materials without opening
+          the topic around it — which is why the two expansions are mutually
+          exclusive rather than nested. */}
+      <SubtopicTree
+        parent={topic}
+        parentPosition={position}
+        busy={busy}
+        editingSubtopicId={editingSubtopicId}
+        onEditSubtopic={onEditSubtopic}
+        onCloseSubtopicForm={onCloseSubtopicForm}
+        expandedSubtopicId={expandedSubtopicId}
+        onToggleSubtopic={onToggleSubtopic}
+        onChanged={onChanged}
+        onAddSubtopic={onAddSubtopic}
+      />
 
       {/* Rendered only while open, so a folded card costs nothing and the
           materials panel inside fetches for the topic being worked on rather
@@ -773,6 +904,621 @@ function AddTopicDialog({
           <DialogFooter className="mt-6 gap-2">
             <Button type="submit" disabled={saving} className="flex-1">
               {saving ? "Saving…" : "Add topic"}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={close}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * The sections inside one topic, drawn as what they are.
+ *
+ * The whole job of this block is to say "these belong to the topic above" at a
+ * glance, so it leans on three things at once rather than a label: the rows are
+ * indented, a rule runs down the left of them from under the topic, and each
+ * row is numbered inside its parent — 2.1, 2.2 — so a section can be named
+ * without ambiguity and can never be read as topic 3.
+ *
+ * Opening a row continues that line one level further: the section's own
+ * materials panel, indented past the row and hanging off a rule of its own.
+ * Three levels is the whole depth of the thing — topic, section, materials —
+ * and each one is drawn the same way, so the tree is read by its indentation
+ * rather than by remembering what each box means.
+ *
+ * Reordering is the same pair of arrows a topic has, and calls the endpoint
+ * scoped to this parent. Nothing here can move a topic, and the server refuses
+ * it besides.
+ */
+function SubtopicTree({
+  parent,
+  parentPosition,
+  busy,
+  editingSubtopicId,
+  onEditSubtopic,
+  onCloseSubtopicForm,
+  expandedSubtopicId,
+  onToggleSubtopic,
+  onChanged,
+  onAddSubtopic,
+}: {
+  parent: Topic;
+  parentPosition: number;
+  busy: boolean;
+  editingSubtopicId: number | null;
+  onEditSubtopic: (subtopic: Subtopic) => void;
+  onCloseSubtopicForm: () => void;
+  expandedSubtopicId: number | null;
+  onToggleSubtopic: (subtopicId: number) => void;
+  onChanged: () => void;
+  onAddSubtopic: () => void;
+}) {
+  const [moving, setMoving] = useState(false);
+
+  // Undefined means the caller never asked for sections; empty means this topic
+  // has none. Neither is worth drawing a tree for.
+  const subtopics = parent.subtopics;
+
+  if (subtopics === undefined || subtopics.length === 0) return null;
+
+  const move = async (index: number, direction: -1 | 1) => {
+    const next = [...subtopics];
+    const target = index + direction;
+
+    if (target < 0 || target >= next.length) return;
+
+    [next[index], next[target]] = [next[target], next[index]];
+
+    setMoving(true);
+
+    try {
+      await reorderSubtopics(
+        parent.id,
+        next.map((subtopic) => subtopic.id),
+      );
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not reorder.");
+    } finally {
+      setMoving(false);
+    }
+  };
+
+  const remove = async (subtopic: Subtopic) => {
+    setMoving(true);
+
+    try {
+      await deleteTopic(subtopic.id);
+      toast.success(`Removed “${subtopic.title}”.`);
+
+      // Its materials panel goes with it. Left open, the id would be handed
+      // to whatever row the server returns under it next.
+      if (expandedSubtopicId === subtopic.id) onToggleSubtopic(subtopic.id);
+
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not delete.");
+    } finally {
+      setMoving(false);
+    }
+  };
+
+  return (
+    <div className="px-4 pb-3">
+      {/* The indent and the rule are the hierarchy. The rule is inset past the
+          topic's number badge, so it reads as descending from the topic rather
+          than as a second column beside it. */}
+      <ul className="ml-9 border-l-2 border-gray-200 space-y-1">
+        {subtopics.map((subtopic, index) => (
+          <li key={subtopic.id} className="relative pl-5">
+            {/* The stub joining this row to the rule running down beside it. */}
+            <span
+              className="absolute left-0 top-5 w-4 border-t-2 border-gray-200"
+              aria-hidden="true"
+            />
+
+            {editingSubtopicId === subtopic.id ? (
+              <div className="py-1">
+                <SubtopicEditForm
+                  subtopic={subtopic}
+                  onClose={onCloseSubtopicForm}
+                  onSaved={() => {
+                    onCloseSubtopicForm();
+                    onChanged();
+                  }}
+                />
+              </div>
+            ) : (
+              <SubtopicRow
+                subtopic={subtopic}
+                label={`${parentPosition}.${index + 1}`}
+                busy={busy || moving}
+                isExpanded={expandedSubtopicId === subtopic.id}
+                isFirst={index === 0}
+                isLast={index === subtopics.length - 1}
+                onToggle={() => onToggleSubtopic(subtopic.id)}
+                onUp={() => move(index, -1)}
+                onDown={() => move(index, 1)}
+                onEdit={() => onEditSubtopic(subtopic)}
+                onDelete={() => remove(subtopic)}
+              />
+            )}
+
+            {/* The third level of the tree, and the last one: this section's
+                materials. Mounted only while the section is open, which is
+                what keeps it a fetch for the one section being worked on
+                rather than for every section in the roadmap — the same rule
+                the topic card follows for its own panel.
+
+                Indented past the row and given a rule of its own, so the panel
+                reads as hanging off this section rather than off the topic the
+                branch descends from. The panel brings its own card border; the
+                rule is the only thing added around it, because a box inside a
+                box inside a card is the noise this tree is meant to avoid. */}
+            {expandedSubtopicId === subtopic.id &&
+              editingSubtopicId !== subtopic.id && (
+                <div
+                  id={`subtopic-${subtopic.id}-materials`}
+                  className="ml-3 mt-2 mb-3 border-l-2 border-blue-200 pl-4"
+                >
+                  <TopicMaterialsPanel topicId={subtopic.id} owner="section" />
+                </div>
+              )}
+          </li>
+        ))}
+      </ul>
+
+      <div className="ml-9 pl-5 mt-1">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-blue-700 hover:text-blue-800 hover:bg-blue-50 h-7 px-2"
+          disabled={busy || moving}
+          onClick={onAddSubtopic}
+        >
+          <Plus className="w-3.5 h-3.5 mr-1" />
+          Add another subtopic
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One section: what it is called, where it sits, and what can be done to it.
+ *
+ * The materials are behind a named button, not behind the title. An author
+ * looking at a section has to be able to see that its materials are theirs to
+ * edit without clicking anything to find out — a title that happens to be a
+ * disclosure is a feature nobody discovers, and a section with nothing in it
+ * looks identical to one that cannot hold anything.
+ *
+ * The count rides on that button rather than sitting apart from it, so the
+ * thing that says how many there are is the thing that opens them. It stays put
+ * whether the panel is open or shut: shut, it is the only word on whether a
+ * section holds anything, which is what an author scanning a roadmap for gaps
+ * is reading; open, holding it steady keeps the row from resizing under the
+ * pointer that just clicked it.
+ */
+function SubtopicRow({
+  subtopic,
+  label,
+  busy,
+  isExpanded,
+  isFirst,
+  isLast,
+  onToggle,
+  onUp,
+  onDown,
+  onEdit,
+  onDelete,
+}: {
+  subtopic: Subtopic;
+  /** Its number inside its parent, like "2.1". */
+  label: string;
+  busy: boolean;
+  isExpanded: boolean;
+  isFirst: boolean;
+  isLast: boolean;
+  onToggle: () => void;
+  onUp: () => void;
+  onDown: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+
+  const count = subtopic.materials.length;
+
+  return (
+    <div
+      className={`rounded-md border px-3 py-2 ${
+        isExpanded
+          ? "border-blue-300 bg-blue-50/50"
+          : "border-gray-200 bg-gray-50/70"
+      }`}
+    >
+      <div className="flex items-start gap-2">
+        <CornerDownRight
+          className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-1"
+          aria-hidden="true"
+        />
+
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-gray-800 break-words">
+            <span className="text-xs text-gray-500 tabular-nums mr-2">
+              {label}
+            </span>
+            {subtopic.title}
+          </p>
+
+          {subtopic.description && (
+            <p className="text-xs text-gray-600 mt-0.5 break-words">
+              {subtopic.description}
+            </p>
+          )}
+
+          {/* The section's own three acts, named. Reordering stays in the
+              corner with the topic's, because moving a section is about the
+              list it sits in rather than about the section itself. */}
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            <Button
+              size="sm"
+              variant={isExpanded ? "secondary" : "outline"}
+              className="h-7 px-2 text-xs"
+              aria-expanded={isExpanded}
+              aria-controls={`subtopic-${subtopic.id}-materials`}
+              aria-label={`${
+                isExpanded ? "Hide" : "Show"
+              } learning materials for ${subtopic.title} (${count})`}
+              disabled={busy}
+              onClick={onToggle}
+            >
+              <FileText className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
+              Materials
+              <span
+                className="ml-1.5 text-gray-500 tabular-nums"
+                aria-hidden="true"
+              >
+                · {count}
+              </span>
+              <span className="ml-1" aria-hidden="true">
+                {isExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5" />
+                )}
+              </span>
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              aria-label={`Edit ${subtopic.title}`}
+              disabled={busy}
+              onClick={onEdit}
+            >
+              <Pencil className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
+              Edit
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+              aria-label={`Delete ${subtopic.title}`}
+              disabled={busy}
+              onClick={() => setConfirming(true)}
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
+              Delete
+            </Button>
+          </div>
+
+          {confirming && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-700">
+                Delete this subtopic? Its learning materials and their files go
+                with it. The topic holding it stays.
+              </span>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={busy}
+                onClick={() => {
+                  setConfirming(false);
+                  onDelete();
+                }}
+              >
+                Delete
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setConfirming(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-0.5 shrink-0">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            aria-label={`Move ${subtopic.title} up`}
+            disabled={isFirst || busy}
+            onClick={onUp}
+          >
+            <ArrowUp className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            aria-label={`Move ${subtopic.title} down`}
+            disabled={isLast || busy}
+            onClick={onDown}
+          >
+            <ArrowDown className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The two boxes a section is written in.
+ *
+ * Title and overview, and no video field — see SubtopicDraft for why. The
+ * overview counter and its limit are the topic form's, because it is the same
+ * column with the same server rule behind it.
+ */
+function SubtopicFields({
+  idPrefix,
+  draft,
+  errors,
+  onChange,
+}: {
+  idPrefix: string;
+  draft: SubtopicDraft;
+  errors: Record<string, string>;
+  onChange: <K extends keyof SubtopicDraft>(
+    field: K,
+    value: SubtopicDraft[K],
+  ) => void;
+}) {
+  return (
+    <>
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-title`}>Title</Label>
+        <Input
+          id={`${idPrefix}-title`}
+          value={draft.title}
+          onChange={(e) => onChange("title", e.target.value)}
+        />
+        {errors.title && <FieldError message={errors.title} />}
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-baseline justify-between gap-3">
+          <Label htmlFor={`${idPrefix}-overview`}>Overview (optional)</Label>
+          <OverviewCounter idPrefix={idPrefix} text={draft.description} />
+        </div>
+        <Input
+          id={`${idPrefix}-overview`}
+          value={draft.description}
+          aria-describedby={`${idPrefix}-overview-count`}
+          onChange={(e) => onChange("description", e.target.value)}
+        />
+        <p className="text-xs text-gray-600">
+          The line that says what this section covers. Students read it above
+          the section&rsquo;s materials.
+        </p>
+        {errors.description && <FieldError message={errors.description} />}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Checks a section's draft, writes it, and turns a refusal into field messages.
+ *
+ * The same shape as saveTopicDraft, against the section's own rules. There is
+ * no video box here for a server error to land under, so the API's field names
+ * are used as they arrive.
+ */
+async function saveSubtopicDraft<T>(
+  draft: SubtopicDraft,
+  save: (draft: SubtopicDraft) => Promise<T>,
+): Promise<
+  | { saved: true; value: T; errors: Record<string, string> }
+  | { saved: false; errors: Record<string, string> }
+> {
+  const found = validateSubtopicDraft(draft);
+
+  if (Object.keys(found).length > 0) return { saved: false, errors: found };
+
+  try {
+    // Handed back rather than dropped: the dialog opens the section it just
+    // wrote, which means it needs the id the server gave it.
+    return { saved: true, value: await save(draft), errors: {} };
+  } catch (e) {
+    if (e instanceof ApiError && Object.keys(e.errors).length > 0) {
+      return {
+        saved: false,
+        errors: Object.fromEntries(
+          Object.entries(e.errors).map(([field, messages]) => [
+            field,
+            messages[0],
+          ]),
+        ),
+      };
+    }
+
+    toast.error(e instanceof Error ? e.message : "Could not save.");
+    return { saved: false, errors: {} };
+  }
+}
+
+/** Rewriting a section, in the row that section already occupies. */
+function SubtopicEditForm({
+  subtopic,
+  onClose,
+  onSaved,
+}: {
+  subtopic: Subtopic;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [draft, setDraft] = useState<SubtopicDraft>(() =>
+    draftOfSubtopic(subtopic),
+  );
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+
+    /*
+     * Saved through the topic endpoint, because a section is a topic row and
+     * this is the same edit. Only the two fields this form carries are sent:
+     * updateTopic builds its payload from the draft it is given, and a form
+     * that silently cleared a column it never showed would lose an author's
+     * work without ever mentioning it.
+     */
+    const result = await saveSubtopicDraft(draft, (next) =>
+      updateTopic(subtopic.id, {
+        ...next,
+        videoUrl: "",
+      }),
+    );
+
+    setSaving(false);
+    setErrors(result.errors);
+
+    if (result.saved) {
+      toast.success("Subtopic saved.");
+      onSaved();
+    }
+  };
+
+  return (
+    <form
+      onSubmit={submit}
+      aria-label="Edit subtopic"
+      className="rounded-md border border-blue-200 bg-blue-50/40 p-3 space-y-3"
+    >
+      <SubtopicFields
+        idPrefix="subtopic-edit"
+        draft={draft}
+        errors={errors}
+        onChange={(field, value) =>
+          setDraft((current) => ({ ...current, [field]: value }))
+        }
+      />
+
+      <div className="flex items-center gap-2">
+        <Button type="submit" size="sm" disabled={saving}>
+          {saving ? "Saving…" : "Save changes"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Adding a section, in a modal over the roadmap.
+ *
+ * The same centred modal a topic is added in, so the two acts read alike — but
+ * it names the topic it is adding to in its own description, because that is
+ * the one thing an author has to be sure of before they start typing.
+ */
+function AddSubtopicDialog({
+  parent,
+  onClose,
+  onCreated,
+}: {
+  /** The topic being added to, or null while the modal is shut. */
+  parent: Topic | null;
+  onClose: () => void;
+  /** The section that was written, so the caller can open it. */
+  onCreated: (saved: Topic) => void;
+}) {
+  const [draft, setDraft] = useState<SubtopicDraft>(EMPTY_SUBTOPIC_DRAFT);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  const close = () => {
+    setDraft(EMPTY_SUBTOPIC_DRAFT);
+    setErrors({});
+    onClose();
+  };
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (parent === null) return;
+
+    setSaving(true);
+
+    const result = await saveSubtopicDraft(draft, (next) =>
+      createSubtopic(parent.id, next),
+    );
+
+    setSaving(false);
+    setErrors(result.errors);
+
+    if (result.saved) {
+      toast.success("Subtopic added.");
+      setDraft(EMPTY_SUBTOPIC_DRAFT);
+      setErrors({});
+      onCreated(result.value);
+    }
+  };
+
+  return (
+    <Dialog
+      open={parent !== null}
+      onOpenChange={(next) => {
+        if (!next) close();
+      }}
+    >
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add Subtopic</DialogTitle>
+          <DialogDescription>
+            A section inside &ldquo;{parent?.title}&rdquo;. It joins the end of
+            that topic&rsquo;s sections and opens straight onto its own learning
+            materials, ready to take a video, a link or a file.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={submit} aria-label="Add subtopic" className="space-y-4">
+          <SubtopicFields
+            idPrefix="subtopic-add"
+            draft={draft}
+            errors={errors}
+            onChange={(field, value) =>
+              setDraft((current) => ({ ...current, [field]: value }))
+            }
+          />
+
+          <DialogFooter className="mt-6 gap-2">
+            <Button type="submit" disabled={saving} className="flex-1">
+              {saving ? "Saving…" : "Add subtopic"}
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={close}>
               Cancel

@@ -110,6 +110,7 @@ function topic(id: number, title: string): Topic {
     description: null,
     videoUrl: null,
     order: id,
+    parentId: null,
   };
 }
 

@@ -1,5 +1,7 @@
 import { api } from "@/services/api";
 import type { TopologyDocument } from "@/features/simulations/networkTopology/topologyDocument";
+import { toMaterial } from "./materialService";
+import type { ApiMaterial } from "./materialService";
 import type {
   Attempt,
   Challenge,
@@ -7,6 +9,7 @@ import type {
   Paginated,
   RequirementResult,
   Roadmap,
+  Subtopic,
   Topic,
 } from "./types";
 
@@ -20,11 +23,32 @@ import type {
 interface ApiTopic {
   id: number;
   roadmap_id: number;
+  /** Null for a topic of the roadmap; the holding topic's id for a section. */
+  parent_id: number | null;
   title: string;
   description: string | null;
   ytube_link: string | null;
   order: number;
   roadmap?: ApiRoadmap;
+  /** Present only where the endpoint was asked to nest them. */
+  subtopics?: ApiSubtopic[];
+}
+
+/**
+ * A section as the API nests it under its topic.
+ *
+ * Its materials come along, because there is no other way to get them without
+ * a request per section on every topic page. It carries no `subtopics` of its
+ * own: the server serialises exactly one level and nothing deeper exists.
+ */
+interface ApiSubtopic {
+  id: number;
+  roadmap_id: number;
+  parent_id: number;
+  title: string;
+  description: string | null;
+  order: number;
+  materials?: ApiMaterial[];
 }
 
 interface ApiRoadmap {
@@ -77,6 +101,26 @@ function toTopic(topic: ApiTopic): Topic {
     description: topic.description,
     videoUrl: topic.ytube_link,
     order: topic.order,
+    // A response from before subtopics existed says nothing here, and every
+    // topic in one was a topic of its roadmap.
+    parentId: topic.parent_id ?? null,
+    // Left undefined when the key is absent, which is not the same as an empty
+    // list: one means nobody asked, the other means there are none.
+    subtopics: topic.subtopics?.map(toSubtopic),
+  };
+}
+
+function toSubtopic(subtopic: ApiSubtopic): Subtopic {
+  return {
+    id: subtopic.id,
+    roadmapId: subtopic.roadmap_id,
+    parentId: subtopic.parent_id,
+    title: subtopic.title,
+    description: subtopic.description,
+    order: subtopic.order,
+    // Read through the material service's own mapper, so a nested material and
+    // one fetched from the materials endpoint are the same shape.
+    materials: (subtopic.materials ?? []).map(toMaterial),
   };
 }
 
@@ -160,10 +204,18 @@ async function fetchAll<T>(path: string): Promise<T[]> {
  * Every published roadmap with its topics.
  *
  * `include=topics` nests them, so this is one request rather than a list
- * followed by a fetch per roadmap.
+ * followed by a fetch per roadmap. Pass `withSubtopics` to nest each topic's
+ * sections under it as well — the authoring tree needs them, a reading list
+ * does not.
  */
-export async function fetchRoadmaps(): Promise<Roadmap[]> {
-  const roadmaps = await fetchAll<ApiRoadmap>("/roadmaps?include=topics");
+export async function fetchRoadmaps(
+  options: { withSubtopics?: boolean } = {},
+): Promise<Roadmap[]> {
+  // Opt-in, because the two callers want different things: the authoring tree
+  // draws the hierarchy and needs the sections, the student's table of
+  // contents lists the topics and would only be paying to ignore them.
+  const include = options.withSubtopics ? "topics,subtopics" : "topics";
+  const roadmaps = await fetchAll<ApiRoadmap>(`/roadmaps?include=${include}`);
 
   return roadmaps.map((roadmap) => ({
     id: roadmap.id,
@@ -186,8 +238,14 @@ export interface TopicDetail {
   /**
    * Every topic of the same roadmap in order, this one included — what the
    * page pages through with previous and next.
+   *
+   * Root topics only, which is the server's doing: a section is displayed
+   * inside the topic holding it, never stepped into as though it were the next
+   * topic.
    */
   siblings: Topic[];
+  /** The sections inside this topic, each with its own materials. */
+  subtopics: Subtopic[];
 }
 
 /**
@@ -202,6 +260,68 @@ export async function fetchTopic(id: number): Promise<TopicDetail> {
     topic: toTopic(data),
     roadmapTitle: data.roadmap?.title ?? "",
     siblings: (data.roadmap?.topics ?? []).map(toTopic),
+    subtopics: (data.subtopics ?? []).map(toSubtopic),
+  };
+}
+
+/** One section with everything its own page shows. */
+export interface SubtopicDetail {
+  /** The section itself, with its materials. */
+  subtopic: Subtopic;
+  /** The topic it is a section of — where "back" goes. */
+  parent: Topic;
+  roadmapTitle: string;
+  /**
+   * Every section of the same topic in order, this one included — what the
+   * page pages through with previous and next.
+   *
+   * Sections of *this* topic, never the roadmap's topics: stepping out of a
+   * topic is what the parent link is for, and offering it as "next" would walk
+   * a student out of the topic they are reading without saying so.
+   */
+  siblings: Subtopic[];
+}
+
+/**
+ * One section, with its materials, its topic and its fellow sections.
+ *
+ * Two requests, because a section only learns which topic holds it by being
+ * asked for: the first names the parent, the second fetches it. The second is
+ * where everything else comes from — the API nests a topic's sections with
+ * their materials, so the parent's response already carries this section, the
+ * rows to draw in it, and the siblings to page through. Asking the materials
+ * endpoint as well would be a third request for rows already in hand.
+ *
+ * Null means the id does not name a section: either it is a topic of the
+ * roadmap in its own right, which has a page of its own and is not this one, or
+ * it has since been moved out of the topic that was holding it. A locked
+ * roadmap is not this — the API refuses that with a 403, which is left to
+ * throw so the caller can tell "shut" from "not a section".
+ */
+export async function fetchSubtopic(
+  id: number,
+): Promise<SubtopicDetail | null> {
+  const { data } = await api.get<{ data: ApiTopic }>(`/topics/${id}`);
+
+  if (data.parent_id === null) return null;
+
+  const { data: parent } = await api.get<{ data: ApiTopic }>(
+    `/topics/${data.parent_id}`,
+  );
+
+  const siblings = (parent.subtopics ?? []).map(toSubtopic);
+  const subtopic = siblings.find((sibling) => sibling.id === id);
+
+  if (!subtopic) return null;
+
+  return {
+    subtopic,
+    parent: toTopic(parent),
+    // Whichever response named it. Both load the roadmap, so in practice this
+    // is the first one; the fallback is here so a section is not left with a
+    // blank breadcrumb if only one of them ever stops nesting it.
+    roadmapTitle: data.roadmap?.title ?? parent.roadmap?.title ?? "",
+    siblings,
   };
 }
 

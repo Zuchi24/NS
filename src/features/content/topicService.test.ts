@@ -183,6 +183,7 @@ describe("draftOfTopic", () => {
       title: "Bare",
       description: null,
       videoUrl: null,
+      parentId: null,
       order: 0,
     };
 
@@ -258,6 +259,9 @@ describe("createTopic", () => {
       description: "Giving the network a gateway.",
       videoUrl: "https://example.com/v",
       order: 2,
+      // Null: these endpoints author topics of a roadmap, and a section inside
+      // one is created against its parent through createSubtopic instead.
+      parentId: null,
       // These endpoints answer about the topic, not about any one student.
     });
   });

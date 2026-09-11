@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router";
 import { ChevronDown, ChevronUp, Route, Youtube } from "lucide-react";
 
@@ -9,7 +9,7 @@ import {
   LoadingState,
 } from "@/components/common/AsyncStates";
 import { fetchRoadmaps } from "@/features/content/contentService";
-import type { Roadmap, Topic } from "@/features/content/types";
+import type { Roadmap, Subtopic, Topic } from "@/features/content/types";
 import { useAsync } from "@/services/useAsync";
 
 /**
@@ -40,7 +40,17 @@ const TOPICS_PER_STEP = 5;
 
 export function RoadmapPage() {
   const navigate = useNavigate();
-  const { data, error, loading, reload } = useAsync(fetchRoadmaps);
+
+  /*
+   * With the sections, which the table of contents did not use to ask for.
+   *
+   * They cost little: the roadmap list nests a section's title and its place,
+   * not its materials — those are loaded per topic, by the topic page. What
+   * they buy is the shape of the roadmap being readable from the roadmap
+   * itself, rather than only after opening a topic to find out it had parts.
+   */
+  const load = useCallback(() => fetchRoadmaps({ withSubtopics: true }), []);
+  const { data, error, loading, reload } = useAsync(load);
 
   /**
    * How much of each roadmap has been revealed, by roadmap id.
@@ -90,7 +100,7 @@ export function RoadmapPage() {
     */
     <div className="-m-8">
       <div className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <h1 className="text-xl font-bold text-gray-900">
             Networking Roadmap
           </h1>
@@ -101,7 +111,7 @@ export function RoadmapPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-16">
         {roadmaps.map((roadmap) => (
           <RoadmapPath
             key={roadmap.id}
@@ -121,6 +131,7 @@ export function RoadmapPage() {
               )
             }
             onOpen={(topic) => navigate(`/topic/${topic.id}`)}
+            onOpenSubtopic={(subtopic) => navigate(`/subtopic/${subtopic.id}`)}
           />
         ))}
       </div>
@@ -148,6 +159,7 @@ function RoadmapPath({
   onShowMore,
   onShowLess,
   onOpen,
+  onOpenSubtopic,
 }: {
   roadmap: Roadmap;
   /** How many of this roadmap's topics to draw. */
@@ -155,6 +167,7 @@ function RoadmapPath({
   onShowMore: () => void;
   onShowLess: () => void;
   onOpen: (topic: Topic) => void;
+  onOpenSubtopic: (subtopic: Subtopic) => void;
 }) {
   const headingId = `roadmap-${roadmap.id}-title`;
 
@@ -214,6 +227,7 @@ function RoadmapPath({
               // rather than running down one side.
               cardOnLeft={index % 2 === 0}
               onOpen={() => onOpen(topic)}
+              onOpenSubtopic={onOpenSubtopic}
             />
           ))}
         </ol>
@@ -275,71 +289,307 @@ function RoadmapPath({
 }
 
 /**
- * One topic: a node on the line, and the card it opens.
+ * One topic: a node on the line, the card it opens, and the sections branching
+ * off it sideways.
  *
- * The node and the short arm joining it to the card are drawn from the row
- * itself rather than from the card, so a taller card grows around them and the
- * node stays on the spine.
+ * One row over three columns. The middle column is the spine's; the topic takes
+ * an outer one and is pushed hard against the spine, so whatever else it
+ * carries has to grow the other way — outward, into the margin of the page.
+ * That is where the sections go: not under the card but beside it, on the far
+ * side of it from the line, so the card sits between its own sections and the
+ * roadmap they belong to.
+ *
+ * Which side that is falls straight out of which side the card is on. A card in
+ * the left column branches left; a card in the right column branches right. The
+ * branch is never between the card and the spine, because that space is the arm
+ * joining the two, and a section standing in it would read as part of the path
+ * rather than as part of the topic.
+ *
+ * Card and branch are centred against each other, which is what keeps the
+ * numbered node level with the card it points at however many sections hang off
+ * it — the node is centred on the row, and the card is centred in the row.
+ *
+ * Below `lg` none of this holds: there is one column, the spine is down its
+ * left, and there is no outward margin to branch into. There the sections fall
+ * back under the card, which is the same tree read top to bottom.
  */
 function TopicNode({
   topic,
   position,
   cardOnLeft,
   onOpen,
+  onOpenSubtopic,
 }: {
   topic: Topic;
   position: number;
   /** Which side of the spine the card sits on, from `lg` up. */
   cardOnLeft: boolean;
   onOpen: () => void;
+  onOpenSubtopic: (subtopic: Subtopic) => void;
 }) {
+  const sections = topic.subtopics ?? [];
+
+  // The outer column, and — since the card is pinned to the spine end of it —
+  // the direction everything else in the row has to grow.
+  const column = cardOnLeft
+    ? "min-w-0 w-full lg:col-start-1 lg:justify-self-end"
+    : "min-w-0 w-full lg:col-start-3 lg:justify-self-start";
+
+  /*
+   * Card and branch, side by side from `lg`.
+   *
+   * The card is first in the DOM either way, because that is the order it is
+   * read and tabbed in: the topic, then what the topic is made of. On the left
+   * of the spine the row is reversed visually so the card still ends up nearest
+   * the line, which puts the branch out at the page's edge.
+   */
+  const row = cardOnLeft
+    ? "lg:flex lg:flex-row-reverse lg:items-center lg:gap-6"
+    : "lg:flex lg:items-center lg:gap-6";
+
+  // Fixed from lg so every card on the path is the same width and the branches
+  // all set off from the same distance out, rather than each row finding its
+  // own shape from its own text.
+  const cardWidth = "w-full lg:w-52 xl:w-[17rem] lg:shrink-0";
+
   return (
-    <li className="relative min-w-0 pl-14 lg:pl-0 lg:grid lg:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] lg:items-center">
-      {/* The arm from the spine to the card. On a phone every card is to the
-          right of the line; from lg it reaches out to whichever side the card
-          is on, and its inner end disappears under the node. */}
-      <span
-        aria-hidden="true"
-        className={`absolute top-8 left-5 h-0.5 w-7 -translate-y-1/2 bg-blue-200 lg:top-1/2 lg:w-8 ${
-          cardOnLeft ? "lg:left-auto lg:right-1/2" : "lg:left-1/2"
-        }`}
-      />
+    <li className="relative min-w-0">
+      <div className="relative min-w-0 pl-14 lg:pl-0 lg:grid lg:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] lg:items-center">
+        {/* The arm from the spine to the card. On a phone every card is to the
+            right of the line; from lg it reaches out to whichever side the card
+            is on, and its inner end disappears under the node. */}
+        <span
+          aria-hidden="true"
+          className={`absolute top-8 left-5 h-0.5 w-7 -translate-y-1/2 bg-blue-200 lg:top-1/2 lg:w-8 ${
+            cardOnLeft ? "lg:left-auto lg:right-1/2" : "lg:left-1/2"
+          }`}
+        />
 
-      <span className="absolute top-8 left-5 z-10 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-blue-500 bg-white text-xs font-bold text-blue-700 shadow-sm lg:top-1/2 lg:left-1/2">
-        {position}
-      </span>
+        <span className="absolute top-8 left-5 z-10 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-blue-500 bg-white text-xs font-bold text-blue-700 shadow-sm lg:top-1/2 lg:left-1/2">
+          {position}
+        </span>
 
-      <div
-        className={
-          cardOnLeft
-            ? "min-w-0 lg:col-start-1 lg:justify-self-end"
-            : "min-w-0 lg:col-start-3 lg:justify-self-start"
-        }
-      >
-        <button
-          type="button"
-          onClick={onOpen}
-          aria-label={`Open ${topic.title}`}
-          className="group w-full min-w-0 lg:max-w-sm text-left bg-white rounded-xl border-2 border-blue-200 shadow-sm p-5 transition-all hover:border-blue-400 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-        >
-          <h3 className="text-base sm:text-lg font-bold text-gray-900 group-hover:text-blue-700 break-words">
-            {topic.title}
-          </h3>
+        <div className={column}>
+          <div className={row}>
+            <div className={cardWidth}>
+              <button
+                type="button"
+                onClick={onOpen}
+                aria-label={`Open ${topic.title}`}
+                className="group w-full min-w-0 text-left bg-white rounded-xl border-2 border-blue-200 shadow-sm p-5 transition-all hover:border-blue-400 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 group-hover:text-blue-700 break-words">
+                  {topic.title}
+                </h3>
 
-          {topic.description && (
-            <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 break-words">
-              {topic.description}
-            </p>
-          )}
+                {topic.description && (
+                  <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 break-words">
+                    {topic.description}
+                  </p>
+                )}
 
-          {topic.videoUrl && (
-            <span className="mt-3 flex items-center gap-1.5 text-xs text-gray-500">
-              <Youtube className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-              Video
-            </span>
-          )}
-        </button>
+                {topic.videoUrl && (
+                  <span className="mt-3 flex items-center gap-1.5 text-xs text-gray-500">
+                    <Youtube
+                      className="w-3.5 h-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                    Video
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Beside the card, and outside the button: the card is one control,
+                and a list of sections nested inside it would be read out as
+                part of the label on the way in. */}
+            {sections.length > 0 && (
+              <TopicSections
+                sections={sections}
+                position={position}
+                cardOnLeft={cardOnLeft}
+                onOpen={onOpenSubtopic}
+              />
+            )}
+          </div>
+        </div>
       </div>
     </li>
+  );
+}
+
+/**
+ * The sections inside one topic, branching off the outer edge of its card.
+ *
+ * Off the *card*, deliberately, and never off the spine. The spine is the
+ * roadmap's sequence — a node on it is a topic a student walks to — so a
+ * section standing on it would announce itself as the next topic along. This
+ * hangs off the card's far edge instead, which says the opposite: these are
+ * what that milestone is made of.
+ *
+ * The branch mirrors. A stem leaves the card's outer edge and meets a trunk;
+ * the trunk runs down past every section, throwing an arm out to each. On the
+ * left of the spine the trunk sits on the *right* of the section cards and the
+ * arms reach left; on the right of the spine it is the other way about. Both
+ * sides therefore grow away from the spine, which is what the arms joining the
+ * cards to the spine already do.
+ *
+ * The stem enters the trunk halfway down, level with the middle of the list,
+ * and every arm meets the middle of its own card. That is the difference from a
+ * list hanging below a card: the trunk is a spine of its own, entered from the
+ * side, and the sections read as siblings of one another rather than as a
+ * sequence carrying on from the topic.
+ *
+ * Below `lg` there is one column with the roadmap's spine down its left and no
+ * outward margin to branch into. There the whole branch falls back under the
+ * card: trunk on the left, arms reaching right, entered from the top rather
+ * than from the side. Every class below therefore names the stacked layout
+ * first and mirrors it only from `lg`.
+ *
+ * The cards are the topic card, stepped down: one border instead of two, no
+ * shadow, a tinted ground and smaller type. Same design language, plainly
+ * subordinate — a section must never read as a milestone of its own.
+ *
+ * Each one opens. A section has a page of its own — its materials live there
+ * rather than inside the topic — so a section card is a way in, exactly as the
+ * topic card beside it is. What keeps the two from reading alike is size and
+ * weight, not one of them being inert: a section is plainly the smaller card,
+ * hanging off the larger one, off the path rather than on it.
+ */
+function TopicSections({
+  sections,
+  position,
+  cardOnLeft,
+  onOpen,
+}: {
+  sections: Subtopic[];
+  /** The parent topic's place on the path, so cards can carry it. */
+  position: number;
+  /** The parent's side, which the branch mirrors rather than recomputes. */
+  cardOnLeft: boolean;
+  onOpen: (subtopic: Subtopic) => void;
+}) {
+  /*
+   * The branch, as four kinds of line.
+   *
+   * Written out as whole class strings rather than assembled from parts: these
+   * have to survive Tailwind's scanner, which reads source text and never sees
+   * a name that was built at runtime.
+   *
+   * The trunk is drawn per section rather than as one rule down the list, which
+   * is what lets it start at the first arm and stop at the last instead of
+   * overshooting either. A run of segments reads as one line because the rows
+   * are flush — the gap between them is padding inside a row, not margin
+   * between rows, so there is nothing for the line to fall through.
+   */
+
+  // Fixed from lg, like the card it hangs off, so every branch down a roadmap
+  // reaches the same distance out.
+  const width = "w-full lg:w-48 xl:w-[15rem] lg:shrink-0";
+
+  const side = cardOnLeft
+    ? "ml-6 pl-5 pt-3 lg:ml-0 lg:pl-0 lg:pr-5 lg:pt-0"
+    : "ml-6 pl-5 pt-3 lg:ml-0 lg:pt-0";
+
+  /*
+   * The stem: the piece that leaves the card and reaches the trunk, level with
+   * the middle of the list. It spans the gap the flex row puts between card and
+   * branch, so it only exists once that row does — stacked, the top of the
+   * trunk does this job instead.
+   */
+  const stem = cardOnLeft
+    ? "hidden lg:block absolute top-1/2 -right-6 h-0.5 w-6 -translate-y-1/2 bg-blue-200"
+    : "hidden lg:block absolute top-1/2 -left-6 h-0.5 w-6 -translate-y-1/2 bg-blue-200";
+
+  const trunkX = cardOnLeft
+    ? "absolute w-0.5 bg-blue-200 -left-5 lg:left-auto lg:-right-5"
+    : "absolute w-0.5 bg-blue-200 -left-5";
+
+  const arm = cardOnLeft
+    ? "absolute top-6 -left-5 h-0.5 w-5 -translate-y-1/2 bg-blue-200 lg:top-1/2 lg:left-auto lg:-right-5"
+    : "absolute top-6 -left-5 h-0.5 w-5 -translate-y-1/2 bg-blue-200 lg:top-1/2";
+
+  // The junction, drawn on the trunk: the spine's own node, three sizes down.
+  const joint = cardOnLeft
+    ? "absolute top-6 -left-5 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-blue-300 bg-white lg:top-1/2 lg:left-auto lg:-right-5"
+    : "absolute top-6 -left-5 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-blue-300 bg-white lg:top-1/2";
+
+  const caption = cardOnLeft
+    ? "ml-6 pl-5 text-xs font-medium text-gray-500 lg:ml-0 lg:pl-0 lg:pr-5 lg:text-right"
+    : "ml-6 pl-5 text-xs font-medium text-gray-500";
+
+  return (
+    <div className={`mt-2 lg:mt-0 ${width}`}>
+      <p className={caption}>
+        {sections.length} section{sections.length === 1 ? "" : "s"} in this
+        topic
+      </p>
+
+      {/*
+        The stem is measured against the list rather than against the block as a
+        whole, so that "halfway down" means halfway down the sections and not
+        halfway down the caption plus the sections — which is what keeps it
+        landing on the trunk however few sections there are.
+      */}
+      <div className="relative mt-1">
+        <span aria-hidden="true" className={stem} />
+
+        <ul className={side}>
+          {sections.map((section, index) => {
+            const isFirst = index === 0;
+            const isLast = index === sections.length - 1;
+
+            /*
+             * How far this segment runs.
+             *
+             * Stacked, the first reaches up through the list's own top padding,
+             * which is the stem coming down from the card, and the last stops
+             * dead at its arm — a trunk continuing past the final section would
+             * promise one more that never arrives.
+             *
+             * Beside the card the arms move to the middle of their own rows, so
+             * the ends of the trunk move with them: it begins at the first
+             * section's middle and finishes at the last one's. A lone section
+             * needs no trunk at all — the stem arrives exactly where its arm
+             * leaves.
+             */
+            const trunk = isLast
+              ? isFirst
+                ? "-top-3 h-9 lg:top-1/2 lg:h-0"
+                : "top-0 h-6 lg:h-1/2"
+              : isFirst
+                ? "-top-3 bottom-0 lg:top-1/2"
+                : "top-0 bottom-0";
+
+            return (
+              <li key={section.id} className="relative pb-2 last:pb-0">
+                <span aria-hidden="true" className={`${trunkX} ${trunk}`} />
+                <span aria-hidden="true" className={arm} />
+                <span aria-hidden="true" className={joint} />
+
+                <button
+                  type="button"
+                  onClick={() => onOpen(section)}
+                  aria-label={`Open ${section.title}`}
+                  className="group block w-full text-left rounded-lg border border-blue-100 bg-blue-50/40 px-3 py-2.5 transition-all hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                >
+                  <p className="text-[11px] font-semibold text-blue-600 tabular-nums">
+                    {position}.{index + 1}
+                  </p>
+                  <p className="mt-0.5 text-sm font-semibold text-gray-800 group-hover:text-blue-700 break-words">
+                    {section.title}
+                  </p>
+                  {section.description && (
+                    <p className="mt-1 text-xs text-gray-600 leading-relaxed line-clamp-2 break-words">
+                      {section.description}
+                    </p>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
   );
 }

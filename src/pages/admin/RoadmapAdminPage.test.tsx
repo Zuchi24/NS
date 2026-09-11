@@ -69,6 +69,7 @@ function topic(over: Partial<Topic> = {}): Topic {
     title: "Released topic",
     description: null,
     videoUrl: null,
+    parentId: null,
     order: 0,
     ...over,
   };

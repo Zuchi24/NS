@@ -13,7 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { RoadmapPage } from "./RoadmapPage";
 import { PAGE_GUTTER } from "@/layouts/StudentLayout";
 import { TOPIC_DESCRIPTION_MAX } from "@/features/content/topicService";
-import type { Roadmap, Topic } from "@/features/content/types";
+import type { Roadmap, Subtopic, Topic } from "@/features/content/types";
 
 /**
  * The student's roadmap, as a path.
@@ -50,6 +50,7 @@ function topic(over: Partial<Topic> = {}): Topic {
     title: "Hardware and Cabling",
     description: "Building a machine and making a cable.",
     videoUrl: null,
+    parentId: null,
     order: 0,
     ...over,
   };
@@ -418,5 +419,295 @@ describe("RoadmapPage", () => {
 
     expect(within(second).getAllByRole("listitem")).toHaveLength(5);
     expect(within(first).getAllByRole("listitem")).toHaveLength(5);
+  });
+});
+
+/**
+ * The sections inside a topic, branching off the outer edge of its card.
+ *
+ * The risk these guard is a specific one: a section drawn as a node of the
+ * spine would read as the next topic a student walks to, and the roadmap would
+ * claim more milestones than the instructor wrote. So these are about
+ * containment — a section belongs inside its topic's row, on its topic's side
+ * — and about the path itself being untouched: the same nodes, the same
+ * alternation, the same reveal.
+ *
+ * On top of that they hold the branch *beside* its card rather than under it.
+ * Which side it takes is not a choice the branch makes: it is the side the card
+ * already took, read outward, so the card always stands between the spine and
+ * its own sections.
+ *
+ * The side assertions read class names, which is usually a poor way to test.
+ * Here it is the thing itself: "the branch is on the far side of its card from
+ * the spine" is a statement about layout and about nothing else, and a branch
+ * that crossed back over the card would look wrong while every query about text
+ * and nesting still passed.
+ */
+describe("the sections branching off a topic", () => {
+  /** The list item for one topic — a section of it has to be found inside. */
+  function nodeFor(title: string): HTMLElement {
+    return screen.getByText(title).closest("li") as HTMLElement;
+  }
+
+  /** The block holding one topic's sections, found from the caption above it. */
+  function branchOf(title: string): HTMLElement {
+    return within(nodeFor(title))
+      .getByText(/sections? in this topic/i)
+      .closest("div") as HTMLElement;
+  }
+
+  /** The card for one topic — the control the node on the path opens. */
+  function cardOf(title: string): HTMLElement {
+    return within(nodeFor(title)).getByRole("button", {
+      name: new RegExp(`^open ${title}$`, "i"),
+    });
+  }
+
+  /**
+   * The grid column something sits in: the nearest ancestor that picks one.
+   *
+   * Walked rather than selected, because which element carries the column is
+   * exactly the layout detail these tests should not be pinned to — only that
+   * the card and its branch end up in the same one.
+   */
+  function columnOf(start: HTMLElement): HTMLElement {
+    let node: HTMLElement | null = start;
+
+    while (node && !/lg:col-start-\d/.test(node.className)) {
+      node = node.parentElement;
+    }
+
+    if (!node) throw new Error("nothing on the way up picks a column");
+    return node;
+  }
+
+  function section(over: Partial<Subtopic> = {}): Subtopic {
+    return {
+      id: 900,
+      roadmapId: 1,
+      parentId: 1001,
+      title: "A section",
+      description: null,
+      order: 0,
+      materials: [],
+      ...over,
+    };
+  }
+
+  /**
+   * Two topics with sections apiece.
+   *
+   * Two, because the page alternates sides from one topic to the next: one
+   * topic could only ever prove the side it happened to land on.
+   */
+  function bothSides(counts: [number, number] = [2, 2]): Roadmap {
+    const base = roadmapOf(2);
+
+    return {
+      ...base,
+      topics: base.topics.map((parent, side) => ({
+        ...parent,
+        subtopics: Array.from({ length: counts[side] }, (_, index) =>
+          section({
+            id: 900 + side * 10 + index,
+            parentId: parent.id,
+            title: `Topic ${side + 1} section ${index + 1}`,
+            order: index,
+          }),
+        ),
+      })),
+    };
+  }
+
+  it("asks for the sections along with the topics", async () => {
+    await renderWith([roadmapOf(1)]);
+
+    // Without this the page would draw a roadmap that never mentions its own
+    // sections — the shape right, the content simply absent.
+    expect(content.fetchRoadmaps).toHaveBeenCalledWith({ withSubtopics: true });
+  });
+
+  it("draws each section inside the topic holding it", async () => {
+    await renderWith([bothSides()]);
+
+    const first = nodeFor("Topic 1");
+
+    // Nested, not merely adjacent. A flat path showing the same titles would
+    // pass a query that only asked whether the words were on screen.
+    expect(within(first).getByText("Topic 1 section 1")).toBeInTheDocument();
+    expect(within(first).getByText("Topic 1 section 2")).toBeInTheDocument();
+    expect(within(first).queryByText("Topic 2 section 1")).toBeNull();
+
+    const second = nodeFor("Topic 2");
+    expect(within(second).getByText("Topic 2 section 1")).toBeInTheDocument();
+    expect(within(second).queryByText("Topic 1 section 1")).toBeNull();
+  });
+
+  it("branches a left-hand topic to the left of the spine", async () => {
+    await renderWith([bothSides()]);
+
+    // The first topic takes the left column, so its branch takes it too: the
+    // same `lg:col-start-1` the card uses, never the right-hand column.
+    const column = columnOf(branchOf("Topic 1"));
+
+    expect(column.className).toContain("lg:col-start-1");
+    expect(column.className).not.toContain("lg:col-start-3");
+  });
+
+  it("branches a right-hand topic to the right of the spine", async () => {
+    await renderWith([bothSides()]);
+
+    const column = columnOf(branchOf("Topic 2"));
+
+    expect(column.className).toContain("lg:col-start-3");
+    expect(column.className).not.toContain("lg:col-start-1");
+  });
+
+  it("sets the sections beside their card rather than under it", async () => {
+    await renderWith([bothSides()]);
+
+    // The card and the branch share one row. Under the old shape they were in
+    // two, stacked, and every other assertion in this file still passed — so
+    // this is the one that says the branch grew sideways.
+    for (const title of ["Topic 1", "Topic 2"]) {
+      const row = branchOf(title).parentElement as HTMLElement;
+
+      expect(row).toContain(cardOf(title));
+      expect(row.className).toContain("lg:flex");
+      expect(row.className).toContain("lg:items-center");
+    }
+  });
+
+  it("puts a left-hand card between the spine and its own sections", async () => {
+    await renderWith([bothSides()]);
+
+    // Reversing the row is what moves the branch to the outside: the card is
+    // first in the DOM on both sides, so on the left of the spine it has to be
+    // drawn last to stay the nearer of the two to the line.
+    const left = branchOf("Topic 1").parentElement as HTMLElement;
+    const right = branchOf("Topic 2").parentElement as HTMLElement;
+
+    expect(left.className).toContain("lg:flex-row-reverse");
+    expect(right.className).not.toContain("lg:flex-row-reverse");
+  });
+
+  it("mirrors the branch rail so both sides grow away from the spine", async () => {
+    await renderWith([bothSides()]);
+
+    const left = within(branchOf("Topic 1")).getByRole("list");
+    const right = within(branchOf("Topic 2")).getByRole("list");
+
+    // The list makes room on the side its trunk runs down...
+    expect(left.className).toContain("lg:pr-5");
+    expect(right.className).not.toContain("lg:pr-5");
+    expect(right.className).toContain("pl-5");
+
+    // ...and the trunk itself moves to that side. On the left of the spine it
+    // sits on the right of its column so the arms reach outward; on the right
+    // it stays put and they reach outward the other way. Below lg there is one
+    // column and both use the left trunk, which is why each keeps `-left-5`.
+    const trunk = (list: HTMLElement) =>
+      (list.querySelector("li > span") as HTMLElement).className;
+
+    expect(trunk(left)).toContain("lg:-right-5");
+    expect(trunk(left)).toContain("lg:left-auto");
+    expect(trunk(left)).toContain("-left-5");
+    expect(trunk(right)).not.toContain("lg:-right-5");
+    expect(trunk(right)).toContain("-left-5");
+  });
+
+  it("numbers a section inside its topic rather than along the path", async () => {
+    await renderWith([bothSides()]);
+
+    // "1.1"/"1.2" under the first topic, "2.1"/"2.2" under the second — a
+    // section can never be read as the next milestone.
+    expect(within(nodeFor("Topic 1")).getByText("1.1")).toBeInTheDocument();
+    expect(within(nodeFor("Topic 1")).getByText("1.2")).toBeInTheDocument();
+    expect(within(nodeFor("Topic 2")).getByText("2.1")).toBeInTheDocument();
+    expect(within(nodeFor("Topic 2")).getByText("2.2")).toBeInTheDocument();
+  });
+
+  it("says how many sections a topic is divided into", async () => {
+    await renderWith([bothSides([1, 3])]);
+
+    expect(
+      within(nodeFor("Topic 1")).getByText(/1 section in this topic/i),
+    ).toBeInTheDocument();
+    expect(
+      within(nodeFor("Topic 2")).getByText(/3 sections in this topic/i),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps every section off the path itself", async () => {
+    await renderWith([bothSides()]);
+
+    /*
+     * Two stops on the path, for the two topics — whatever those topics hold.
+     * A section standing on the path would be a further stop on a roadmap the
+     * instructor wrote two.
+     *
+     * Counted as the path's own children rather than as controls, because a
+     * section is a control of its own now: what keeps it off the path is that
+     * it hangs inside a topic's stop, not that it cannot be clicked.
+     */
+    const path = nodeFor("Topic 1").parentElement as HTMLElement;
+
+    expect(path.tagName).toBe("OL");
+    expect(path.children).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: /open Topic 1$/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /open Topic 2$/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens a section on a page of its own", async () => {
+    const user = userEvent.setup();
+    await renderWith([bothSides()]);
+
+    // A section is a way in now, not a label. It goes to its own address —
+    // never to the topic holding it, which would make the click a lie about
+    // where it landed.
+    await user.click(
+      screen.getByRole("button", { name: /Topic 1 section 2/i }),
+    );
+
+    expect(navigate).toHaveBeenCalledWith("/subtopic/901");
+  });
+
+  it("draws one section, four sections, or none at all", async () => {
+    await renderWith([bothSides([1, 4])]);
+
+    expect(within(nodeFor("Topic 1")).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(nodeFor("Topic 2")).getAllByRole("listitem")).toHaveLength(4);
+
+    cleanup();
+
+    // And a topic with none draws no branch at all, rather than an empty rail.
+    await renderWith([roadmapOf(1)]);
+    expect(
+      screen.queryByText(/sections? in this topic/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still opens the topic a section belongs to", async () => {
+    const user = userEvent.setup();
+    await renderWith([bothSides()]);
+
+    // Anchored: the sections of Topic 1 are controls too, and their labels
+    // start with the same words.
+    await user.click(screen.getByRole("button", { name: /open Topic 1$/i }));
+
+    expect(navigate).toHaveBeenCalledWith("/topic/1001");
+  });
+
+  it("leaves the spine and the alternation alone", async () => {
+    await renderWith([bothSides()]);
+
+    // The card rows still alternate: first left, second right. The branch
+    // reads its side from this rather than deciding one of its own.
+    expect(columnOf(cardOf("Topic 1")).className).toContain("lg:col-start-1");
+    expect(columnOf(cardOf("Topic 2")).className).toContain("lg:col-start-3");
   });
 });
