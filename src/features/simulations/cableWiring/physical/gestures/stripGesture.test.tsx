@@ -7,6 +7,7 @@ import { MAX_STRIP_PASS, S1_PRACTICE, apply, createInitialState } from "../../mo
 import type { Action, CableState } from "../../model";
 import { PhysicalCableChallenge } from "../PhysicalCableChallenge";
 import { CY, HEIGHT, LAYOUT, SHELF_TOP, WIDTH, benchScale } from "../benchGeometry";
+import { BenchView } from "../components/BenchView";
 import { PRACTICE_BENCH } from "../setup";
 
 /**
@@ -299,6 +300,165 @@ describe("the tools on the shelf", () => {
 
       fireEvent.keyDown(window, { key: "Escape" });
     }
+  });
+});
+
+/**
+ * The bench drawing on its own over S1's starting cable, with every action it
+ * can send spied on — so a test can count exactly how many strips were sent.
+ */
+function benchViewAt(cable: CableState = createInitialState(S1_PRACTICE)) {
+  const spies = { onStrip: vi.fn(), onUntwist: vi.fn(), onArrange: vi.fn(), onTrim: vi.fn(), onCut: vi.fn(), onSelectEnd: vi.fn() };
+
+  render(<BenchView cable={cable} scenario={S1_PRACTICE} selectedEnd="A" markers={{ A: null, B: null }} {...spies} />);
+
+  const svg = screen.getByRole("img", { name: /Workbench/ });
+
+  vi.spyOn(svg, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    top: 0,
+    width: WIDTH,
+    height: HEIGHT,
+    right: WIDTH,
+    bottom: HEIGHT,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  } as DOMRect);
+
+  return { svg, ...spies };
+}
+
+/** Where the UTP stripper lies on the shelf. */
+const ON_SHELF = { clientX: 450, clientY: SHELF_TOP + 30 };
+
+describe("letting go is a strip only on a jacket", () => {
+  it("strips end A when it is let go on end A's jacket", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    dragStripper(svg, "correct", standingAt("A", 30));
+
+    expect(onStrip).toHaveBeenCalledTimes(1);
+    expect(onStrip).toHaveBeenCalledWith("A", 30, "correct");
+  });
+
+  it("strips end B when it is let go on end B's jacket", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    // S1's end B has a plug on it: the gesture still sends the strip, and the
+    // refusal, if any, is the model's.
+    dragStripper(svg, "correct", standingAt("B", 20));
+
+    expect(onStrip).toHaveBeenCalledTimes(1);
+    expect(onStrip).toHaveBeenCalledWith("B", 20, "correct");
+  });
+
+  it("sends nothing when carried over a jacket and back to the shelf", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 1, ...ON_SHELF });
+    fireEvent.pointerMove(svg, { pointerId: 1, ...standingAt("A", 20) });
+
+    expect(screen.getByTestId("stripper-in-hand").getAttribute("data-end")).toBe("A");
+    expect(screen.getByTestId("stripper-in-hand").getAttribute("data-mm")).toBe("20");
+
+    fireEvent.pointerMove(svg, { pointerId: 1, ...ON_SHELF });
+
+    // Off the cable the reading is gone: letting go here would do nothing.
+    expect(screen.getByTestId("stripper-in-hand").getAttribute("data-end")).toBe("");
+    expect(screen.getByTestId("stripper-in-hand").getAttribute("data-mm")).toBe("0");
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...ON_SHELF });
+
+    expect(onStrip).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("stripper-in-hand")).toBeNull();
+  });
+
+  it("leaves the cable exactly as it was when put back on the shelf", () => {
+    const svg = benchAt();
+
+    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 1, ...ON_SHELF });
+    fireEvent.pointerMove(svg, { pointerId: 1, ...standingAt("A", 20) });
+    fireEvent.pointerMove(svg, { pointerId: 1, ...ON_SHELF });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...ON_SHELF });
+
+    expect(jacketOf("A")).toBe(0);
+    expect(jacketOf("B")).toBe(12);
+    expect(screen.getByTestId("feedback")).not.toHaveTextContent(/Stripped/);
+  });
+
+  it("sends nothing when carried over end B and let go in the out-of-scale middle", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    dragStripper(svg, "correct", standingAt("B", 20), { release: false });
+    fireEvent.pointerMove(svg, { pointerId: 1, clientX: WIDTH / 2, clientY: CY });
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: WIDTH / 2, clientY: CY });
+
+    expect(onStrip).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when carried over a jacket and then right off the drawing", () => {
+    const { svg, onStrip } = benchViewAt();
+    const away = { clientX: WIDTH + 40, clientY: -40 };
+
+    dragStripper(svg, "too-deep", standingAt("A", 25), { release: false });
+    fireEvent.pointerMove(svg, { pointerId: 1, ...away });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...away });
+
+    expect(onStrip).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when it never went near a jacket", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    dragStripper(svg, "correct", { clientX: WIDTH / 2, clientY: CY });
+
+    expect(onStrip).not.toHaveBeenCalled();
+  });
+
+  it("takes the strip where it is let go, having left the jacket and come back to it", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    dragStripper(svg, "correct", standingAt("A", 30), { release: false });
+    fireEvent.pointerMove(svg, { pointerId: 1, clientX: WIDTH / 2, clientY: CY });
+    fireEvent.pointerMove(svg, { pointerId: 1, ...standingAt("A", 25) });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...standingAt("A", 25) });
+
+    expect(onStrip).toHaveBeenCalledTimes(1);
+    expect(onStrip).toHaveBeenCalledWith("A", 25, "correct");
+  });
+
+  it("still takes a long strip let go on the end's own jacket", () => {
+    const svg = benchAt();
+
+    // Strip once so the bench zooms out, then take a long pass that still ends
+    // on end A's drawn jacket. Whether it is allowed is the model's answer.
+    fireEvent.change(screen.getByLabelText("Strip length"), { target: { value: "55" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Strip end A$/, hidden: true }));
+
+    const scale = benchScale(modelAfter([{ type: "strip", end: "A", amountMm: 55, slot: "correct" }])).scale;
+    const at = { clientX: LAYOUT.A.x0 + (MAX_STRIP_PASS - 1) * scale, clientY: CY };
+
+    dragStripper(svg, "correct", at);
+
+    expect(jacketOf("A")).toBe(
+      modelAfter([
+        { type: "strip", end: "A", amountMm: 55, slot: "correct" },
+        { type: "strip", end: "A", amountMm: MAX_STRIP_PASS - 1, slot: "correct" },
+      ]).ends.A.jacketEdgeMm,
+    );
+    expect(screen.getByTestId("feedback")).toHaveTextContent(new RegExp(`Stripped ${MAX_STRIP_PASS - 1} mm`));
+  });
+
+  it("sends nothing when the pointer is cancelled, whatever follows", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    dragStripper(svg, "correct", standingAt("A", 30), { release: false });
+    fireEvent.pointerCancel(svg, { pointerId: 1 });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...standingAt("A", 30) });
+
+    expect(onStrip).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("stripper-in-hand")).toBeNull();
   });
 });
 

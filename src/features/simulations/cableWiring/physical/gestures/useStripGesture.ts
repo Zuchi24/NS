@@ -13,10 +13,13 @@ import type { EndId, StripSlot } from "../../model";
  *
  * The end being worked on is the one the tool is physically standing on: the
  * stripper takes jacket off whichever end's jacket it is over. Over the
- * conductors, the out-of-scale middle or the shelf it is on no end, and it
- * keeps the last one it had so a long cut can run past the drawn jacket
- * without the reading jumping. It never quotes a distance measured from an end
- * the tool is not on.
+ * conductors, the out-of-scale middle or the shelf it is on no end, and it says
+ * so — it does not remember an end it has left. It never quotes a distance
+ * measured from an end the tool is not on.
+ *
+ * Letting go is the strip, but only where it is let go on a jacket. A stripper
+ * carried back to the shelf, or put down anywhere else off the cable, is simply
+ * put down: nothing is sent, however far over a jacket it went on the way.
  *
  * What it produces is a candidate — an end, a jaw and a number of millimetres.
  * Whether that candidate is possible is never decided here: the bench asks the
@@ -97,10 +100,9 @@ export function useStripGesture({ scale, surface, onCommit }: Options) {
       const active =
         current.active || (start !== null && passedThreshold(event.clientX - start.x, event.clientY - start.y));
 
-      // The tool's own position picks the end; off the jacket it keeps the
-      // last one, so a cut longer than the drawn jacket still reads from where
-      // it started rather than jumping or going blank.
-      const end = endUnder(at.x, at.y) ?? current.end;
+      // The tool's own position picks the end, and only while it is on that
+      // end's jacket: the reading is always what letting go here would do.
+      const end = endUnder(at.x, at.y);
 
       put({ ...current, at, active, end, amountMm: end === null ? 0 : stripMmAt(at.x, end, scale) });
     },
@@ -119,11 +121,19 @@ export function useStripGesture({ scale, surface, onCommit }: Options) {
 
       put(null);
 
-      if (current !== null && current.active && current.end !== null && current.amountMm > 0) {
-        onCommit(current.end, current.amountMm, current.slot);
-      }
+      if (current === null || !current.active) return;
+
+      // The strip is taken where the stripper is let go, and only if it is let
+      // go on a jacket. No physical target there, no strip — whichever jacket
+      // it passed over on the way.
+      const at = pointIn(event);
+      const end = endUnder(at.x, at.y);
+      if (end === null) return;
+
+      const amountMm = stripMmAt(at.x, end, scale);
+      if (amountMm > 0) onCommit(end, amountMm, current.slot);
     },
-    [onCommit, put, surface],
+    [onCommit, pointIn, put, scale, surface],
   );
 
   const onPointerCancel = useCallback(() => put(null), [put]);

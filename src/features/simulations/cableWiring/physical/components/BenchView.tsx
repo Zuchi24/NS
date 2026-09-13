@@ -418,14 +418,12 @@ export function BenchView({
           data-mm={trim.target?.leaveMm ?? ""}
           data-held={trim.cutters.held}
           data-refused={cutRefused}
-          // They keep their own events even while they are in hand: the drag
-          // is running on the captured surface anyway, and taking them away
-          // would move the press and the release onto different elements — so
-          // the browser would send the click somewhere else, and the squeeze
-          // would never arrive.
+          // A press here is a hand on the cutters where they stand. Lifted
+          // without travelling it is the squeeze, which the gesture reads off
+          // the pointer: the click that follows goes to the captured drawing,
+          // never to the cutters.
           style={{ cursor: trim.cutters.held ? "grabbing" : "pointer" }}
-          onPointerDown={trim.takeCutters}
-          onClick={trim.squeeze}
+          onPointerDown={trim.pressCutters}
         >
           {trim.target !== null && <title>Squeeze the cutters to cut here</title>}
           <Cutters
@@ -468,13 +466,11 @@ export function BenchView({
           data-back-mm={cut.target === null ? "" : cutBackMm}
           data-held={cut.cutters.held}
           data-refused={jacketRefused}
-          // They keep their own events even while they are in hand, for the
-          // same reason the flush cutters do: taking them away would move the
-          // press and the release onto different elements, and the click that
-          // squeezes them would never arrive.
+          // A press here is a hand on the cable cutters where they stand, read
+          // the same way as the flush cutters': lifted without travelling it is
+          // the squeeze, taken off the pointer rather than a click.
           style={{ cursor: cut.cutters.held ? "grabbing" : "pointer" }}
-          onPointerDown={cut.takeCutters}
-          onClick={cut.squeeze}
+          onPointerDown={cut.pressCutters}
         >
           {cut.target !== null && <title>Squeeze the cable cutters to cut here</title>}
           <CableCutters

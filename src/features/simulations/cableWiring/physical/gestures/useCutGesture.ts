@@ -18,6 +18,12 @@ import type { CableState, EndId } from "../../model";
  * can never take a cable off by themselves. Positioning never touches the
  * model.
  *
+ * A squeeze is a hand coming down on the standing cutters and lifting again
+ * without travelling, read off the pointer itself rather than off the click
+ * the browser sends afterwards. The bench captures the pointer on the drawing,
+ * so in a real browser that click is delivered to the drawing and never to the
+ * cutters; a squeeze that waited for it would never happen.
+ *
  * Which end is being cut is read off the drawing, from the jacket the cutters
  * are actually standing on (see jacketCutGeometry). The selected end has no
  * say: cutters standing on end B cut end B while end A is selected, and the
@@ -38,6 +44,12 @@ export interface CableCutterHold {
   active: boolean;
   /** True when this gesture picked them up off the shelf rather than off the bench. */
   fromShelf: boolean;
+  /**
+   * True while the hand is closed on the cutters where they stand, rather than
+   * on their spot on the shelf. Lifted again without travelling, that is the
+   * squeeze.
+   */
+  onTool: boolean;
 }
 
 interface Options {
@@ -54,11 +66,10 @@ export function useCutGesture({ cable, scale, surface, onCommit }: Options) {
   // them without a state updater having to do anything but update state.
   const standing = useRef<CableCutterHold | null>(null);
   const from = useRef<{ x: number; y: number } | null>(null);
-  // Whether the hand that is lifting was dragging, so the click the browser
-  // sends afterwards is not also taken as a squeeze.
+  // Whether the hand that is lifting was dragging the cutters about.
   const dragged = useRef(false);
   // The pointer that took hold of them. A second finger elsewhere on the bench
-  // is not this hand, and must not move or drop what this one is carrying.
+  // is not this hand, and must not move, drop or squeeze what this one holds.
   const owner = useRef<number | null>(null);
 
   const put = useCallback((next: CableCutterHold | null) => {
@@ -91,21 +102,21 @@ export function useCutGesture({ cable, scale, surface, onCommit }: Options) {
     cutters === null ? null : jacketCutTarget(cutters.at.x, cutters.at.y, cable, scale);
 
   /**
-   * Take hold of the cable cutters — off the shelf, or off the bench where they
-   * were left.
+   * Close a hand on the cable cutters.
    *
    * Goes on the tool itself, and stops there: closing a hand on the cutters is
    * not also reaching for the pair, the conductor or the end underneath them,
    * all of which take their pointer down from the drawing.
    */
-  const takeCutters = useCallback(
-    (event: ReactPointerEvent) => {
+  const hold = useCallback(
+    (event: ReactPointerEvent, onTool: boolean) => {
       event.stopPropagation();
-      // No preventDefault: it would suppress the click the browser sends
-      // afterwards, and that click is how the cutters are squeezed (R2's
-      // lesson). The drawing already carries touch-action: none and
-      // select-none.
+      // No preventDefault: nothing needs preventing, the drawing already
+      // carries touch-action: none and select-none.
       const current = standing.current;
+
+      // Another hand already has them.
+      if (current !== null && current.held && !mine(event)) return;
 
       dragged.current = false;
       from.current = { x: event.clientX, y: event.clientY };
@@ -120,16 +131,23 @@ export function useCutGesture({ cable, scale, surface, onCommit }: Options) {
 
       // Cutters already standing somewhere stay exactly where they are until
       // the hand actually travels, so a squeeze cuts where the line was drawn
-      // rather than wherever the click happened to land.
+      // rather than wherever the hand happened to land.
       put({
         at: current === null ? pointIn(event) : current.at,
         held: true,
         active: false,
         fromShelf: current === null,
+        onTool: onTool && current !== null && !current.held,
       });
     },
-    [pointIn, put, surface],
+    [mine, pointIn, put, surface],
   );
+
+  /** Take the cable cutters off the shelf — or back off the bench, from their empty spot on the shelf. */
+  const takeCutters = useCallback((event: ReactPointerEvent) => hold(event, false), [hold]);
+
+  /** Close a hand on the cable cutters where they are: the start of a squeeze, or of moving them. */
+  const pressCutters = useCallback((event: ReactPointerEvent) => hold(event, true), [hold]);
 
   const onPointerMove = useCallback(
     (event: ReactPointerEvent) => {
@@ -160,19 +178,39 @@ export function useCutGesture({ cable, scale, surface, onCommit }: Options) {
 
       if (current === null || !current.held) return;
 
-      // Letting go is not a cut. The cutters stand where they were left if
-      // there is jacket under them, and otherwise go back on the shelf.
       if (!current.active) {
+        // A hand that came down on the standing cutters and lifted without
+        // travelling squeezed them. The one act that reaches the model. They
+        // leave the cable before the action is sent, so nothing is left
+        // standing for a second squeeze to close.
+        if (current.onTool) {
+          const closing = jacketCutTarget(current.at.x, current.at.y, cable, scale);
+
+          if (closing === null) {
+            put({ ...current, held: false, onTool: false });
+
+            return;
+          }
+
+          put(null);
+          onCommit(closing.end, closing.atMm);
+
+          return;
+        }
+
         put(current.fromShelf ? null : { ...current, held: false });
 
         return;
       }
 
+      // Letting go after carrying them is not a cut. The cutters stand where
+      // they were left if there is jacket under them, and otherwise go back on
+      // the shelf.
       const landed = jacketCutTarget(current.at.x, current.at.y, cable, scale);
 
-      put(landed === null ? null : { ...current, held: false, active: false });
+      put(landed === null ? null : { ...current, held: false, active: false, onTool: false });
     },
-    [cable, mine, put, scale, surface],
+    [cable, mine, onCommit, put, scale, surface],
   );
 
   const onPointerCancel = useCallback(
@@ -183,23 +221,6 @@ export function useCutGesture({ cable, scale, surface, onCommit }: Options) {
     },
     [mine, put],
   );
-
-  /**
-   * Squeeze the cutters. The one act that reaches the model, and only ever
-   * from a hand that came down and up on the cutters without dragging them.
-   *
-   * They leave the cable before the action is sent, so a second click — or the
-   * same click arriving twice — finds nothing standing anywhere and cuts
-   * nothing.
-   */
-  const squeeze = useCallback(() => {
-    const current = standing.current;
-
-    if (dragged.current || current === null || current.held || target === null) return;
-
-    put(null);
-    onCommit(target.end, target.atMm);
-  }, [onCommit, put, target]);
 
   // Escape puts the cutters back with nothing sent, whether they are in hand
   // or standing on the cable.
@@ -219,7 +240,7 @@ export function useCutGesture({ cable, scale, surface, onCommit }: Options) {
     cutters,
     target,
     takeCutters,
-    squeeze,
+    pressCutters,
     /** Whether the hand that just lifted had been dragging the cutters about. */
     wasDragging: useCallback(() => dragged.current, []),
     surfaceHandlers: { onPointerMove, onPointerUp, onPointerCancel },

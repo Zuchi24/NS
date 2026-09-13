@@ -174,19 +174,25 @@ function placeCutters(svg: Element, to: { clientX: number; clientY: number }, { 
 
 /**
  * Squeeze the cutters where they stand — the way a browser sends it: a press
- * and a release on the tool, and then the click that follows them.
+ * on the tool, then the release and the click that follows it, both of which
+ * the pointer capture delivers to the drawing. Nothing is ever clicked on the
+ * tool itself, because in a browser nothing is.
  *
  * Where on the tool the hand lands is deliberately not passed in. A press that
  * does not travel never moves the cutters, so the cut happens on the line they
- * were already standing on, wherever the click came down.
+ * were already standing on, wherever the hand came down.
  */
 function squeeze(svg: Element, at = { clientX: 0, clientY: 0 }) {
-  const tool = cutters()!;
-
-  fireEvent.pointerDown(tool, { pointerId: 1, ...at });
+  fireEvent.pointerDown(cutters()!, { pointerId: 1, ...at });
   fireEvent.pointerUp(svg, { pointerId: 1, ...at });
-  fireEvent.click(tool);
+  fireEvent.click(svg);
 }
+
+/** A point this many drawing units away from another. The drawing is one unit to a pixel here. */
+const nudged = (point: { clientX: number; clientY: number }, dx: number, dy = 0) => ({
+  clientX: point.clientX + dx,
+  clientY: point.clientY + dy,
+});
 
 const raw = () => makeEnd({ jacketEdgeMm: 0, tipMm: 0 });
 
@@ -370,15 +376,19 @@ describe("the squeeze is the cut", () => {
     expect(onCut).toHaveBeenCalledWith("A", 12);
   });
 
-  it("cannot be squeezed twice: a second click finds nothing standing there", () => {
-    const { svg, onCut } = benchViewAt(createInitialState(S1_PRACTICE));
+  it("cannot be squeezed twice: a second press finds nothing standing there", () => {
+    const cable = createInitialState(S1_PRACTICE);
+    const { svg, onCut } = benchViewAt(cable);
+    const spot = standingAt(cable, "A", 12);
 
-    placeCutters(svg, standingAt(createInitialState(S1_PRACTICE), "A", 12));
-    const tool = cutters()!;
-    squeeze(svg);
-    fireEvent.click(tool);
-    fireEvent.click(tool);
+    placeCutters(svg, spot);
+    squeeze(svg, spot);
+    // The same spot pressed and released again, and the click after it.
+    fireEvent.pointerDown(svg, { pointerId: 1, ...spot });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...spot });
+    fireEvent.click(svg);
 
+    expect(cutters()).toBeNull();
     expect(onCut).toHaveBeenCalledTimes(1);
   });
 
@@ -386,11 +396,12 @@ describe("the squeeze is the cut", () => {
     const { svg, onCut } = benchViewAt(createInitialState(S1_PRACTICE));
 
     placeCutters(svg, standingAt(createInitialState(S1_PRACTICE), "A", 12));
-    // The browser sends a click after the drag that put them down. It only put
-    // them down.
-    fireEvent.click(cutters()!);
+    // The browser sends a click after the drag that put them down, to the
+    // drawing that had the pointer captured. It only put them down.
+    fireEvent.click(svg);
 
     expect(onCut).not.toHaveBeenCalled();
+    expect(cutters()!.getAttribute("data-held")).toBe("false");
   });
 
   it("sends nothing while the hand is only moving them about", () => {
@@ -425,6 +436,144 @@ describe("the squeeze is the cut", () => {
 
     expect(cutters()).toBeNull();
     expect(onCut).not.toHaveBeenCalled();
+  });
+});
+
+describe("a squeeze is a press and a release on the cutters, never a click", () => {
+  const cable = createInitialState(S1_PRACTICE);
+
+  it("cuts once when the hand that pressed them lifts without travelling", () => {
+    const { svg, onCut } = benchViewAt(cable);
+    const spot = standingAt(cable, "A", 12);
+
+    placeCutters(svg, spot);
+    fireEvent.pointerDown(cutters()!, { pointerId: 1, ...spot });
+
+    expect(onCut).not.toHaveBeenCalled();
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...spot });
+
+    expect(onCut).toHaveBeenCalledTimes(1);
+    expect(onCut).toHaveBeenCalledWith("A", 12);
+    expect(cutters()).toBeNull();
+  });
+
+  it("does not cut on a click alone: the click never reaches the cutters in a browser", () => {
+    const { svg, onCut } = benchViewAt(cable);
+
+    placeCutters(svg, standingAt(cable, "A", 12));
+    fireEvent.click(cutters()!);
+
+    expect(onCut).not.toHaveBeenCalled();
+    expect(cutters()!.getAttribute("data-held")).toBe("false");
+    expect(cutters()!.getAttribute("data-back-mm")).toBe("12");
+  });
+
+  it("still cuts when the hand wobbles by less than a drag before lifting", () => {
+    const { svg, onCut } = benchViewAt(cable);
+    const spot = standingAt(cable, "A", 12);
+
+    placeCutters(svg, spot);
+    fireEvent.pointerDown(cutters()!, { pointerId: 1, ...spot });
+    fireEvent.pointerMove(svg, { pointerId: 1, ...nudged(spot, 2, 1) });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...nudged(spot, 2, 1) });
+
+    // At the line they were standing on, not where the hand wobbled to.
+    expect(onCut).toHaveBeenCalledTimes(1);
+    expect(onCut).toHaveBeenCalledWith("A", 12);
+  });
+
+  it("moves them instead of cutting when the hand travels before lifting", () => {
+    const { svg, onCut } = benchViewAt(cable);
+
+    placeCutters(svg, standingAt(cable, "A", 20));
+    fireEvent.pointerDown(cutters()!, { pointerId: 1, ...standingAt(cable, "A", 20) });
+    fireEvent.pointerMove(svg, { pointerId: 1, ...standingAt(cable, "A", 12) });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...standingAt(cable, "A", 12) });
+
+    expect(onCut).not.toHaveBeenCalled();
+    expect(cutters()!.getAttribute("data-held")).toBe("false");
+    expect(cutters()!.getAttribute("data-back-mm")).toBe("12");
+  });
+
+  it("cannot be squeezed by a second hand while another is on them", () => {
+    const { svg, onCut } = benchViewAt(cable);
+    const spot = standingAt(cable, "A", 12);
+
+    placeCutters(svg, spot);
+    fireEvent.pointerDown(cutters()!, { pointerId: 1, ...spot });
+    fireEvent.pointerDown(cutters()!, { pointerId: 2, ...spot });
+    fireEvent.pointerUp(svg, { pointerId: 2, ...spot });
+
+    expect(onCut).not.toHaveBeenCalled();
+    expect(cutters()!.getAttribute("data-held")).toBe("true");
+
+    // The hand that pressed them is still the one that squeezes.
+    fireEvent.pointerUp(svg, { pointerId: 1, ...spot });
+
+    expect(onCut).toHaveBeenCalledTimes(1);
+  });
+
+  it("is not finished by a release from a pointer that never pressed them", () => {
+    const { svg, onCut } = benchViewAt(cable);
+    const spot = standingAt(cable, "A", 12);
+
+    placeCutters(svg, spot);
+    fireEvent.pointerDown(cutters()!, { pointerId: 1, ...spot });
+    fireEvent.pointerUp(svg, { pointerId: 9, ...spot });
+
+    expect(onCut).not.toHaveBeenCalled();
+    expect(cutters()!.getAttribute("data-held")).toBe("true");
+  });
+
+  it("cuts nothing when the pointer is cancelled halfway through a squeeze", () => {
+    const { svg, onCut } = benchViewAt(cable);
+    const spot = standingAt(cable, "A", 12);
+
+    placeCutters(svg, spot);
+    fireEvent.pointerDown(cutters()!, { pointerId: 1, ...spot });
+    fireEvent.pointerCancel(svg, { pointerId: 1 });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...spot });
+
+    expect(cutters()).toBeNull();
+    expect(onCut).not.toHaveBeenCalled();
+  });
+
+  it("cuts nothing when Escape is pressed halfway through a squeeze", () => {
+    const { svg, onCut } = benchViewAt(cable);
+    const spot = standingAt(cable, "A", 12);
+
+    placeCutters(svg, spot);
+    fireEvent.pointerDown(cutters()!, { pointerId: 1, ...spot });
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...spot });
+
+    expect(cutters()).toBeNull();
+    expect(onCut).not.toHaveBeenCalled();
+  });
+
+  it("is not a squeeze to press and let go of their empty spot on the shelf", () => {
+    const { svg, onCut } = benchViewAt(cable);
+
+    placeCutters(svg, standingAt(cable, "A", 12));
+    fireEvent.pointerDown(screen.getByTestId("take-cable-cutters"), { pointerId: 1, ...ON_SHELF });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...ON_SHELF });
+
+    expect(onCut).not.toHaveBeenCalled();
+    expect(cutters()!.getAttribute("data-held")).toBe("false");
+    expect(cutters()!.getAttribute("data-back-mm")).toBe("12");
+  });
+
+  it("squeezes end B's jacket just the same, whatever end is selected", () => {
+    const { svg, onCut } = benchViewAt(cable);
+    const spot = standingAt(cable, "B", 20);
+
+    placeCutters(svg, spot);
+    fireEvent.pointerDown(cutters()!, { pointerId: 1, ...spot });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...spot });
+
+    expect(onCut).toHaveBeenCalledTimes(1);
+    expect(onCut).toHaveBeenCalledWith("B", cable.ends.B.jacketEdgeMm + 20);
   });
 });
 
@@ -549,14 +698,17 @@ describe("cancelling", () => {
   it("Escape puts them back once they are standing, and a squeeze then cuts nothing", () => {
     const cable = createInitialState(S1_PRACTICE);
     const { svg, onCut } = benchViewAt(cable);
+    const spot = standingAt(cable, "A", 12);
 
-    placeCutters(svg, standingAt(cable, "A", 12));
-    const tool = cutters()!;
+    placeCutters(svg, spot);
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect(cutters()).toBeNull();
 
-    fireEvent.click(tool);
+    // A hand coming down where they stood finds nothing to close.
+    fireEvent.pointerDown(svg, { pointerId: 1, ...spot });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...spot });
+    fireEvent.click(svg);
 
     expect(onCut).not.toHaveBeenCalled();
   });
