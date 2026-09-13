@@ -8,6 +8,7 @@ import { HandInPanel } from "./components/HandInPanel";
 import { InspectionPanel } from "./components/InspectionPanel";
 import { MeasurementsPanel } from "./components/MeasurementsPanel";
 import { PlugTray } from "./components/PlugTray";
+import { StageRail } from "./components/StageRail";
 import { DEFAULT_CONTROLS, ToolControls } from "./components/ToolControls";
 import type { Controls } from "./components/ToolControls";
 import { TesterPanel } from "./components/TesterPanel";
@@ -131,6 +132,14 @@ export function PhysicalCableChallenge({ scenario, title, difficulty, descriptio
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
           {/* ---- The bench and its tools ---- */}
           <main className="min-w-0 space-y-2">
+            <StageRail
+              cable={cable}
+              selectedEnd={selectedEnd}
+              onSelectEnd={selectEnd}
+              instruction={hint?.text ?? null}
+              instructionEnd={hint?.end ?? null}
+            />
+
             <div className="overflow-hidden rounded-xl shadow-sm ring-1 ring-black/10">
               <BenchView
                 cable={cable}
@@ -141,6 +150,22 @@ export function PhysicalCableChallenge({ scenario, title, difficulty, descriptio
                 onPairClick={
                   tool === "untwist" ? (id: EndId, pair: PairId) => bench.act({ type: "untwist", end: id, pair }) : undefined
                 }
+                onStrip={(end, amountMm, slot) => {
+                  selectEnd(end);
+                  bench.act({ type: "strip", end, amountMm, slot });
+                }}
+                onUntwist={(end, pair) => {
+                  selectEnd(end);
+                  bench.act({ type: "untwist", end, pair });
+                }}
+                onArrange={(end, conductor, toIndex) => {
+                  selectEnd(end);
+                  bench.act({ type: "moveConductor", end, conductor, toIndex });
+                }}
+                onTrim={(end, leaveMm) => {
+                  selectEnd(end);
+                  bench.act({ type: "trim", end, leaveMm });
+                }}
               />
             </div>
 
@@ -247,12 +272,6 @@ export function PhysicalCableChallenge({ scenario, title, difficulty, descriptio
                     : "Choose an end and a tool, then use the controls below the bench."}
                 </span>
               </p>
-              {hint && (
-                <p className="rounded-md bg-amber-50 px-3 py-1.5 text-sm text-amber-900 ring-1 ring-amber-200" data-testid="hint">
-                  <span className="font-semibold">Hint · </span>
-                  {hint.text}
-                </p>
-              )}
             </div>
           </main>
 

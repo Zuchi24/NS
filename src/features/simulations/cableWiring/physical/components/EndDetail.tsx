@@ -13,6 +13,9 @@ import {
   plugRearMm,
 } from "../../model";
 import type { CableEnd, Conductor, EndId, PairId } from "../../model";
+import { LANE_GAP, laneY as laneCentre, liftedRow, rowBounds } from "../conductorGeometry";
+import { CONDUCTOR_LABEL } from "../messages";
+import { pairRegions, pairRowY } from "../pairGeometry";
 import { CONDUCTOR_PAINT, PAIR_PAINT } from "../paint";
 
 /**
@@ -26,7 +29,35 @@ import { CONDUCTOR_PAINT, PAIR_PAINT } from "../paint";
  * never measured off the picture.
  */
 
-export type Marker = { kind: "cut" | "strip" | "trim"; offsetMm: number; label: string } | null;
+/**
+ * A pair being pulled out of the bundle right now: how far off the cable it
+ * has come and how far open it is drawn, both worked out by the gesture from
+ * the hand's travel. `refused` is the model's answer to this very pull; it is
+ * never worked out here.
+ */
+export type PairPull = { pair: PairId; lift: number; openness: number; refused: boolean } | null;
+
+/**
+ * A conductor out of the row right now: which one, the lane it came from, the
+ * lane it is being offered to (null while the hand is off the row), and where
+ * the hand is. `refused` is the model's answer to this very move; it is never
+ * worked out here.
+ */
+export type ConductorLift = {
+  conductor: Conductor;
+  fromIndex: number;
+  toIndex: number | null;
+  at: { x: number; y: number };
+  refused: boolean;
+} | null;
+
+export type Marker = {
+  kind: "cut" | "strip" | "trim";
+  offsetMm: number;
+  label: string;
+  /** Set when the model has said it would refuse this. Colour only. */
+  tone?: "refused";
+} | null;
 
 interface Props {
   id: EndId;
@@ -39,25 +70,50 @@ interface Props {
   outwardPx: number;
   inwardPx: number;
   cy: number;
+  /**
+   * User units per millimetre. Chosen once for the whole bench and handed to
+   * both ends, so the same length is the same size wherever it is drawn.
+   */
+  scale: number;
   marker: Marker;
   selected: boolean;
+  /** The pair in hand, when one is being pulled apart on this end. */
+  pull?: PairPull;
+  /** The conductor in hand, when one is being moved about this end's row. */
+  lift?: ConductorLift;
   /** Untwist by clicking a pair; only offered when the untwist tool is out. */
   onPairClick?: (pair: PairId) => void;
 }
 
-const LANE_GAP = 8.5;
-const PAIR_GAP = 19;
 const WIRE = 5.5;
 
-export function EndDetail({ id, end, dir, x0, outwardPx, inwardPx, cy, marker, selected, onPairClick }: Props) {
+/** How far off its lane a conductor in hand is drawn, however far the hand goes. */
+const HELD_REACH = 46;
+
+/** How far apart a pulled pair's tips are drawn once it is fully open. */
+const OPEN_SPREAD = 8;
+
+export function EndDetail({
+  id,
+  end,
+  dir,
+  x0,
+  outwardPx,
+  inwardPx,
+  cy,
+  scale,
+  marker,
+  selected,
+  pull,
+  lift,
+  onPairClick,
+}: Props) {
   const J = end.jacketEdgeMm;
   const rear = plugRearMm(end);
   const front = plugFrontMm(end);
-  const plugReach = front === null ? 0 : J - front;
 
-  // Enough room for the longest conductor and the whole plug, with a margin.
-  const reachMm = Math.max(26, maxExposed(end) + 5, plugReach + 5);
-  const scale = Math.min(6, outwardPx / reachMm);
+  // How far out of the jacket edge this panel reaches, at the bench's scale.
+  const outwardMm = outwardPx / scale;
   const x = (offsetMm: number) => x0 + dir * offsetMm * scale;
   const span = (a: number, b: number) => ({ x: Math.min(x(a), x(b)), width: Math.abs(x(b) - x(a)) });
 
@@ -65,8 +121,18 @@ export function EndDetail({ id, end, dir, x0, outwardPx, inwardPx, cy, marker, s
   const jacket = span(-jacketInnerMm, 0);
 
   const pins = pinsAt(end);
-  const laneY = (index: number) => cy + (index - 3.5) * LANE_GAP;
-  const pairY = (index: number) => cy + (index - 1.5) * PAIR_GAP;
+  const laneY = (index: number) => laneCentre(index, cy);
+  // Where each conductor is drawn while one of them is in hand: the row the
+  // model's own move would leave behind, and the lane being held open for it.
+  // A move the model has said it would refuse rearranges nothing — the rest
+  // stay put, and only the lane being offered is marked.
+  const lifted = end.fan && lift ? liftedRow(end.fan, lift.conductor, lift.refused ? null : lift.toIndex) : null;
+  const laneOf = (conductor: Conductor, index: number) => lifted?.lanes.get(conductor) ?? index;
+  const pairY = (index: number) => pairRowY(index, cy);
+  // Where each twisted pair can be taken hold of — the very regions the
+  // gesture hit-tests, so the band drawn round a pair is the pair a hand
+  // closing there picks up.
+  const grabs = new Map(pairRegions(id, end, scale, cy).map((region) => [region.pair, region]));
   const allFlush = NATURAL_ORDER.every((c) => exposed(end, c) === 0);
 
   return (
@@ -81,9 +147,9 @@ export function EndDetail({ id, end, dir, x0, outwardPx, inwardPx, cy, marker, s
     >
       {selected && (
         <rect
-          x={Math.min(x(-jacketInnerMm), x(reachMm)) - 6}
+          x={Math.min(x(-jacketInnerMm), x(outwardMm)) - 6}
           y={cy - 74}
-          width={Math.abs(x(reachMm) - x(-jacketInnerMm)) + 12}
+          width={Math.abs(x(outwardMm) - x(-jacketInnerMm)) + 12}
           height={150}
           rx={12}
           fill="none"
@@ -96,42 +162,131 @@ export function EndDetail({ id, end, dir, x0, outwardPx, inwardPx, cy, marker, s
 
       {/* ---- Conductors, drawn first so the jacket mouth caps them ---- */}
       {end.fan
-        ? end.fan.map((conductor, index) => (
-            <Wire key={conductor} conductor={conductor} x1={x(0)} x2={x(exposed(end, conductor))} y={laneY(index)} />
-          ))
-        : PAIR_IDS.map((pair, index) => (
-            <g
-              key={pair}
-              data-testid={`pair-${id}-${pair}`}
-              data-untwisted={end.untwisted[pair]}
-              onClick={onPairClick ? () => onPairClick(pair) : undefined}
-              style={{ cursor: onPairClick ? "pointer" : undefined }}
-            >
-              {PAIRS[pair].map((conductor, which) =>
-                end.untwisted[pair] ? (
-                  <Wire
-                    key={conductor}
-                    conductor={conductor}
-                    x1={x(0)}
-                    x2={x(exposed(end, conductor))}
-                    y={pairY(index) + (which ? 3.5 : -3.5)}
-                  />
-                ) : (
-                  <TwistedWire
-                    key={conductor}
-                    conductor={conductor}
-                    x1={x(0)}
-                    x2={x(exposed(end, conductor))}
-                    y={pairY(index)}
-                    phase={which}
-                  />
-                ),
-              )}
-              {onPairClick && !end.untwisted[pair] && exposed(end, PAIRS[pair][0]) > 0 && (
-                <rect {...span(0, Math.max(...PAIRS[pair].map((c) => exposed(end, c))))} y={pairY(index) - 8} height={16} fill={PAIR_PAINT[pair]} fillOpacity={0.12} rx={6} />
-              )}
-            </g>
-          ))}
+        ? end.fan.map((conductor, index) =>
+            lift && lift.conductor === conductor ? null : (
+              <g
+                key={conductor}
+                data-testid={`lane-${id}-${conductor}`}
+                data-lane={laneOf(conductor, index)}
+                style={{ cursor: "grab" }}
+              >
+                <title>{`Move ${CONDUCTOR_LABEL[conductor]} to another position in the row.`}</title>
+                <Wire
+                  conductor={conductor}
+                  x1={x(0)}
+                  x2={x(exposed(end, conductor))}
+                  y1={laneY(laneOf(conductor, index))}
+                  y2={laneY(laneOf(conductor, index))}
+                />
+              </g>
+            ),
+          )
+        : PAIR_IDS.map((pair, index) => {
+            const grab = grabs.get(pair);
+            const pulled = pull && pull.pair === pair ? pull : null;
+            // A pair being pulled swings out of the jacket mouth: its roots
+            // stay where they are and its tips follow the hand, coming open as
+            // they clear the bundle.
+            const lift = pulled?.lift ?? 0;
+            const open = pulled?.openness ?? 0;
+
+            return (
+              <g
+                key={pair}
+                data-testid={`pair-${id}-${pair}`}
+                data-untwisted={end.untwisted[pair]}
+                data-pulled={pulled ? "true" : undefined}
+                data-open={pulled ? open.toFixed(2) : undefined}
+                onClick={onPairClick ? () => onPairClick(pair) : undefined}
+                style={{ cursor: grab ? "grab" : onPairClick ? "pointer" : undefined }}
+              >
+                {grab && (
+                  <g data-testid={`pair-grab-${id}-${pair}`} data-x={grab.x} data-y={grab.y}>
+                    <title>{`Pull the ${pair} pair away from the cable to untwist it.`}</title>
+                    <rect
+                      x={grab.x}
+                      y={grab.y}
+                      width={grab.width}
+                      height={grab.height}
+                      rx={6}
+                      fill={pulled?.refused ? "#F43F5E" : PAIR_PAINT[pair]}
+                      fillOpacity={pulled ? 0.1 : 0.14}
+                    />
+                    {!pulled && <PullTicks region={grab} dir={dir} />}
+                  </g>
+                )}
+                {PAIRS[pair].map((conductor, which) =>
+                  end.untwisted[pair] ? (
+                    <Wire
+                      key={conductor}
+                      conductor={conductor}
+                      x1={x(0)}
+                      x2={x(exposed(end, conductor))}
+                      y1={pairY(index) + (which ? 3.5 : -3.5)}
+                      y2={pairY(index) + (which ? 3.5 : -3.5)}
+                    />
+                  ) : (
+                    <TwistedWire
+                      key={conductor}
+                      conductor={conductor}
+                      x1={x(0)}
+                      x2={x(exposed(end, conductor))}
+                      y1={pairY(index)}
+                      y2={pairY(index) + lift + (which ? 1 : -1) * OPEN_SPREAD * open}
+                      phase={which}
+                      openness={open}
+                    />
+                  ),
+                )}
+              </g>
+            );
+          })}
+
+      {/* ---- The lane being held open for the conductor in hand, and the
+             conductor itself, drawn over the row it came out of ---- */}
+      {end.fan && lift && (
+        <HeldConductor
+          id={id}
+          lift={lift}
+          bounds={rowBounds(id, end, scale, cy)}
+          x={x}
+          tipMm={exposed(end, lift.conductor)}
+          laneY={laneY}
+          dir={dir}
+        />
+      )}
+
+      {/* ---- What to do with a row of conductors, the way the shelf says what
+             to do with a tool ---- */}
+      {end.fan && !end.plug && (
+        <text
+          data-testid={`arrange-caption-${id}`}
+          x={x(maxExposed(end) / 2)}
+          y={cy + 48}
+          textAnchor="middle"
+          fontSize={9}
+          fill="#A7C4B5"
+          pointerEvents="none"
+        >
+          drag a conductor to another position
+        </text>
+      )}
+
+      {/* ---- What to do with a twisted pair, the way the shelf says what to
+             do with a tool. Nothing about whether any of it is right. ---- */}
+      {grabs.size > 0 && (
+        <text
+          data-testid={`pull-caption-${id}`}
+          x={x(maxExposed(end) / 2)}
+          y={cy + 58}
+          textAnchor="middle"
+          fontSize={9}
+          fill="#A7C4B5"
+          pointerEvents="none"
+        >
+          pull a pair off the cable to untwist it
+        </text>
+      )}
 
       {/* ---- Nicks: the stripper blade scored all eight here ---- */}
       {end.nicksAtMm.map((n) => (
@@ -173,18 +328,20 @@ export function EndDetail({ id, end, dir, x0, outwardPx, inwardPx, cy, marker, s
       {/* ---- Position numbers at the tips, matching the Arrange row ---- */}
       {end.fan && !end.plug && (
         <g data-testid={`positions-${id}`}>
-          {end.fan.map((conductor, index) => (
-            <text
-              key={conductor}
-              x={x(exposed(end, conductor)) + dir * 7}
-              y={laneY(index) + 3}
-              textAnchor="middle"
-              fontSize={8}
-              fill="#CBD5E1"
-            >
-              {index + 1}
-            </text>
-          ))}
+          {end.fan.map((conductor, index) =>
+            lift && lift.conductor === conductor ? null : (
+              <text
+                key={conductor}
+                x={x(exposed(end, conductor)) + dir * 7}
+                y={laneY(laneOf(conductor, index)) + 3}
+                textAnchor="middle"
+                fontSize={8}
+                fill="#CBD5E1"
+              >
+                {laneOf(conductor, index) + 1}
+              </text>
+            ),
+          )}
         </g>
       )}
 
@@ -199,33 +356,64 @@ export function EndDetail({ id, end, dir, x0, outwardPx, inwardPx, cy, marker, s
         />
       )}
 
-      {/* ---- Scale bar: what 10 mm looks like at this end's scale ---- */}
-      <g>
-        <line x1={x(reachMm - 12)} x2={x(reachMm - 2)} y1={cy + 70} y2={cy + 70} stroke="#E2E8F0" strokeWidth={2} />
-        <text x={(x(reachMm - 12) + x(reachMm - 2)) / 2} y={cy + 84} textAnchor="middle" fontSize={10} fill="#CBD5E1">
-          10 mm
-        </text>
-      </g>
     </g>
   );
 }
 
-function Wire({ conductor, x1, x2, y }: { conductor: Conductor; x1: number; x2: number; y: number }) {
+function Wire({
+  conductor,
+  x1,
+  x2,
+  y1,
+  y2,
+}: {
+  conductor: Conductor;
+  x1: number;
+  x2: number;
+  y1: number;
+  y2: number;
+}) {
   const paint = CONDUCTOR_PAINT[conductor];
   if (x1 === x2) return null;
 
   return (
     <g>
-      <line x1={x1} x2={x2} y1={y} y2={y} stroke={paint.base} strokeWidth={WIRE} strokeLinecap="butt" />
+      <line x1={x1} x2={x2} y1={y1} y2={y2} stroke={paint.base} strokeWidth={WIRE} strokeLinecap="butt" />
       {paint.stripe && (
-        <line x1={x1} x2={x2} y1={y} y2={y} stroke={paint.stripe} strokeWidth={WIRE} strokeDasharray="4 3" />
+        <line x1={x1} x2={x2} y1={y1} y2={y2} stroke={paint.stripe} strokeWidth={WIRE} strokeDasharray="4 3" />
       )}
-      <circle cx={x2} cy={y} r={2} fill="#C98A3C" />
+      <circle cx={x2} cy={y2} r={2} fill="#C98A3C" />
     </g>
   );
 }
 
-function TwistedWire({ conductor, x1, x2, y, phase }: { conductor: Conductor; x1: number; x2: number; y: number; phase: number }) {
+/**
+ * One conductor of a twisted pair, from its root at the jacket mouth to its
+ * tip.
+ *
+ * `openness` is how far the pair has been pulled apart: at 0 the two wind
+ * round each other as they left the factory, and by 1 the winding is gone and
+ * the wire runs straight out to wherever its tip has been taken. Drawing only
+ * — it comes from the hand's travel, and says nothing about whether the model
+ * will accept the untwist.
+ */
+function TwistedWire({
+  conductor,
+  x1,
+  x2,
+  y1,
+  y2,
+  phase,
+  openness = 0,
+}: {
+  conductor: Conductor;
+  x1: number;
+  x2: number;
+  y1: number;
+  y2: number;
+  phase: number;
+  openness?: number;
+}) {
   const paint = CONDUCTOR_PAINT[conductor];
   const length = Math.abs(x2 - x1);
   if (length < 1) return null;
@@ -233,19 +421,120 @@ function TwistedWire({ conductor, x1, x2, y, phase }: { conductor: Conductor; x1
   const step = 7;
   const sign = x2 > x1 ? 1 : -1;
   const turns = Math.max(1, Math.round(length / step));
-  const amp = phase ? 3.8 : -3.8;
-  let d = `M ${x1} ${y}`;
+  const amp = (phase ? 3.8 : -3.8) * (1 - openness);
+  const atTurn = (turn: number) => y1 + (y2 - y1) * (turn / turns);
+  let d = `M ${x1} ${y1}`;
 
   for (let turn = 0; turn < turns; turn++) {
     const a = x1 + sign * (turn * length) / turns;
     const b = x1 + sign * ((turn + 1) * length) / turns;
-    d += ` Q ${(a + b) / 2} ${y + (turn % 2 ? -amp : amp)} ${b} ${y}`;
+    const mid = (atTurn(turn) + atTurn(turn + 1)) / 2;
+    d += ` Q ${(a + b) / 2} ${mid + (turn % 2 ? -amp : amp)} ${b} ${atTurn(turn + 1)}`;
   }
 
   return (
     <g>
       <path d={d} stroke={paint.base} strokeWidth={WIRE - 1} fill="none" />
       {paint.stripe && <path d={d} stroke={paint.stripe} strokeWidth={WIRE - 1} fill="none" strokeDasharray="4 3" />}
+      {openness > 0 && <circle cx={x2} cy={y2} r={2} fill="#C98A3C" />}
+    </g>
+  );
+}
+
+/**
+ * A conductor out of the row: the lane being held open for it, and the wire
+ * itself, still rooted at the jacket mouth with its far end in the hand.
+ *
+ * The lane is drawn whenever one is being offered, in the refusal's own colour
+ * when the model has said it would refuse this move — it says where the wire
+ * would go, never whether it belongs there.
+ */
+function HeldConductor({
+  id,
+  lift,
+  bounds,
+  x,
+  tipMm,
+  laneY,
+  dir,
+}: {
+  id: EndId;
+  lift: NonNullable<ConductorLift>;
+  bounds: { x: number; y: number; width: number; height: number } | null;
+  x: (offsetMm: number) => number;
+  tipMm: number;
+  laneY: (index: number) => number;
+  dir: 1 | -1;
+}) {
+  const tone = lift.refused ? "#F43F5E" : "#38BDF8";
+  const root = laneY(lift.fromIndex);
+  // The hand moves the wire up and down the row; how far out it reaches is its
+  // own length, which no amount of dragging changes.
+  const heldY = Math.min(root + HELD_REACH, Math.max(root - HELD_REACH, lift.at.y));
+  const tip = x(tipMm);
+
+  return (
+    <g data-testid={`held-${id}`} data-conductor={lift.conductor} data-to-index={lift.toIndex ?? ""} pointerEvents="none">
+      {lift.toIndex !== null && bounds && (
+        <g data-testid={`insertion-${id}`} data-index={lift.toIndex}>
+          <rect
+            x={bounds.x}
+            y={laneY(lift.toIndex) - LANE_GAP / 2 + 0.5}
+            width={bounds.width}
+            height={LANE_GAP - 1}
+            rx={3}
+            fill={tone}
+            fillOpacity={0.16}
+            stroke={tone}
+            strokeWidth={1}
+            strokeDasharray="4 3"
+          />
+          {/* The caret: this lane, at the jacket mouth the wire comes out of. */}
+          <path
+            d={`M ${x(0)} ${laneY(lift.toIndex) - 4} L ${x(0) + dir * 6} ${laneY(lift.toIndex)} L ${x(0)} ${laneY(lift.toIndex) + 4} Z`}
+            fill={tone}
+          />
+        </g>
+      )}
+
+      {/* A leader to the hand, so the wire and the hand read as one thing even
+          when the hand has wandered off the row. */}
+      <line x1={tip} x2={lift.at.x} y1={heldY} y2={lift.at.y} stroke={tone} strokeOpacity={0.35} strokeWidth={1.5} strokeDasharray="3 4" />
+      <line x1={x(0)} x2={tip} y1={root} y2={heldY} stroke={tone} strokeOpacity={0.5} strokeWidth={WIRE + 5} strokeLinecap="round" />
+      <Wire conductor={lift.conductor} x1={x(0)} x2={tip} y1={root} y2={heldY} />
+    </g>
+  );
+}
+
+/**
+ * Which way a pair comes apart: a tick above its band and one below. The cable
+ * runs along the bench, so a pair leaves it upward or downward.
+ */
+function PullTicks({
+  region,
+  dir,
+}: {
+  region: { x: number; y: number; width: number; height: number };
+  dir: 1 | -1;
+}) {
+  // At the tip end of the band, where the braid has finished and the ticks
+  // are not drawn over it.
+  const cx = dir === 1 ? region.x + region.width - 5 : region.x + 5;
+  const top = region.y + 2;
+  const bottom = region.y + region.height - 2;
+
+  return (
+    <g
+      stroke="#F1F5F9"
+      strokeOpacity={0.8}
+      strokeWidth={1.6}
+      fill="none"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={`M ${cx - 4.5} ${top + 4} l 4.5 -4 l 4.5 4`} />
+      <path d={`M ${cx - 4.5} ${bottom - 4} l 4.5 4 l 4.5 -4`} />
     </g>
   );
 }
@@ -390,7 +679,14 @@ function MarkerLine({
   const clampX = (value: number) => Math.min(limitPx[1], Math.max(limitPx[0], value));
   const raw = x(marker.offsetMm);
   const at = clampX(raw);
-  const color = marker.kind === "cut" ? "#F87171" : marker.kind === "strip" ? "#38BDF8" : "#FBBF24";
+  const color =
+    marker.tone === "refused"
+      ? "#F43F5E"
+      : marker.kind === "cut"
+        ? "#F87171"
+        : marker.kind === "strip"
+          ? "#38BDF8"
+          : "#FBBF24";
   const band = removed ? [clampX(x(removed.fromMm)), clampX(x(removed.toMm))].sort((a, b) => a - b) : null;
 
   return (
