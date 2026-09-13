@@ -166,6 +166,10 @@ export function PhysicalCableChallenge({ scenario, title, difficulty, descriptio
                   selectEnd(end);
                   bench.act({ type: "trim", end, leaveMm });
                 }}
+                onCut={(end, atMm) => {
+                  selectEnd(end);
+                  bench.act({ type: "cut", end, atMm });
+                }}
               />
             </div>
 

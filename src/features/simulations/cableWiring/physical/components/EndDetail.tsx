@@ -13,6 +13,7 @@ import {
   plugRearMm,
 } from "../../model";
 import type { CableEnd, Conductor, EndId, PairId } from "../../model";
+import { JACKET_HALF } from "../benchGeometry";
 import { LANE_GAP, laneY as laneCentre, liftedRow, rowBounds } from "../conductorGeometry";
 import { CONDUCTOR_LABEL } from "../messages";
 import { pairRegions, pairRowY } from "../pairGeometry";
@@ -298,8 +299,15 @@ export function EndDetail({
         </g>
       ))}
 
-      {/* ---- Jacket, over the conductor roots ---- */}
-      <rect {...jacket} y={cy - 22} height={44} fill="#8C96A3" />
+      {/* ---- Jacket, over the conductor roots. The very band a tool
+             hit-tests when it is standing on this end's jacket. ---- */}
+      <rect
+        data-testid={`jacket-${id}`}
+        {...jacket}
+        y={cy - JACKET_HALF}
+        height={2 * JACKET_HALF}
+        fill="#8C96A3"
+      />
       <rect x={jacket.x} y={cy - 15} width={jacket.width} height={9} rx={4.5} fill="#B8C0CA" opacity={0.7} />
       {!allFlush && <rect x={x(0) - 3} y={cy - 23} width={6} height={46} rx={3} fill="#6B7580" />}
       {allFlush && (

@@ -7,10 +7,15 @@ import { CY, HEIGHT, INWARD_PX, LAYOUT, OUTWARD_PX, SHELF_TOP, WIDTH, benchScale
 import { bladeXAt } from "../cutterGeometry";
 import { dryRun } from "../dryRun";
 import { useArrangeGesture } from "../gestures/useArrangeGesture";
+import { useCutGesture } from "../gestures/useCutGesture";
 import { useStripGesture } from "../gestures/useStripGesture";
 import { useTrimGesture } from "../gestures/useTrimGesture";
 import { useUntwistGesture } from "../gestures/useUntwistGesture";
+import { cutXAt } from "../jacketCutGeometry";
+import { panelClaims, resolveMarkers } from "../markers";
+import type { MarkerClaim } from "../markers";
 import { CONDUCTOR_LABEL, PAIR_LABEL } from "../messages";
+import { CableCutterShelfTool, CableCutters } from "./CableCutterTool";
 import { CutterShelfTool, Cutters } from "./CutterTool";
 import { EndDetail } from "./EndDetail";
 import type { ConductorLift, Marker, PairPull } from "./EndDetail";
@@ -44,6 +49,12 @@ import { Stripper, StripperTools } from "./StripperTools";
  * hand opens. Which lane is read off the row, and whether that move is one the
  * model will make is, once again, only ever the model's answer.
  *
+ * R5: the cable cutters come off the shelf too, and stand across the jacket
+ * rather than the conductors. Which end they cut is the jacket they are
+ * standing on — the selected end has no say in it — and, like the flush
+ * cutters, they cut only when they are squeezed. What each end shows while
+ * several tools are out is settled by one explicit rule (see markers).
+ *
  * R4: the cutters come off the shelf and stand across the bare conductor.
  * Standing them there is not cutting: they are put down, they show the line
  * they would cut on and what would come off, and they cut only when they are
@@ -66,6 +77,8 @@ interface Props {
   onArrange: (end: EndId, conductor: Conductor, toIndex: number) => void;
   /** Send a cut the student squeezed the cutters on. The model still decides. */
   onTrim: (end: EndId, leaveMm: number) => void;
+  /** Send a cut the student squeezed the cable cutters on. The model still decides. */
+  onCut: (end: EndId, atMm: number) => void;
 }
 
 export function describeEnd(end: CableEnd): string {
@@ -95,6 +108,7 @@ export function BenchView({
   onUntwist,
   onArrange,
   onTrim,
+  onCut,
 }: Props) {
   const length = jacketedLengthMm(cable, scenario);
   const { scale } = benchScale(cable);
@@ -119,7 +133,9 @@ export function BenchView({
 
   const trim = useTrimGesture({ cable, scale, surface, onCommit: onTrim });
 
-  // One pointer, four gestures: each hook ignores what it is not holding, so
+  const cut = useCutGesture({ cable, scale, surface, onCommit: onCut });
+
+  // One pointer, five gestures: each hook ignores what it is not holding, so
   // the surface can simply hand the event to all of them. What they can pick
   // up never overlaps — a pair is only drawn while an end is unfanned, a
   // conductor only once it is fanned, and a tool is only ever taken by its
@@ -136,18 +152,21 @@ export function BenchView({
       untwist.surfaceHandlers.onPointerMove,
       arrange.surfaceHandlers.onPointerMove,
       trim.surfaceHandlers.onPointerMove,
+      cut.surfaceHandlers.onPointerMove,
     ),
     onPointerUp: all(
       surfaceHandlers.onPointerUp,
       untwist.surfaceHandlers.onPointerUp,
       arrange.surfaceHandlers.onPointerUp,
       trim.surfaceHandlers.onPointerUp,
+      cut.surfaceHandlers.onPointerUp,
     ),
     onPointerCancel: all(
       surfaceHandlers.onPointerCancel,
       untwist.surfaceHandlers.onPointerCancel,
       arrange.surfaceHandlers.onPointerCancel,
       trim.surfaceHandlers.onPointerCancel,
+      cut.surfaceHandlers.onPointerCancel,
     ),
   };
 
@@ -214,24 +233,58 @@ export function BenchView({
       : dryRun(cable, { type: "trim", end: trim.target.end, leaveMm: trim.target.leaveMm }, scenario);
   const cutRefused = cutCandidate !== null && !cutCandidate.ok;
 
-  // The gesture's own preview takes precedence over a tool's slider preview.
-  const shown: Record<EndId, Marker> = { ...markers };
+  // Wherever the cable cutters are standing, the model is asked what a cut
+  // there would do to the cable. Standing them somewhere changes nothing; only
+  // a squeeze does. Which end is the jacket they are on, never the selected one.
+  const jacketCandidate =
+    cut.target === null
+      ? null
+      : dryRun(cable, { type: "cut", end: cut.target.end, atMm: cut.target.atMm }, scenario);
+  const jacketRefused = jacketCandidate !== null && !jacketCandidate.ok;
+  /** How far behind its jacket edge a cut here would fall. The drawing's own offset, flipped. */
+  const cutBackMm = cut.target === null ? 0 : -cut.target.offsetMm;
+
+  // What each end shows, when more than one thing would draw on it. Ranked by
+  // one explicit rule rather than by the order of these statements, so no
+  // preview can quietly replace another (see markers).
+  const claims: MarkerClaim[] = panelClaims(markers);
   if (target !== null && drag !== null) {
-    shown[target] = {
-      kind: "strip",
-      offsetMm: -drag.amountMm,
-      label: `${drag.amountMm} mm`,
-      tone: refused ? "refused" : undefined,
-    };
+    claims.push({
+      end: target,
+      source: "in-hand",
+      marker: {
+        kind: "strip",
+        offsetMm: -drag.amountMm,
+        label: `${drag.amountMm} mm`,
+        tone: refused ? "refused" : undefined,
+      },
+    });
   }
   if (trim.target !== null) {
-    shown[trim.target.end] = {
-      kind: "trim",
-      offsetMm: trim.target.leaveMm,
-      label: `${trim.target.leaveMm} mm`,
-      tone: cutRefused ? "refused" : undefined,
-    };
+    claims.push({
+      end: trim.target.end,
+      source: trim.cutters?.held ? "in-hand" : "standing",
+      marker: {
+        kind: "trim",
+        offsetMm: trim.target.leaveMm,
+        label: `${trim.target.leaveMm} mm`,
+        tone: cutRefused ? "refused" : undefined,
+      },
+    });
   }
+  if (cut.target !== null) {
+    claims.push({
+      end: cut.target.end,
+      source: cut.cutters?.held ? "in-hand" : "standing",
+      marker: {
+        kind: "cut",
+        offsetMm: cut.target.offsetMm,
+        label: `${cutBackMm} mm in`,
+        tone: jacketRefused ? "refused" : undefined,
+      },
+    });
+  }
+  const shown = resolveMarkers(claims);
 
   return (
     <svg
@@ -304,7 +357,12 @@ export function BenchView({
               scale={scale}
               marker={shown[id]}
               selected={
-                selectedEnd === id || target === id || pull?.end === id || held?.end === id || trim.target?.end === id
+                selectedEnd === id ||
+                target === id ||
+                pull?.end === id ||
+                held?.end === id ||
+                trim.target?.end === id ||
+                cut.target?.end === id
               }
               pull={pulls[id]}
               lift={lifts[id]}
@@ -349,6 +407,7 @@ export function BenchView({
 
       <StripperTools onTake={takeTool} held={drag?.slot ?? null} />
       <CutterShelfTool onTake={trim.takeCutters} lifted={trim.cutters !== null} />
+      <CableCutterShelfTool onTake={cut.takeCutters} lifted={cut.cutters !== null} />
 
       {/* The cutters, in hand or standing where they were put down. They cut
           when they are squeezed, and not before. */}
@@ -392,6 +451,69 @@ export function BenchView({
               {!cutRefused && (
                 <text textAnchor="middle" y={8} fontSize={8} fill="#94A3B8">
                   {trim.cutters.held ? "let go to stand them here" : "click to cut"}
+                </text>
+              )}
+            </g>
+          )}
+        </g>
+      )}
+
+      {/* The cable cutters, in hand or standing where they were put down. They
+          cut when they are squeezed, and not before. */}
+      {cut.cutters !== null && (
+        <g
+          data-testid="cable-cutters"
+          data-end={cut.target?.end ?? ""}
+          data-at-mm={cut.target?.atMm ?? ""}
+          data-back-mm={cut.target === null ? "" : cutBackMm}
+          data-held={cut.cutters.held}
+          data-refused={jacketRefused}
+          // They keep their own events even while they are in hand, for the
+          // same reason the flush cutters do: taking them away would move the
+          // press and the release onto different elements, and the click that
+          // squeezes them would never arrive.
+          style={{ cursor: cut.cutters.held ? "grabbing" : "pointer" }}
+          onPointerDown={cut.takeCutters}
+          onClick={cut.squeeze}
+        >
+          {cut.target !== null && <title>Squeeze the cable cutters to cut here</title>}
+          <CableCutters
+            cx={
+              cut.target === null
+                ? cut.cutters.at.x
+                : cutXAt(cut.target.atMm, cut.target.end, cable.ends[cut.target.end], scale)
+            }
+            cy={cut.cutters.at.y}
+            // Handles along the cable that stays, so what would come off is
+            // left in view.
+            dir={cut.target === null ? -1 : (-LAYOUT[cut.target.end].dir as 1 | -1)}
+          />
+          {cut.target !== null && (
+            /* High on the mat: the cut's own marker writes its length just
+               above the cable, and two labels on one line would collide. */
+            <g transform={`translate(${Math.min(WIDTH - 70, Math.max(70, cut.cutters.at.x))} 32)`}>
+              <rect
+                x={-58}
+                y={-15}
+                width={116}
+                height={26}
+                rx={5}
+                fill={jacketRefused ? "#4C1520" : "#0B211A"}
+                stroke={jacketRefused ? "#F43F5E" : "#F87171"}
+                strokeWidth={1.5}
+              />
+              <text
+                textAnchor="middle"
+                y={-2}
+                fontSize={12}
+                fontWeight={700}
+                fill={jacketRefused ? "#FDA4AF" : "#FECACA"}
+              >
+                {jacketRefused ? `✗ ${cutBackMm} mm in` : `${cutBackMm} mm in`}
+              </text>
+              {!jacketRefused && (
+                <text textAnchor="middle" y={8} fontSize={8} fill="#94A3B8">
+                  {cut.cutters.held ? "let go to stand them here" : "click to cut"}
                 </text>
               )}
             </g>

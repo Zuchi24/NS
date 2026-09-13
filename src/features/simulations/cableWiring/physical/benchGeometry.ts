@@ -27,6 +27,15 @@ export const CY = 120;
 /** The shelf the tools lie on. Above it is the cable; below it, the tools. */
 export const SHELF_TOP = 225;
 
+/**
+ * How far above and below the centre line the jacket is drawn.
+ *
+ * The drawing's own half-height, kept here rather than in the component so
+ * that a tool hit-testing the jacket and the jacket the student sees are the
+ * same band of bench. Nothing may hit-test a jacket of its own.
+ */
+export const JACKET_HALF = 22;
+
 /** Where each end's jacket edge sits, which way its conductors point, and the half of the bench it owns. */
 export const LAYOUT: Record<EndId, { x0: number; dir: 1 | -1; region: [number, number] }> = {
   A: { x0: 205, dir: -1, region: [0, 440] },
