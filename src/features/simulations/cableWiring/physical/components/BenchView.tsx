@@ -1,24 +1,27 @@
 import { useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
-import { MIN_WORK, PAIR_IDS, jacketedLengthMm, maxExposed } from "../../model";
-import type { CableEnd, CableState, Conductor, EndId, PairId, Scenario, StripSlot } from "../../model";
+import { FRONT_STOP, MIN_WORK, PAIR_IDS, jacketedLengthMm, maxExposed } from "../../model";
+import type { CableEnd, CableState, Conductor, EndId, Orientation, PairId, Scenario, StripSlot } from "../../model";
 import { CY, HEIGHT, INWARD_PX, LAYOUT, OUTWARD_PX, SHELF_TOP, WIDTH, benchScale } from "../benchGeometry";
 import { bladeXAt } from "../cutterGeometry";
 import { dryRun } from "../dryRun";
 import { useArrangeGesture } from "../gestures/useArrangeGesture";
 import { useCutGesture } from "../gestures/useCutGesture";
+import { useInsertGesture } from "../gestures/useInsertGesture";
 import { useStripGesture } from "../gestures/useStripGesture";
 import { useTrimGesture } from "../gestures/useTrimGesture";
 import { useUntwistGesture } from "../gestures/useUntwistGesture";
 import { cutXAt } from "../jacketCutGeometry";
 import { panelClaims, resolveMarkers } from "../markers";
 import type { MarkerClaim } from "../markers";
-import { CONDUCTOR_LABEL, PAIR_LABEL } from "../messages";
+import { CONDUCTOR_LABEL, PAIR_LABEL, jacketWords } from "../messages";
+import { PLUG_HALF, plugFrontXAt, plugRearXAt } from "../plugGeometry";
 import { CableCutterShelfTool, CableCutters } from "./CableCutterTool";
 import { CutterShelfTool, Cutters } from "./CutterTool";
 import { EndDetail } from "./EndDetail";
 import type { ConductorLift, Marker, PairPull } from "./EndDetail";
+import { PlugFlip, PlugGlyph, PlugSeat, PlugShelfTool } from "./PlugTool";
 import { Stripper, StripperTools } from "./StripperTools";
 
 /**
@@ -60,6 +63,13 @@ import { Stripper, StripperTools } from "./StripperTools";
  * they would cut on and what would come off, and they cut only when they are
  * squeezed. Positioning never touches the cable; the squeeze is the one act
  * that reaches the model.
+ *
+ * R6: a plug comes off the shelf and stands on an end, lying along it with its
+ * rear opening where it was put down. Which end, and how far on, are read off
+ * where it stands; which way up is turned over on the plug itself. It goes on
+ * only when it is pressed. While it stands, the model is asked what fitting it
+ * would do — including where it would actually stop, which is drawn from the
+ * model's own answer rather than worked out here.
  */
 
 interface Props {
@@ -79,7 +89,15 @@ interface Props {
   onTrim: (end: EndId, leaveMm: number) => void;
   /** Send a cut the student squeezed the cable cutters on. The model still decides. */
   onCut: (end: EndId, atMm: number) => void;
+  /**
+   * Send a plug the student pushed onto an end. The model still decides. Without
+   * it there are no plugs on the shelf to pick up.
+   */
+  onInsert?: (end: EndId, orientation: Orientation, pushMm: number) => void;
 }
+
+/** What a bench with no way to send an insert does with one: nothing, and it never offers one. */
+const NO_INSERT = () => {};
 
 export function describeEnd(end: CableEnd): string {
   if (end.plug) {
@@ -109,6 +127,7 @@ export function BenchView({
   onArrange,
   onTrim,
   onCut,
+  onInsert,
 }: Props) {
   const length = jacketedLengthMm(cable, scenario);
   const { scale } = benchScale(cable);
@@ -135,7 +154,9 @@ export function BenchView({
 
   const cut = useCutGesture({ cable, scale, surface, onCommit: onCut });
 
-  // One pointer, five gestures: each hook ignores what it is not holding, so
+  const insert = useInsertGesture({ scale, surface, onCommit: onInsert ?? NO_INSERT });
+
+  // One pointer, six gestures: each hook ignores what it is not holding, so
   // the surface can simply hand the event to all of them. What they can pick
   // up never overlaps — a pair is only drawn while an end is unfanned, a
   // conductor only once it is fanned, and a tool is only ever taken by its
@@ -153,6 +174,7 @@ export function BenchView({
       arrange.surfaceHandlers.onPointerMove,
       trim.surfaceHandlers.onPointerMove,
       cut.surfaceHandlers.onPointerMove,
+      insert.surfaceHandlers.onPointerMove,
     ),
     onPointerUp: all(
       surfaceHandlers.onPointerUp,
@@ -160,6 +182,7 @@ export function BenchView({
       arrange.surfaceHandlers.onPointerUp,
       trim.surfaceHandlers.onPointerUp,
       cut.surfaceHandlers.onPointerUp,
+      insert.surfaceHandlers.onPointerUp,
     ),
     onPointerCancel: all(
       surfaceHandlers.onPointerCancel,
@@ -167,6 +190,7 @@ export function BenchView({
       arrange.surfaceHandlers.onPointerCancel,
       trim.surfaceHandlers.onPointerCancel,
       cut.surfaceHandlers.onPointerCancel,
+      insert.surfaceHandlers.onPointerCancel,
     ),
   };
 
@@ -243,6 +267,37 @@ export function BenchView({
   const jacketRefused = jacketCandidate !== null && !jacketCandidate.ok;
   /** How far behind its jacket edge a cut here would fall. The drawing's own offset, flipped. */
   const cutBackMm = cut.target === null ? 0 : -cut.target.offsetMm;
+
+  // Wherever a plug is held over an end, the model is asked what fitting it
+  // there, that way up, would do. Where it would actually stop is the model's
+  // own number, read off the event it would produce; nothing here works out how
+  // far a plug can go on. Which end is the one it is over, never the selected one.
+  const plugStand = insert.target;
+  const plugCandidate =
+    plugStand === null || insert.plug === null
+      ? null
+      : dryRun(
+          cable,
+          { type: "insert", end: plugStand.end, orientation: insert.plug.orientation, pushMm: plugStand.pushMm },
+          scenario,
+        );
+  const plugRefused = plugCandidate !== null && !plugCandidate.ok;
+  const plugSeat =
+    plugCandidate !== null && plugCandidate.ok
+      ? (plugCandidate.events.flatMap((event) => (event.type === "inserted" ? [event.jacketInMm] : []))[0] ?? null)
+      : null;
+  // Where the plug is drawn: along the end it is over, or in the hand wherever
+  // that is, its rear opening at the hand.
+  const plugDrawn =
+    insert.plug === null
+      ? null
+      : plugStand === null
+        ? { rearX: insert.plug.at.x, frontX: insert.plug.at.x + FRONT_STOP * scale, cy: insert.plug.at.y }
+        : {
+            rearX: plugRearXAt(plugStand.pushMm, plugStand.end, scale),
+            frontX: plugFrontXAt(plugStand.pushMm, plugStand.end, scale),
+            cy: CY,
+          };
 
   // What each end shows, when more than one thing would draw on it. Ranked by
   // one explicit rule rather than by the order of these statements, so no
@@ -362,7 +417,8 @@ export function BenchView({
                 pull?.end === id ||
                 held?.end === id ||
                 trim.target?.end === id ||
-                cut.target?.end === id
+                cut.target?.end === id ||
+                plugStand?.end === id
               }
               pull={pulls[id]}
               lift={lifts[id]}
@@ -408,6 +464,7 @@ export function BenchView({
       <StripperTools onTake={takeTool} held={drag?.slot ?? null} />
       <CutterShelfTool onTake={trim.takeCutters} lifted={trim.cutters !== null} />
       <CableCutterShelfTool onTake={cut.takeCutters} lifted={cut.cutters !== null} />
+      {onInsert && <PlugShelfTool onTake={insert.takePlug} count={cable.tray.plugs} lifted={insert.plug !== null} />}
 
       {/* The cutters, in hand or standing where they were put down. They cut
           when they are squeezed, and not before. */}
@@ -515,6 +572,89 @@ export function BenchView({
             </g>
           )}
         </g>
+      )}
+
+      {/* The plug, in hand or standing on an end. It goes on when it is
+          pressed, and not before. */}
+      {insert.plug !== null && plugDrawn !== null && (
+        <>
+          <g
+            data-testid="physical-plug"
+            data-end={plugStand?.end ?? ""}
+            data-push-mm={plugStand?.pushMm ?? ""}
+            data-seat-mm={plugSeat ?? ""}
+            data-orientation={insert.plug.orientation}
+            data-held={insert.plug.held}
+            data-refused={plugRefused}
+            // A press here is a hand on the plug where it stands: lifted without
+            // travelling it pushes the plug on, read off the pointer rather than
+            // a click, which the captured drawing would take.
+            style={{ cursor: insert.plug.held ? "grabbing" : "pointer" }}
+            onPointerDown={insert.pressPlug}
+          >
+            {plugStand !== null && <title>Press the plug to push it on here</title>}
+            {plugStand !== null && plugSeat !== null && plugSeat !== plugStand.pushMm && (
+              <PlugSeat
+                rearX={plugRearXAt(plugSeat, plugStand.end, scale)}
+                frontX={plugFrontXAt(plugSeat, plugStand.end, scale)}
+                cy={CY}
+              />
+            )}
+            <PlugGlyph
+              rearX={plugDrawn.rearX}
+              frontX={plugDrawn.frontX}
+              cy={plugDrawn.cy}
+              orientation={insert.plug.orientation}
+              refused={plugRefused}
+            />
+          </g>
+
+          {plugStand !== null && (
+            <g
+              data-testid="plug-reading"
+              transform={`translate(${Math.min(WIDTH - 80, Math.max(80, plugDrawn.rearX))} ${CY - PLUG_HALF - 26})`}
+              pointerEvents="none"
+            >
+              <rect
+                x={-76}
+                y={-15}
+                width={152}
+                height={26}
+                rx={5}
+                fill={plugRefused ? "#4C1520" : "#0B211A"}
+                stroke={plugRefused ? "#F43F5E" : "#38BDF8"}
+                strokeWidth={1.5}
+              />
+              <text
+                textAnchor="middle"
+                y={-2}
+                fontSize={10}
+                fontWeight={700}
+                fill={plugRefused ? "#FDA4AF" : "#E0F2FE"}
+              >
+                {plugRefused || plugSeat === null ? `✗ ${jacketWords(plugStand.pushMm)}` : jacketWords(plugSeat)}
+              </text>
+              {!plugRefused && (
+                <text textAnchor="middle" y={8} fontSize={8} fill="#94A3B8">
+                  {!insert.plug.held
+                    ? "press to push it on"
+                    : insert.plug.onTool
+                      ? "let go to push it on"
+                      : "let go to stand it here"}
+                </text>
+              )}
+            </g>
+          )}
+
+          {!insert.plug.held && (
+            <PlugFlip
+              cx={(plugDrawn.rearX + plugDrawn.frontX) / 2}
+              cy={plugDrawn.cy + PLUG_HALF + 26}
+              orientation={insert.plug.orientation}
+              onFlip={insert.flipPlug}
+            />
+          )}
+        </>
       )}
 
       {/* The conductor in hand: which one, where it would go, and what the

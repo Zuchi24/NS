@@ -170,6 +170,10 @@ export function PhysicalCableChallenge({ scenario, title, difficulty, descriptio
                   selectEnd(end);
                   bench.act({ type: "cut", end, atMm });
                 }}
+                onInsert={(end, orientation, pushMm) => {
+                  selectEnd(end);
+                  bench.act({ type: "insert", end, orientation, pushMm });
+                }}
               />
             </div>
 

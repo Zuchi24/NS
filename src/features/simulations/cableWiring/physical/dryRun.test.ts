@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { MAX_STRIP_PASS, MIN_WORK, S1_PRACTICE, apply, createInitialState, toRecord } from "../model";
+import { MAX_STRIP_PASS, MIN_WORK, PAIR_IDS, S1_PRACTICE, apply, createInitialState, toRecord } from "../model";
+import type { Action, CableState, SimEvent } from "../model";
 import { dryRun } from "./dryRun";
 
 /**
@@ -59,5 +60,105 @@ describe("the dry run", () => {
     const answers = Array.from({ length: 5 }, () => dryRun(cable, action, S1_PRACTICE));
 
     expect(answers.every((answer) => answer.ok)).toBe(true);
+  });
+});
+
+function chain(actions: Action[]): CableState {
+  return actions.reduce((state, action) => {
+    const result = apply(state, action, S1_PRACTICE);
+    if ("rejected" in result) throw new Error(`model refused ${action.type}: ${result.rejected}`);
+
+    return result.state;
+  }, start());
+}
+
+/** End A stripped, fanned flat and trimmed to 12 mm: a plug can go on it. */
+const readyA = () =>
+  chain([
+    { type: "strip", end: "A", amountMm: 30, slot: "correct" },
+    ...PAIR_IDS.map((pair): Action => ({ type: "untwist", end: "A", pair })),
+    { type: "trim", end: "A", leaveMm: 12 },
+  ]);
+
+const insertA = (pushMm: number): Action => ({ type: "insert", end: "A", orientation: "contacts-down", pushMm });
+
+/** The seat an accepted insert reports, read off the events alone. */
+const seatsIn = (events: SimEvent[]) => events.flatMap((event) => (event.type === "inserted" ? [event.jacketInMm] : []));
+
+describe("what the dry run hands back when the model accepts", () => {
+  it("the very events apply() produces", () => {
+    const cable = start();
+    const actions: Action[] = [
+      { type: "strip", end: "A", amountMm: 30, slot: "correct" },
+      { type: "strip", end: "A", amountMm: 30, slot: "too-deep" },
+      { type: "cut", end: "A", atMm: 40 },
+    ];
+
+    for (const action of actions) {
+      const real = apply(cable, action, S1_PRACTICE);
+      if ("rejected" in real) throw new Error(`model refused ${action.type}`);
+
+      expect(dryRun(cable, action, S1_PRACTICE)).toEqual({ ok: true, events: real.events });
+    }
+  });
+
+  it("an insert's own inserted event, seated where apply() seats it", () => {
+    const cable = readyA();
+    const real = apply(cable, insertA(5), S1_PRACTICE);
+    if ("rejected" in real) throw new Error("model refused insert");
+
+    const asked = dryRun(cable, insertA(5), S1_PRACTICE);
+    const inserted = asked.ok ? asked.events.filter((event) => event.type === "inserted") : [];
+
+    expect(inserted).toEqual(real.events.filter((event) => event.type === "inserted"));
+    expect(asked.ok ? seatsIn(asked.events) : []).toEqual([real.state.ends.A.plug!.jacketInMm]);
+  });
+
+  it("the model's own clamped seat when the push asked for is not where the plug stops", () => {
+    const cable = readyA();
+
+    for (const pushMm of [10, 40, -40]) {
+      const real = apply(cable, insertA(pushMm), S1_PRACTICE);
+      if ("rejected" in real) throw new Error("model refused insert");
+
+      const asked = dryRun(cable, insertA(pushMm), S1_PRACTICE);
+      const seat = asked.ok ? seatsIn(asked.events) : [];
+
+      expect(seat).toEqual([real.state.ends.A.plug!.jacketInMm]);
+      // Each of these really was moved by the model, not handed back as asked.
+      expect(seat[0]).not.toBe(pushMm);
+    }
+  });
+
+  it("still refuses exactly as the model does, and carries no events when it does", () => {
+    const empty: CableState = { ...readyA(), tray: { plugs: 0 } };
+    const cases: [CableState, Action][] = [
+      [start(), insertA(5)],
+      [start(), { type: "insert", end: "B", orientation: "contacts-up", pushMm: 5 }],
+      [empty, insertA(5)],
+    ];
+
+    for (const [cable, action] of cases) {
+      const real = apply(cable, action, S1_PRACTICE);
+      if (!("rejected" in real)) throw new Error("expected the model to refuse");
+
+      expect(dryRun(cable, action, S1_PRACTICE)).toEqual({ ok: false, reason: real.rejected });
+    }
+
+    expect(cases.map(([cable, action]) => (dryRun(cable, action, S1_PRACTICE) as { reason: string }).reason)).toEqual([
+      "no-fan",
+      "plug-present",
+      "tray-empty",
+    ]);
+  });
+
+  it("leaves the cable and its tray exactly as they were after asking about an insert", () => {
+    const cable = readyA();
+    const before = JSON.stringify(cable);
+
+    dryRun(cable, insertA(10), S1_PRACTICE);
+
+    expect(JSON.stringify(cable)).toBe(before);
+    expect(cable.tray.plugs).toBe(S1_PRACTICE.plugs);
   });
 });
