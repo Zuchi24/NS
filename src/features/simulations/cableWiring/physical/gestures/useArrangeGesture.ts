@@ -19,7 +19,8 @@ import type { CableState, Conductor, EndId } from "../../model";
  * in the hand: carrying it over another conductor, or over the other end's
  * row, never swaps what is being held. That is the difference from R1's tool,
  * which belongs to whichever end it is standing on — a wire, once picked up,
- * is picked up.
+ * is picked up. And it is picked up by one hand: another finger on the bench
+ * cannot offer it to a lane, drop it, or let it go for the hand that holds it.
  *
  * What it produces is a candidate — an end, a conductor and the lane it is
  * being offered to, which is the whole of a move in the model. Whether that
@@ -61,11 +62,24 @@ export function useArrangeGesture({ cable, scale, surface, blocked = false, onCo
   // Whether the hand that is lifting was dragging, so anything the browser
   // sends afterwards is not taken as a click on the row.
   const dragged = useRef(false);
+  // The pointer that picked the conductor up. A second finger elsewhere on the
+  // bench is not this hand, and must not offer, drop or let go of what it holds.
+  const owner = useRef<number | null>(null);
 
   const put = useCallback((next: ArrangeDrag | null) => {
     held.current = next;
-    if (next === null) from.current = null;
+    if (next === null) {
+      from.current = null;
+      owner.current = null;
+    }
     setDrag(next);
+  }, []);
+
+  /** Whether an event belongs to the hand that is holding the conductor. */
+  const mine = useCallback((event: { pointerId?: number }) => {
+    const holder = owner.current;
+
+    return holder === null || typeof event.pointerId !== "number" || event.pointerId === holder;
   }, []);
 
   const pointIn = useCallback(
@@ -84,8 +98,12 @@ export function useArrangeGesture({ cable, scale, surface, blocked = false, onCo
    */
   const onPointerDown = useCallback(
     (event: ReactPointerEvent) => {
+      // A hand is already holding a conductor: another pointer coming down is
+      // not this hand, and changes nothing about the move under way.
+      if (held.current !== null) return;
+
       dragged.current = false;
-      if (blocked || held.current !== null) return;
+      if (blocked) return;
 
       const at = pointIn(event);
       const region: ConductorRegion | null = conductorUnder(at.x, at.y, cable, scale);
@@ -95,6 +113,7 @@ export function useArrangeGesture({ cable, scale, surface, blocked = false, onCo
       // afterwards, and the bench's other paths still want it (R2's lesson).
       // The drawing already carries touch-action: none and select-none.
       from.current = { x: event.clientX, y: event.clientY };
+      owner.current = typeof event.pointerId === "number" ? event.pointerId : null;
 
       try {
         surface.current?.setPointerCapture(event.pointerId);
@@ -119,7 +138,8 @@ export function useArrangeGesture({ cable, scale, surface, blocked = false, onCo
   const onPointerMove = useCallback(
     (event: ReactPointerEvent) => {
       const current = held.current;
-      if (current === null) return;
+      // Only the hand holding the conductor offers it to a lane.
+      if (current === null || !mine(event)) return;
 
       const at = pointIn(event);
       const start = from.current;
@@ -136,12 +156,14 @@ export function useArrangeGesture({ cable, scale, surface, blocked = false, onCo
 
       put({ ...current, at, active, toIndex });
     },
-    [cable, pointIn, put, scale],
+    [cable, mine, pointIn, put, scale],
   );
 
   const onPointerUp = useCallback(
     (event: ReactPointerEvent) => {
       const current = held.current;
+      // Only the hand holding the conductor can let go of it.
+      if (current !== null && !mine(event)) return;
 
       try {
         surface.current?.releasePointerCapture(event.pointerId);
@@ -157,10 +179,17 @@ export function useArrangeGesture({ cable, scale, surface, blocked = false, onCo
         onCommit(current.end, current.conductor, current.toIndex);
       }
     },
-    [onCommit, put, surface],
+    [mine, onCommit, put, surface],
   );
 
-  const onPointerCancel = useCallback(() => put(null), [put]);
+  const onPointerCancel = useCallback(
+    (event: ReactPointerEvent) => {
+      if (held.current !== null && !mine(event)) return;
+
+      put(null);
+    },
+    [mine, put],
+  );
 
   // Escape puts the conductor back with nothing sent.
   useEffect(() => {

@@ -595,3 +595,187 @@ describe("the other ways in still work", () => {
     expect(conductorRegions("A", cable.ends.A, scale)).toEqual([]);
   });
 });
+
+describe("a conductor in hand belongs to the pointer that picked it up", () => {
+  const inHand = () => screen.queryByTestId("conductor-in-hand");
+
+  it("is carried and let go by the pointer that picked it up, whatever its id", () => {
+    const { svg } = benchAt();
+    fanEnd("A");
+    const cable = fannedA();
+    const moved = cable.ends.A.fan![0];
+    const from = grabPoint(cable, "A", moved);
+
+    fireEvent.pointerDown(svg, { pointerId: 7, ...from });
+    fireEvent.pointerMove(svg, { pointerId: 7, clientX: from.clientX + 2, clientY: from.clientY });
+
+    // Not yet a drag: nothing is out of the row until the hand travels.
+    expect(inHand()).toBeNull();
+
+    fireEvent.pointerMove(svg, { pointerId: 7, ...overLane(from, 3) });
+
+    expect(inHand()!.getAttribute("data-to-index")).toBe("3");
+
+    fireEvent.pointerUp(svg, { pointerId: 7, ...overLane(from, 3) });
+
+    expect(fanOf("A")[3]).toBe(moved);
+    expect(feedback()).toHaveTextContent(/from position 1 to position 4/);
+  });
+
+  it("cannot be taken over by a second pointer closing on another conductor", () => {
+    const { svg } = benchAt();
+    fanEnd("A");
+    const cable = fannedA();
+    const before = fanOf("A");
+    const moved = cable.ends.A.fan![0];
+    const from = grabPoint(cable, "A", moved);
+    const other = grabPoint(cable, "A", cable.ends.A.fan![5]);
+
+    carry(svg, from, overLane(from, 3), { release: false });
+    fireEvent.pointerDown(svg, { pointerId: 2, ...other });
+    fireEvent.pointerMove(svg, { pointerId: 2, ...overLane(other, 6) });
+    fireEvent.pointerUp(svg, { pointerId: 2, ...overLane(other, 6) });
+
+    expect(inHand()!.getAttribute("data-conductor")).toBe(moved);
+    expect(inHand()!.getAttribute("data-to-index")).toBe("3");
+    expect(fanOf("A")).toEqual(before);
+
+    // The first hand still has the first conductor, and puts it where it is offering it.
+    fireEvent.pointerUp(svg, { pointerId: 1, ...overLane(from, 3) });
+
+    expect(fanOf("A")[3]).toBe(moved);
+    expect(feedback()).toHaveTextContent(/from position 1 to position 4/);
+  });
+
+  it("offers only the lane the owner's hand is over", () => {
+    const { svg } = benchAt();
+    fanEnd("A");
+    const cable = fannedA();
+    const from = grabPoint(cable, "A", cable.ends.A.fan![0]);
+
+    carry(svg, from, overLane(from, 3), { release: false });
+    fireEvent.pointerMove(svg, { pointerId: 2, ...overLane(from, 6) });
+
+    expect(inHand()!.getAttribute("data-to-index")).toBe("3");
+    expect(screen.getByTestId("insertion-A").getAttribute("data-index")).toBe("3");
+
+    // The owner still moves the offer along the row.
+    fireEvent.pointerMove(svg, { pointerId: 1, ...overLane(from, 5) });
+
+    expect(inHand()!.getAttribute("data-to-index")).toBe("5");
+    expect(screen.getByTestId("insertion-A").getAttribute("data-index")).toBe("5");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+  });
+
+  it("cannot be let go into a lane by a pointer that never picked it up", () => {
+    const { svg } = benchAt();
+    fanEnd("A");
+    const cable = fannedA();
+    const before = fanOf("A");
+    const moved = cable.ends.A.fan![0];
+    const from = grabPoint(cable, "A", moved);
+
+    carry(svg, from, overLane(from, 3), { release: false });
+    fireEvent.pointerUp(svg, { pointerId: 2, ...overLane(from, 3) });
+
+    expect(fanOf("A")).toEqual(before);
+    expect(feedback()).not.toHaveTextContent(/Moved/);
+    expect(inHand()!.getAttribute("data-to-index")).toBe("3");
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...overLane(from, 3) });
+
+    expect(fanOf("A")[3]).toBe(moved);
+  });
+
+  it("is not put back by another pointer's cancel", () => {
+    const { svg } = benchAt();
+    fanEnd("A");
+    const cable = fannedA();
+    const moved = cable.ends.A.fan![0];
+    const from = grabPoint(cable, "A", moved);
+
+    carry(svg, from, overLane(from, 3), { release: false });
+    fireEvent.pointerCancel(svg, { pointerId: 2 });
+
+    expect(inHand()).not.toBeNull();
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...overLane(from, 3) });
+
+    expect(fanOf("A")[3]).toBe(moved);
+  });
+
+  it("is let go by its owner exactly once", () => {
+    const { svg } = benchAt();
+    fanEnd("A");
+    const cable = fannedA();
+    const moved = cable.ends.A.fan![0];
+    const from = grabPoint(cable, "A", moved);
+
+    carry(svg, from, overLane(from, 4));
+    fireEvent.pointerUp(svg, { pointerId: 1, ...overLane(from, 4) });
+    fireEvent.click(svg);
+
+    expect(fanOf("A")[4]).toBe(moved);
+    expect(feedback()).toHaveTextContent(/from position 1 to position 5/);
+    expect(feedback()).not.toHaveTextContent(/already in that position/);
+  });
+
+  it("is put back by its owner's cancel, and nothing is sent after", () => {
+    const { svg } = benchAt();
+    fanEnd("A");
+    const cable = fannedA();
+    const before = fanOf("A");
+    const from = grabPoint(cable, "A", cable.ends.A.fan![0]);
+
+    carry(svg, from, overLane(from, 6), { release: false });
+    fireEvent.pointerCancel(svg, { pointerId: 1 });
+
+    expect(inHand()).toBeNull();
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...overLane(from, 6) });
+
+    expect(fanOf("A")).toEqual(before);
+  });
+
+  it("is put back by Escape, and neither pointer lifting afterwards sends anything", () => {
+    const { svg } = benchAt();
+    fanEnd("A");
+    const cable = fannedA();
+    const before = fanOf("A");
+    const from = grabPoint(cable, "A", cable.ends.A.fan![0]);
+
+    carry(svg, from, overLane(from, 6), { release: false });
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerUp(svg, { pointerId: 2, ...overLane(from, 6) });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...overLane(from, 6) });
+
+    expect(inHand()).toBeNull();
+    expect(fanOf("A")).toEqual(before);
+  });
+
+  it("can be picked up by a different pointer once the first has let go", () => {
+    const { svg } = benchAt();
+    fanEnd("A");
+    const cable = fannedA();
+    const first = cable.ends.A.fan![0];
+    const fromFirst = grabPoint(cable, "A", first);
+
+    carry(svg, fromFirst, overLane(fromFirst, 4));
+
+    const after = modelAfter([
+      { type: "strip", end: "A", amountMm: 30, slot: "correct" },
+      ...PAIR_IDS.map((pair): Action => ({ type: "untwist", end: "A", pair })),
+      { type: "moveConductor", end: "A", conductor: first, toIndex: 4 },
+    ]);
+    const second = after.ends.A.fan![7];
+    const fromSecond = grabPoint(after, "A", second);
+
+    fireEvent.pointerDown(svg, { pointerId: 3, ...fromSecond });
+    fireEvent.pointerMove(svg, { pointerId: 3, ...overLane(fromSecond, 3) });
+    fireEvent.pointerMove(svg, { pointerId: 3, ...overLane(fromSecond, 0) });
+    fireEvent.pointerUp(svg, { pointerId: 3, ...overLane(fromSecond, 0) });
+
+    expect(fanOf("A")[0]).toBe(second);
+  });
+});

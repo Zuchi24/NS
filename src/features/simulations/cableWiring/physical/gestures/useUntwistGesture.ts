@@ -19,7 +19,14 @@ import type { CableState, EndId, PairId } from "../../model";
  * drawing and not off whatever end happens to be selected. A hand keeps the
  * pair it took hold of: you do not let go of one pair and find yourself
  * holding another halfway through a pull, so nothing can be shown opening at
- * one row while another row's name is on the gesture.
+ * one row while another row's name is on the gesture. And the pull belongs to
+ * the pointer that took hold: another finger on the bench cannot pull it
+ * further, let it go, or finish it for the hand that is holding it.
+ *
+ * A pair can also be tapped: a hand that closes on it and lifts again without
+ * travelling. That is read off the same press and release, from the pair the
+ * hand took hold of — never off a click, which the captured drawing would take
+ * instead of the pair, and never off whatever is under the hand when it lifts.
  *
  * What it produces is a candidate — an end and a pair, which is the whole of
  * an untwist in the model. Whether that pair can be untwisted is never decided
@@ -56,22 +63,38 @@ interface Options {
   /** True while another gesture has the bench, so two are never live at once. */
   blocked?: boolean;
   onCommit: (end: EndId, pair: PairId) => void;
+  /**
+   * Untwist by tapping a pair: a hand that closes on it and lifts without
+   * travelling. Only offered when the bench passes it — while the Untwist tool
+   * is out. Without it, a tap does nothing.
+   */
+  onTap?: (end: EndId, pair: PairId) => void;
 }
 
-export function useUntwistGesture({ cable, scale, surface, blocked = false, onCommit }: Options) {
+export function useUntwistGesture({ cable, scale, surface, blocked = false, onCommit, onTap }: Options) {
   const [drag, setDrag] = useState<UntwistDrag | null>(null);
   // The drag is kept in a ref as well, so the pointer handlers can read it
   // without a state updater having to do anything but update state.
   const held = useRef<UntwistDrag | null>(null);
   const from = useRef<{ x: number; y: number } | null>(null);
-  // Whether the hand that is lifting was dragging, so the click the browser
-  // sends after it is not also taken as a tap on the pair.
-  const dragged = useRef(false);
+  // The pointer that took hold of the pair. A second finger elsewhere on the
+  // bench is not this hand, and must not pull, drop or let go of what it holds.
+  const owner = useRef<number | null>(null);
 
   const put = useCallback((next: UntwistDrag | null) => {
     held.current = next;
-    if (next === null) from.current = null;
+    if (next === null) {
+      from.current = null;
+      owner.current = null;
+    }
     setDrag(next);
+  }, []);
+
+  /** Whether an event belongs to the hand that is holding the pair. */
+  const mine = useCallback((event: { pointerId?: number }) => {
+    const holder = owner.current;
+
+    return holder === null || typeof event.pointerId !== "number" || event.pointerId === holder;
   }, []);
 
   const pointIn = useCallback(
@@ -90,18 +113,18 @@ export function useUntwistGesture({ cable, scale, surface, blocked = false, onCo
    */
   const onPointerDown = useCallback(
     (event: ReactPointerEvent) => {
-      dragged.current = false;
+      // A hand is already holding a pair: another pointer coming down is not
+      // this hand, and changes nothing about the pull under way.
       if (blocked || held.current !== null) return;
 
       const at = pointIn(event);
       const region: PairRegion | null = pairUnder(at.x, at.y, cable, scale);
       if (region === null) return;
 
-      // No preventDefault here, unlike picking a tool off the shelf: that
-      // would suppress the click the browser sends afterwards, and a tap on a
-      // pair is still a way to untwist it. Nothing needs preventing anyway —
-      // the drawing already carries touch-action: none and select-none.
+      // No preventDefault: nothing needs preventing — the drawing already
+      // carries touch-action: none and select-none.
       from.current = { x: event.clientX, y: event.clientY };
+      owner.current = typeof event.pointerId === "number" ? event.pointerId : null;
 
       try {
         surface.current?.setPointerCapture(event.pointerId);
@@ -130,14 +153,12 @@ export function useUntwistGesture({ cable, scale, surface, blocked = false, onCo
   const onPointerMove = useCallback(
     (event: ReactPointerEvent) => {
       const current = held.current;
-      if (current === null) return;
+      if (current === null || !mine(event)) return;
 
       const at = pointIn(event);
       const start = from.current;
       const active =
         current.active || (start !== null && passedThreshold(event.clientX - start.x, event.clientY - start.y));
-
-      if (active) dragged.current = true;
 
       // Travel from where the pair was taken hold of, in the drawing's own
       // units, split into the two that matter: across the cable is the pull,
@@ -157,12 +178,14 @@ export function useUntwistGesture({ cable, scale, surface, blocked = false, onCo
         openness: active ? openness(dx, dy) : 0,
       });
     },
-    [pointIn, put],
+    [mine, pointIn, put],
   );
 
   const onPointerUp = useCallback(
     (event: ReactPointerEvent) => {
       const current = held.current;
+      // Only the hand holding the pair can let go of it.
+      if (current !== null && !mine(event)) return;
 
       try {
         surface.current?.releasePointerCapture(event.pointerId);
@@ -172,13 +195,31 @@ export function useUntwistGesture({ cable, scale, surface, blocked = false, onCo
 
       put(null);
 
-      // A pair let go before it came clear of the bundle simply falls back in.
-      if (current !== null && current.active && current.pulling) onCommit(current.end, current.pair);
+      if (current === null) return;
+
+      if (current.active) {
+        // A pair let go before it came clear of the bundle simply falls back in.
+        if (current.pulling) onCommit(current.end, current.pair);
+
+        return;
+      }
+
+      // A hand that closed on a pair and lifted without travelling tapped it —
+      // the pair it took hold of, whatever is under the hand now. The hold is
+      // already gone, so nothing is left for a second release to tap.
+      onTap?.(current.end, current.pair);
     },
-    [onCommit, put, surface],
+    [mine, onCommit, onTap, put, surface],
   );
 
-  const onPointerCancel = useCallback(() => put(null), [put]);
+  const onPointerCancel = useCallback(
+    (event: ReactPointerEvent) => {
+      if (held.current !== null && !mine(event)) return;
+
+      put(null);
+    },
+    [mine, put],
+  );
 
   // Escape lets the pair go with nothing sent.
   useEffect(() => {
@@ -195,8 +236,6 @@ export function useUntwistGesture({ cable, scale, surface, blocked = false, onCo
 
   return {
     drag,
-    /** Whether the hand that just lifted had been dragging a pair about. */
-    wasDragging: useCallback(() => dragged.current, []),
     surfaceHandlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel },
   };
 }

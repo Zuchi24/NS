@@ -27,7 +27,9 @@ import type { EndId, StripSlot } from "../../model";
  *
  * Pointer events, so mouse, pen and touch are one code path. The pointer is
  * captured on the bench itself, so a drag that wanders off the drawing still
- * arrives here.
+ * arrives here. The stripper belongs to the pointer that picked it up: another
+ * finger on the bench cannot move it, put it down, or let go of it for the
+ * hand that is holding it.
  */
 
 export interface StripDrag {
@@ -56,11 +58,24 @@ export function useStripGesture({ scale, surface, onCommit }: Options) {
   // without a state updater having to do anything but update state.
   const held = useRef<StripDrag | null>(null);
   const from = useRef<{ x: number; y: number } | null>(null);
+  // The pointer that picked the stripper up. A second finger elsewhere on the
+  // bench is not this hand, and must not move, drop or let go of what it holds.
+  const owner = useRef<number | null>(null);
 
   const put = useCallback((next: StripDrag | null) => {
     held.current = next;
-    if (next === null) from.current = null;
+    if (next === null) {
+      from.current = null;
+      owner.current = null;
+    }
     setDrag(next);
+  }, []);
+
+  /** Whether an event belongs to the hand that is holding the stripper. */
+  const mine = useCallback((event: { pointerId?: number }) => {
+    const holder = owner.current;
+
+    return holder === null || typeof event.pointerId !== "number" || event.pointerId === holder;
   }, []);
 
   const pointIn = useCallback(
@@ -72,11 +87,21 @@ export function useStripGesture({ scale, surface, onCommit }: Options) {
     [surface],
   );
 
-  /** Pick up a stripper. Goes on the tool itself, so the jaw comes with the gesture. */
+  /**
+   * Pick up a stripper. Goes on the tool itself, so the jaw comes with the
+   * gesture, and stops there: taking a tool off the shelf is not also a hand on
+   * the bench.
+   */
   const takeTool = useCallback(
     (slot: StripSlot) => (event: ReactPointerEvent) => {
+      event.stopPropagation();
       event.preventDefault();
+
+      // Another hand already has a stripper.
+      if (held.current !== null && !mine(event)) return;
+
       from.current = { x: event.clientX, y: event.clientY };
+      owner.current = typeof event.pointerId === "number" ? event.pointerId : null;
 
       try {
         surface.current?.setPointerCapture(event.pointerId);
@@ -87,13 +112,13 @@ export function useStripGesture({ scale, surface, onCommit }: Options) {
 
       put({ slot, at: pointIn(event), end: null, amountMm: 0, active: false });
     },
-    [pointIn, put, surface],
+    [mine, pointIn, put, surface],
   );
 
   const onPointerMove = useCallback(
     (event: ReactPointerEvent) => {
       const current = held.current;
-      if (current === null) return;
+      if (current === null || !mine(event)) return;
 
       const at = pointIn(event);
       const start = from.current;
@@ -106,12 +131,14 @@ export function useStripGesture({ scale, surface, onCommit }: Options) {
 
       put({ ...current, at, active, end, amountMm: end === null ? 0 : stripMmAt(at.x, end, scale) });
     },
-    [pointIn, put, scale],
+    [mine, pointIn, put, scale],
   );
 
   const onPointerUp = useCallback(
     (event: ReactPointerEvent) => {
       const current = held.current;
+      // Only the hand holding the stripper can let go of it.
+      if (current !== null && !mine(event)) return;
 
       try {
         surface.current?.releasePointerCapture(event.pointerId);
@@ -133,10 +160,17 @@ export function useStripGesture({ scale, surface, onCommit }: Options) {
       const amountMm = stripMmAt(at.x, end, scale);
       if (amountMm > 0) onCommit(end, amountMm, current.slot);
     },
-    [onCommit, pointIn, put, scale, surface],
+    [mine, onCommit, pointIn, put, scale, surface],
   );
 
-  const onPointerCancel = useCallback(() => put(null), [put]);
+  const onPointerCancel = useCallback(
+    (event: ReactPointerEvent) => {
+      if (held.current !== null && !mine(event)) return;
+
+      put(null);
+    },
+    [mine, put],
+  );
 
   // Escape puts the tool down with nothing sent.
   useEffect(() => {

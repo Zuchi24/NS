@@ -82,8 +82,6 @@ interface Props {
   pull?: PairPull;
   /** The conductor in hand, when one is being moved about this end's row. */
   lift?: ConductorLift;
-  /** Untwist by clicking a pair; only offered when the untwist tool is out. */
-  onPairClick?: (pair: PairId) => void;
 }
 
 const WIRE = 5.5;
@@ -107,7 +105,6 @@ export function EndDetail({
   selected,
   pull,
   lift,
-  onPairClick,
 }: Props) {
   const J = end.jacketEdgeMm;
   const rear = plugRearMm(end);
@@ -198,8 +195,7 @@ export function EndDetail({
                 data-untwisted={end.untwisted[pair]}
                 data-pulled={pulled ? "true" : undefined}
                 data-open={pulled ? open.toFixed(2) : undefined}
-                onClick={onPairClick ? () => onPairClick(pair) : undefined}
-                style={{ cursor: grab ? "grab" : onPairClick ? "pointer" : undefined }}
+                style={{ cursor: grab ? "grab" : undefined }}
               >
                 {grab && (
                   <g data-testid={`pair-grab-${id}-${pair}`} data-x={grab.x} data-y={grab.y}>

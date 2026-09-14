@@ -78,6 +78,7 @@ interface Props {
   selectedEnd: EndId;
   onSelectEnd: (end: EndId) => void;
   markers: Record<EndId, Marker>;
+  /** Untwist by tapping a pair where it lies; only offered while the Untwist tool is out. The model still decides. */
   onPairClick?: (end: EndId, pair: PairId) => void;
   /** Send a strip the student dragged out. The model still decides. */
   onStrip: (end: EndId, amountMm: number, slot: StripSlot) => void;
@@ -140,6 +141,8 @@ export function BenchView({
     surface,
     blocked: drag !== null,
     onCommit: onUntwist,
+    // A tap is read off the gesture's own press and release, never a click.
+    onTap: onPairClick,
   });
 
   const arrange = useArrangeGesture({
@@ -422,14 +425,6 @@ export function BenchView({
               }
               pull={pulls[id]}
               lift={lifts[id]}
-              onPairClick={
-                onPairClick
-                  ? (pair) => {
-                      // The click the browser sends after a pull is not also a tap.
-                      if (!untwist.wasDragging()) onPairClick(id, pair);
-                    }
-                  : undefined
-              }
             />
           </g>
         );

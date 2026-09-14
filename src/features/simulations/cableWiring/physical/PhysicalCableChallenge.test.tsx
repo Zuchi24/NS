@@ -16,6 +16,7 @@ import {
 } from "../model";
 import type { Action, CableState, EndInspection } from "../model";
 import { PhysicalCableChallenge } from "./PhysicalCableChallenge";
+import { HEIGHT, WIDTH } from "./benchGeometry";
 import { VERDICT_LABEL } from "./messages";
 import { PRACTICE_BENCH } from "./setup";
 
@@ -36,6 +37,24 @@ afterEach(cleanup);
  * file only; no assertion is relaxed.
  */
 vi.setConfig({ testTimeout: 20_000 });
+
+/**
+ * jsdom has no PointerEvent, and without the constructor testing-library falls
+ * back to a plain Event — which drops clientX, clientY and pointerId, so a tap
+ * on the bench would carry no position. A MouseEvent carries the coordinates
+ * already; this only adds the pointer id. The same scaffolding as the gesture
+ * tests: the bench itself uses the platform's own events.
+ */
+class TestPointerEvent extends MouseEvent {
+  readonly pointerId: number;
+
+  constructor(type: string, init: MouseEventInit & { pointerId?: number } = {}) {
+    super(type, init);
+    this.pointerId = init.pointerId ?? 1;
+  }
+}
+
+Object.defineProperty(window, "PointerEvent", { writable: true, configurable: true, value: TestPointerEvent });
 
 /* ------------------------------------------------------------
    Driving the bench
@@ -229,7 +248,29 @@ describe("physical actions", () => {
     expect(screen.getByRole("button", { name: /^Untwist orange/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("pair-A-green")).toHaveAttribute("data-untwisted", "false");
 
-    fireEvent.click(screen.getByTestId("pair-A-green"));
+    // On the bench, a tap is a press and a release on the pair, read off the
+    // pointer — never a click. The drawing is given a size, one unit to a pixel,
+    // and the hand comes down in the middle of the green pair's grab band.
+    const svg = screen.getByRole("img", { name: /Workbench/ });
+    vi.spyOn(svg, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: WIDTH,
+      height: HEIGHT,
+      right: WIDTH,
+      bottom: HEIGHT,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+    const band = screen.getByTestId("pair-grab-A-green").querySelector("rect")!;
+    const at = {
+      clientX: Number(band.getAttribute("x")) + Number(band.getAttribute("width")) / 2,
+      clientY: Number(band.getAttribute("y")) + Number(band.getAttribute("height")) / 2,
+    };
+
+    fireEvent.pointerDown(screen.getByTestId("pair-A-green"), { pointerId: 1, ...at });
+    fireEvent.pointerUp(screen.getByTestId("pair-A-green"), { pointerId: 1, ...at });
     expect(screen.getByTestId("pair-A-green")).toHaveAttribute("data-untwisted", "true");
   });
 

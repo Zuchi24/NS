@@ -472,3 +472,165 @@ describe("the precise path still works", () => {
     expect(jacketOf("A")).toBe(35);
   });
 });
+
+describe("the stripper belongs to the pointer that picked it up", () => {
+  const inHand = () => screen.queryByTestId("stripper-in-hand");
+  const middle = { clientX: WIDTH / 2, clientY: CY };
+
+  it("is carried and let go by the pointer that took it, whatever its id", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 7, ...ON_SHELF });
+    fireEvent.pointerMove(svg, { pointerId: 7, clientX: ON_SHELF.clientX + 2, clientY: ON_SHELF.clientY + 1 });
+
+    // Not yet a drag: nothing is carried until the hand has travelled.
+    expect(inHand()).toBeNull();
+
+    fireEvent.pointerMove(svg, { pointerId: 7, ...standingAt("A", 20) });
+
+    expect(inHand()!.getAttribute("data-end")).toBe("A");
+    expect(inHand()!.getAttribute("data-mm")).toBe("20");
+
+    fireEvent.pointerUp(svg, { pointerId: 7, ...standingAt("A", 20) });
+
+    expect(onStrip).toHaveBeenCalledTimes(1);
+    expect(onStrip).toHaveBeenCalledWith("A", 20, "correct");
+  });
+
+  it("ignores another pointer's movement: the reading stays the owner's", () => {
+    const { svg } = benchViewAt();
+
+    dragStripper(svg, "correct", standingAt("A", 20), { release: false });
+    fireEvent.pointerMove(svg, { pointerId: 2, ...standingAt("B", 30) });
+
+    expect(inHand()!.getAttribute("data-end")).toBe("A");
+    expect(inHand()!.getAttribute("data-mm")).toBe("20");
+
+    // The owner still moves it.
+    fireEvent.pointerMove(svg, { pointerId: 1, ...standingAt("A", 12) });
+
+    expect(inHand()!.getAttribute("data-mm")).toBe("12");
+  });
+
+  it("cannot be let go by a pointer that never touched it, over a jacket or anywhere", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    // The owner carries it into the out-of-scale middle, where letting go strips nothing.
+    dragStripper(svg, "correct", middle, { release: false });
+    // A second finger, which never touched the stripper, moves and lifts over end A's jacket.
+    fireEvent.pointerMove(svg, { pointerId: 2, ...standingAt("A", 20) });
+    fireEvent.pointerUp(svg, { pointerId: 2, ...standingAt("A", 20) });
+
+    expect(onStrip).not.toHaveBeenCalled();
+    expect(inHand()!.getAttribute("data-end")).toBe("");
+
+    // The owner lets go where it actually is: still nothing.
+    fireEvent.pointerUp(svg, { pointerId: 1, ...middle });
+
+    expect(onStrip).not.toHaveBeenCalled();
+    expect(inHand()).toBeNull();
+  });
+
+  it("leaves the cable exactly as it was when a second pointer lifts over a jacket", () => {
+    const svg = benchAt();
+
+    dragStripper(svg, "correct", middle, { release: false });
+    fireEvent.pointerMove(svg, { pointerId: 2, ...standingAt("A", 20) });
+    fireEvent.pointerUp(svg, { pointerId: 2, ...standingAt("A", 20) });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...middle });
+
+    expect(jacketOf("A")).toBe(0);
+    expect(jacketOf("B")).toBe(12);
+    expect(screen.getByTestId("feedback")).not.toHaveTextContent(/Stripped/);
+  });
+
+  it("is not put down by another pointer's cancel", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    dragStripper(svg, "correct", standingAt("A", 20), { release: false });
+    fireEvent.pointerCancel(svg, { pointerId: 2 });
+
+    expect(inHand()).not.toBeNull();
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...standingAt("A", 20) });
+
+    expect(onStrip).toHaveBeenCalledTimes(1);
+    expect(onStrip).toHaveBeenCalledWith("A", 20, "correct");
+  });
+
+  it("cannot be taken over by a second pointer picking up a stripper", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    dragStripper(svg, "correct", standingAt("A", 20), { release: false });
+    fireEvent.pointerDown(screen.getByTestId("take-too-deep"), { pointerId: 2, clientX: 550, clientY: SHELF_TOP + 30 });
+    fireEvent.pointerMove(svg, { pointerId: 2, ...standingAt("A", 35) });
+    fireEvent.pointerUp(svg, { pointerId: 2, ...standingAt("A", 35) });
+
+    expect(onStrip).not.toHaveBeenCalled();
+    expect(inHand()!.getAttribute("data-mm")).toBe("20");
+
+    // The first hand still has the first jaw.
+    fireEvent.pointerUp(svg, { pointerId: 1, ...standingAt("A", 20) });
+
+    expect(onStrip).toHaveBeenCalledTimes(1);
+    expect(onStrip).toHaveBeenCalledWith("A", 20, "correct");
+  });
+
+  it("is let go by its owner exactly once", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    dragStripper(svg, "correct", standingAt("A", 20));
+    fireEvent.pointerUp(svg, { pointerId: 1, ...standingAt("A", 20) });
+    fireEvent.click(svg);
+
+    expect(onStrip).toHaveBeenCalledTimes(1);
+  });
+
+  it("is put down by its owner's cancel, and nothing is sent after", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    dragStripper(svg, "correct", standingAt("A", 20), { release: false });
+    fireEvent.pointerCancel(svg, { pointerId: 1 });
+
+    expect(inHand()).toBeNull();
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...standingAt("A", 20) });
+
+    expect(onStrip).not.toHaveBeenCalled();
+  });
+
+  it("is put down by Escape, and nothing is sent after", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    dragStripper(svg, "correct", standingAt("A", 20), { release: false });
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(inHand()).toBeNull();
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...standingAt("A", 20) });
+
+    expect(onStrip).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when its owner lets go before it has travelled", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 1, ...ON_SHELF });
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: ON_SHELF.clientX + 2, clientY: ON_SHELF.clientY + 1 });
+
+    expect(onStrip).not.toHaveBeenCalled();
+    expect(inHand()).toBeNull();
+  });
+
+  it("can be picked up by a different pointer once its owner has let go", () => {
+    const { svg, onStrip } = benchViewAt();
+
+    dragStripper(svg, "correct", standingAt("A", 20));
+    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 3, ...ON_SHELF });
+    fireEvent.pointerMove(svg, { pointerId: 3, ...standingAt("A", 25) });
+    fireEvent.pointerUp(svg, { pointerId: 3, ...standingAt("A", 25) });
+
+    expect(onStrip).toHaveBeenCalledTimes(2);
+    expect(onStrip).toHaveBeenLastCalledWith("A", 25, "correct");
+  });
+});

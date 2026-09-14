@@ -7,6 +7,7 @@ import { MIN_WORK, PAIR_IDS, S1_PRACTICE, apply, createInitialState } from "../.
 import type { Action, CableState, EndId, PairId } from "../../model";
 import { PhysicalCableChallenge } from "../PhysicalCableChallenge";
 import { CY, HEIGHT, WIDTH, benchScale } from "../benchGeometry";
+import { BenchView } from "../components/BenchView";
 import { PAIR_RELEASE, pairRegions } from "../pairGeometry";
 import { PRACTICE_BENCH } from "../setup";
 
@@ -408,28 +409,33 @@ describe("the other ways in still work", () => {
     expect(twisted("A", "blue")).toBe(false);
   });
 
-  it("still untwists on a tap with the untwist tool out", () => {
-    benchAt();
+  it("still untwists on a tap with the untwist tool out: a hand that closes on a pair and lifts", () => {
+    const svg = benchAt();
     strip("A", 30);
     fireEvent.click(untwistTool());
+    const at = grabPoint(strippedA(), "A", "green");
 
-    fireEvent.click(screen.getByTestId("pair-A-green"));
+    fireEvent.pointerDown(screen.getByTestId("pair-A-green"), { pointerId: 1, ...at });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...at });
 
     expect(twisted("A", "green")).toBe(false);
+    expect(feedback()).toHaveTextContent(/Untwisted the green pair/);
   });
 
-  it("does not also take the click at the end of a pull as a tap", () => {
+  it("does not also take the release that ends a pull, or the click after it, as a tap", () => {
     const svg = benchAt();
     strip("A", 30);
     fireEvent.click(untwistTool());
 
     const from = grabPoint(strippedA(), "A", "orange");
     pullPair(svg, from, CLEAR);
-    // The browser sends a click after the pointer comes up; the pair it lands
-    // on must not be untwisted a second time.
+    // The browser sends a click after the pointer comes up; nothing is
+    // untwisted a second time, wherever it lands.
     fireEvent.click(screen.getByTestId("pair-A-orange"));
+    fireEvent.click(svg);
 
     expect(twisted("A", "orange")).toBe(false);
+    expect(feedback()).toHaveTextContent(/Untwisted the orange pair/);
     expect(feedback()).not.toHaveTextContent(/already untwisted/i);
   });
 
@@ -443,5 +449,501 @@ describe("the other ways in still work", () => {
 
     expect(Number(screen.getByTestId("end-A").getAttribute("data-jacket-edge-mm"))).toBeGreaterThan(0);
     expect(screen.queryByTestId("pair-in-hand")).toBeNull();
+  });
+});
+
+describe("a pull belongs to the pointer that took hold of the pair", () => {
+  const inHand = () => screen.queryByTestId("pair-in-hand");
+
+  it("is pulled and let go by the pointer that took hold, whatever its id", () => {
+    const svg = benchAt();
+    strip("A", 30);
+    const from = grabPoint(strippedA(), "A", "orange");
+
+    fireEvent.pointerDown(svg, { pointerId: 7, ...from });
+    fireEvent.pointerMove(svg, { pointerId: 7, clientX: from.clientX, clientY: from.clientY - 2 });
+
+    // Not yet a drag: the pair has not been pulled until the hand travels.
+    expect(inHand()).toBeNull();
+
+    fireEvent.pointerMove(svg, { pointerId: 7, clientX: from.clientX + CLEAR.x, clientY: from.clientY + CLEAR.y });
+
+    expect(inHand()!.getAttribute("data-pair")).toBe("orange");
+    expect(inHand()!.getAttribute("data-pulling")).toBe("true");
+
+    fireEvent.pointerUp(svg, { pointerId: 7, clientX: from.clientX + CLEAR.x, clientY: from.clientY + CLEAR.y });
+
+    expect(twisted("A", "orange")).toBe(false);
+    expect(feedback()).toHaveTextContent(/Untwisted the orange pair/);
+  });
+
+  it("cannot be taken over by a second pointer closing on another pair", () => {
+    const svg = benchAt();
+    strip("A", 30);
+    const cable = strippedA();
+    const orange = grabPoint(cable, "A", "orange");
+    const green = grabPoint(cable, "A", "green");
+
+    pullPair(svg, orange, CLEAR, { release: false });
+    fireEvent.pointerDown(svg, { pointerId: 2, ...green });
+    fireEvent.pointerMove(svg, { pointerId: 2, clientX: green.clientX, clientY: green.clientY + 40 });
+    fireEvent.pointerUp(svg, { pointerId: 2, clientX: green.clientX, clientY: green.clientY + 40 });
+
+    expect(inHand()!.getAttribute("data-pair")).toBe("orange");
+    expect(screen.getByTestId("pair-A-green").getAttribute("data-pulled")).toBeNull();
+    expect(twisted("A", "orange")).toBe(true);
+    expect(twisted("A", "green")).toBe(true);
+
+    // The first hand still has the orange pair, and finishes the pull.
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: orange.clientX + CLEAR.x, clientY: orange.clientY + CLEAR.y });
+
+    expect(twisted("A", "orange")).toBe(false);
+    expect(twisted("A", "green")).toBe(true);
+  });
+
+  it("ignores another pointer's movement: only the owner can pull the pair clear", () => {
+    const svg = benchAt();
+    strip("A", 30);
+    const from = grabPoint(strippedA(), "A", "orange");
+
+    // A short pull by the owner: a drag, but not clear of the bundle.
+    pullPair(svg, from, { x: 0, y: -5 }, { release: false });
+
+    expect(inHand()!.getAttribute("data-pulling")).toBe("false");
+
+    fireEvent.pointerMove(svg, { pointerId: 2, clientX: from.clientX, clientY: from.clientY - 80 });
+
+    expect(inHand()!.getAttribute("data-pulling")).toBe("false");
+    expect(screen.getByTestId("pair-A-orange").getAttribute("data-open")).toBe("0.00");
+
+    // The owner still pulls it clear.
+    fireEvent.pointerMove(svg, { pointerId: 1, clientX: from.clientX + CLEAR.x, clientY: from.clientY + CLEAR.y });
+
+    expect(inHand()!.getAttribute("data-pulling")).toBe("true");
+  });
+
+  it("cannot be finished by a pointer that never took hold of the pair", () => {
+    const svg = benchAt();
+    strip("A", 30);
+    const from = grabPoint(strippedA(), "A", "orange");
+    const to = pullPair(svg, from, CLEAR, { release: false });
+
+    fireEvent.pointerUp(svg, { pointerId: 2, ...to });
+
+    expect(twisted("A", "orange")).toBe(true);
+    expect(feedback()).not.toHaveTextContent(/Untwisted/);
+    expect(inHand()!.getAttribute("data-pulling")).toBe("true");
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...to });
+
+    expect(twisted("A", "orange")).toBe(false);
+  });
+
+  it("is not let go by another pointer's cancel", () => {
+    const svg = benchAt();
+    strip("A", 30);
+    const from = grabPoint(strippedA(), "A", "orange");
+    const to = pullPair(svg, from, CLEAR, { release: false });
+
+    fireEvent.pointerCancel(svg, { pointerId: 2 });
+
+    expect(inHand()).not.toBeNull();
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...to });
+
+    expect(twisted("A", "orange")).toBe(false);
+  });
+
+  it("is finished by its owner exactly once", () => {
+    const svg = benchAt();
+    strip("A", 30);
+    const from = grabPoint(strippedA(), "A", "orange");
+    const to = pullPair(svg, from, CLEAR);
+
+    expect(feedback()).toHaveTextContent(/Untwisted the orange pair/);
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...to });
+    fireEvent.click(svg);
+
+    expect(twisted("A", "orange")).toBe(false);
+    expect(feedback()).not.toHaveTextContent(/already untwisted/i);
+  });
+
+  it("is let go by its owner's cancel, and nothing is sent after", () => {
+    const svg = benchAt();
+    strip("A", 30);
+    const from = grabPoint(strippedA(), "A", "orange");
+    const to = pullPair(svg, from, CLEAR, { release: false });
+
+    fireEvent.pointerCancel(svg, { pointerId: 1 });
+
+    expect(inHand()).toBeNull();
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...to });
+
+    expect(twisted("A", "orange")).toBe(true);
+  });
+
+  it("is let go by Escape, and neither pointer lifting afterwards sends anything", () => {
+    const svg = benchAt();
+    strip("A", 30);
+    const from = grabPoint(strippedA(), "A", "orange");
+    const to = pullPair(svg, from, CLEAR, { release: false });
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerUp(svg, { pointerId: 2, ...to });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...to });
+
+    expect(inHand()).toBeNull();
+    expect(twisted("A", "orange")).toBe(true);
+  });
+
+  it("does not let a second pointer coming down turn the release that ends the pull into a tap", () => {
+    const svg = benchAt();
+    strip("A", 30);
+    fireEvent.click(untwistTool());
+    const from = grabPoint(strippedA(), "A", "orange");
+    const to = pullPair(svg, from, CLEAR, { release: false });
+
+    // Another finger comes down on the bench while the pull is under way.
+    fireEvent.pointerDown(svg, { pointerId: 2, clientX: WIDTH / 2, clientY: CY });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...to });
+    // The browser's click after the pull lands on the pair; it is not a second untwist.
+    fireEvent.click(screen.getByTestId("pair-A-orange"));
+
+    expect(twisted("A", "orange")).toBe(false);
+    expect(feedback()).toHaveTextContent(/Untwisted the orange pair/);
+    expect(feedback()).not.toHaveTextContent(/already untwisted/i);
+  });
+
+  it("can be taken by a different pointer once the first has let go", () => {
+    const svg = benchAt();
+    strip("A", 30);
+    const cable = strippedA();
+
+    pullPair(svg, grabPoint(cable, "A", "orange"), CLEAR);
+
+    const after = modelAfter([
+      { type: "strip", end: "A", amountMm: 30, slot: "correct" },
+      { type: "untwist", end: "A", pair: "orange" },
+    ]);
+    const green = grabPoint(after, "A", "green");
+
+    fireEvent.pointerDown(svg, { pointerId: 3, ...green });
+    fireEvent.pointerMove(svg, { pointerId: 3, clientX: green.clientX + CLEAR.x, clientY: green.clientY + CLEAR.y });
+    fireEvent.pointerUp(svg, { pointerId: 3, clientX: green.clientX + CLEAR.x, clientY: green.clientY + CLEAR.y });
+
+    expect(twisted("A", "green")).toBe(false);
+  });
+});
+
+const RECT = {
+  left: 0,
+  top: 0,
+  width: WIDTH,
+  height: HEIGHT,
+  right: WIDTH,
+  bottom: HEIGHT,
+  x: 0,
+  y: 0,
+  toJSON: () => ({}),
+} as DOMRect;
+
+/**
+ * The bench drawing on its own over a given cable, with a tap and a pull each
+ * spied on — so a test can count exactly what the gesture sent. `tapping` is
+ * the bench offering taps, as it does while the Untwist tool is out.
+ */
+function tapBenchAt(cable: CableState, { selectedEnd = "A", tapping = true }: { selectedEnd?: EndId; tapping?: boolean } = {}) {
+  const onTap = vi.fn();
+  const onUntwist = vi.fn();
+
+  render(
+    <BenchView
+      cable={cable}
+      scenario={S1_PRACTICE}
+      selectedEnd={selectedEnd}
+      markers={{ A: null, B: null }}
+      onSelectEnd={vi.fn()}
+      onStrip={vi.fn()}
+      onUntwist={onUntwist}
+      onArrange={vi.fn()}
+      onTrim={vi.fn()}
+      onCut={vi.fn()}
+      onPairClick={tapping ? onTap : undefined}
+    />,
+  );
+
+  const svg = screen.getByRole("img", { name: /Workbench/ });
+
+  vi.spyOn(svg, "getBoundingClientRect").mockReturnValue(RECT);
+  Object.assign(svg, { setPointerCapture: vi.fn(), releasePointerCapture: vi.fn() });
+
+  return { svg, onTap, onUntwist };
+}
+
+const pairOn = (end: EndId, pair: PairId) => screen.getByTestId(`pair-${end}-${pair}`);
+const nudged = (point: { clientX: number; clientY: number }, dx: number, dy = 0) => ({
+  clientX: point.clientX + dx,
+  clientY: point.clientY + dy,
+});
+
+/** End B as the model leaves it once its plug is cut off and its jacket stripped back. */
+const openedB = () =>
+  modelAfter([
+    { type: "cut", end: "B", atMm: 25 },
+    { type: "strip", end: "B", amountMm: 25, slot: "correct" },
+  ]);
+
+describe("a tap is a press and a release on a pair, never a click", () => {
+  it("a still tap — a press and a release, and no click at all — untwists that pair once", () => {
+    const cable = strippedA();
+    const { svg, onTap, onUntwist } = tapBenchAt(cable);
+    const at = grabPoint(cable, "A", "green");
+
+    fireEvent.pointerDown(pairOn("A", "green"), { pointerId: 1, ...at });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...at });
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(onTap).toHaveBeenCalledWith("A", "green");
+    expect(onUntwist).not.toHaveBeenCalled();
+  });
+
+  it("a tap that wobbles by less than a drag still untwists once, and pulls nothing", () => {
+    const cable = strippedA();
+    const { svg, onTap, onUntwist } = tapBenchAt(cable);
+    const at = grabPoint(cable, "A", "green");
+
+    fireEvent.pointerDown(pairOn("A", "green"), { pointerId: 1, ...at });
+    fireEvent.pointerMove(svg, { pointerId: 1, ...nudged(at, 2, 2) });
+
+    expect(screen.queryByTestId("pair-in-hand")).toBeNull();
+
+    fireEvent.pointerUp(pairOn("A", "green"), { pointerId: 1, ...nudged(at, 2, 2) });
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(onTap).toHaveBeenCalledWith("A", "green");
+    expect(onUntwist).not.toHaveBeenCalled();
+  });
+
+  it("untwists once when the capture sends the release and the click to the drawing, not the pair", () => {
+    // What Chrome did after a 1 px move: pointerup and click both went to the
+    // svg holding the capture, and the old click-based tap was lost.
+    const cable = strippedA();
+    const { svg, onTap } = tapBenchAt(cable);
+    const at = grabPoint(cable, "A", "green");
+
+    fireEvent.pointerDown(pairOn("A", "green"), { pointerId: 1, ...at });
+    fireEvent.pointerMove(svg, { pointerId: 1, ...nudged(at, 1) });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...nudged(at, 1) });
+    fireEvent.click(svg);
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(onTap).toHaveBeenCalledWith("A", "green");
+  });
+
+  it("untwists once when the release and the click stay on the pair itself", () => {
+    const cable = strippedA();
+    const { onTap } = tapBenchAt(cable);
+    const at = grabPoint(cable, "A", "green");
+
+    fireEvent.pointerDown(pairOn("A", "green"), { pointerId: 1, ...at });
+    fireEvent.pointerUp(pairOn("A", "green"), { pointerId: 1, ...at });
+    fireEvent.click(pairOn("A", "green"));
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(onTap).toHaveBeenCalledWith("A", "green");
+  });
+
+  it("does nothing on a click alone, on the pair or on the drawing", () => {
+    const cable = strippedA();
+    const { svg, onTap, onUntwist } = tapBenchAt(cable);
+
+    fireEvent.click(pairOn("A", "green"));
+    fireEvent.click(svg);
+
+    expect(onTap).not.toHaveBeenCalled();
+    expect(onUntwist).not.toHaveBeenCalled();
+  });
+
+  it("does not untwist a second time on the click, or a stray release, that follows a tap", () => {
+    const cable = strippedA();
+    const { svg, onTap } = tapBenchAt(cable);
+    const at = grabPoint(cable, "A", "green");
+
+    fireEvent.pointerDown(pairOn("A", "green"), { pointerId: 1, ...at });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...at });
+    fireEvent.click(pairOn("A", "green"));
+    fireEvent.click(svg);
+    fireEvent.pointerUp(svg, { pointerId: 1, ...at });
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+  });
+
+  it("taps only for the hand that closed on a pair: a second pointer can neither take over nor tap", () => {
+    const cable = strippedA();
+    const { svg, onTap, onUntwist } = tapBenchAt(cable);
+    const orange = grabPoint(cable, "A", "orange");
+    const green = grabPoint(cable, "A", "green");
+
+    fireEvent.pointerDown(pairOn("A", "orange"), { pointerId: 1, ...orange });
+    fireEvent.pointerDown(pairOn("A", "green"), { pointerId: 2, ...green });
+    fireEvent.pointerMove(svg, { pointerId: 2, ...nudged(green, 1) });
+    fireEvent.pointerUp(pairOn("A", "green"), { pointerId: 2, ...nudged(green, 1) });
+    fireEvent.click(pairOn("A", "green"));
+
+    expect(onTap).not.toHaveBeenCalled();
+
+    fireEvent.pointerUp(svg, { pointerId: 1, ...orange });
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(onTap).toHaveBeenCalledWith("A", "orange");
+    expect(onUntwist).not.toHaveBeenCalled();
+  });
+
+  it("is not finished by a release from a pointer that never closed on the pair", () => {
+    const cable = strippedA();
+    const { svg, onTap } = tapBenchAt(cable);
+    const at = grabPoint(cable, "A", "green");
+
+    fireEvent.pointerDown(pairOn("A", "green"), { pointerId: 1, ...at });
+    fireEvent.pointerUp(svg, { pointerId: 2, ...at });
+
+    expect(onTap).not.toHaveBeenCalled();
+
+    // The hand that closed on the pair is still the one that taps it.
+    fireEvent.pointerUp(svg, { pointerId: 1, ...at });
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(onTap).toHaveBeenCalledWith("A", "green");
+  });
+
+  it("taps nothing when Escape lets the pair go before the hand lifts, click or no click", () => {
+    const cable = strippedA();
+    const { svg, onTap } = tapBenchAt(cable);
+    const at = grabPoint(cable, "A", "green");
+
+    fireEvent.pointerDown(pairOn("A", "green"), { pointerId: 1, ...at });
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerUp(pairOn("A", "green"), { pointerId: 1, ...at });
+    fireEvent.click(pairOn("A", "green"));
+    fireEvent.click(svg);
+
+    expect(onTap).not.toHaveBeenCalled();
+  });
+
+  it("taps nothing when the pointer is cancelled, whatever release or click follows", () => {
+    const cable = strippedA();
+    const { svg, onTap } = tapBenchAt(cable);
+    const at = grabPoint(cable, "A", "green");
+
+    fireEvent.pointerDown(pairOn("A", "green"), { pointerId: 1, ...at });
+    fireEvent.pointerCancel(svg, { pointerId: 1 });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...at });
+    fireEvent.click(pairOn("A", "green"));
+
+    expect(onTap).not.toHaveBeenCalled();
+  });
+
+  it("taps a pair after a pull: the pull untwists once, its release is not a tap, and the tap untwists once", () => {
+    const cable = strippedA();
+    const { svg, onTap, onUntwist } = tapBenchAt(cable);
+
+    pullPair(svg, grabPoint(cable, "A", "orange"), CLEAR);
+
+    expect(onUntwist).toHaveBeenCalledTimes(1);
+    expect(onUntwist).toHaveBeenCalledWith("A", "orange");
+    expect(onTap).not.toHaveBeenCalled();
+
+    const green = grabPoint(cable, "A", "green");
+    fireEvent.pointerDown(pairOn("A", "green"), { pointerId: 1, ...green });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...green });
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(onTap).toHaveBeenCalledWith("A", "green");
+    expect(onUntwist).toHaveBeenCalledTimes(1);
+  });
+
+  it("taps the pair on the end the hand closed on, not the end that is selected", () => {
+    const cable = openedB();
+    const { svg, onTap } = tapBenchAt(cable, { selectedEnd: "A" });
+    const at = grabPoint(cable, "B", "green");
+
+    fireEvent.pointerDown(pairOn("B", "green"), { pointerId: 1, ...at });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...at });
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(onTap).toHaveBeenCalledWith("B", "green");
+  });
+
+  it("taps the pair it closed on, wherever the hand is when it lifts", () => {
+    const cable = strippedA();
+    const { svg, onTap } = tapBenchAt(cable);
+    const orange = grabPoint(cable, "A", "orange");
+
+    fireEvent.pointerDown(pairOn("A", "orange"), { pointerId: 1, ...orange });
+    // Lifted a little lower, still within a tap's travel.
+    fireEvent.pointerUp(svg, { pointerId: 1, ...nudged(orange, 0, 3) });
+
+    expect(onTap).toHaveBeenCalledTimes(1);
+    expect(onTap).toHaveBeenCalledWith("A", "orange");
+  });
+
+  it("offers no tap unless the bench offers one — the Untwist tool out", () => {
+    const cable = strippedA();
+    const { svg, onTap, onUntwist } = tapBenchAt(cable, { tapping: false });
+    const at = grabPoint(cable, "A", "green");
+
+    fireEvent.pointerDown(pairOn("A", "green"), { pointerId: 1, ...at });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...at });
+    fireEvent.click(pairOn("A", "green"));
+
+    expect(onTap).not.toHaveBeenCalled();
+    expect(onUntwist).not.toHaveBeenCalled();
+  });
+
+  it("never taps with a pull: a pull past the threshold, and a slide along the cable, are not taps", () => {
+    const cable = strippedA();
+    const { svg, onTap, onUntwist } = tapBenchAt(cable);
+
+    pullPair(svg, grabPoint(cable, "A", "orange"), CLEAR);
+    pullPair(svg, grabPoint(cable, "A", "green"), { x: 90, y: 0 });
+
+    expect(onUntwist).toHaveBeenCalledTimes(1);
+    expect(onUntwist).toHaveBeenCalledWith("A", "orange");
+    expect(onTap).not.toHaveBeenCalled();
+  });
+});
+
+describe("a tap on the whole bench", () => {
+  it("untwists nothing on a tap while another tool is out", () => {
+    const svg = benchAt();
+    strip("A", 30);
+    const at = grabPoint(strippedA(), "A", "green");
+
+    // The Strip tool is still out: a still press and release on a pair is not an untwist.
+    fireEvent.pointerDown(screen.getByTestId("pair-A-green"), { pointerId: 1, ...at });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...at });
+    fireEvent.click(screen.getByTestId("pair-A-green"));
+
+    expect(twisted("A", "green")).toBe(true);
+    expect(feedback()).not.toHaveTextContent(/Untwisted/);
+  });
+
+  it("untwists end B's pair on a tap there while end A is selected", () => {
+    const svg = benchAt();
+    openEndB();
+    const cable = openedB();
+
+    fireEvent.click(screen.getByRole("button", { name: "End A", hidden: true }));
+    fireEvent.click(untwistTool());
+
+    const at = grabPoint(cable, "B", "green");
+    fireEvent.pointerDown(screen.getByTestId("pair-B-green"), { pointerId: 1, ...at });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...at });
+
+    expect(twisted("B", "green")).toBe(false);
+    expect(twisted("A", "green")).toBe(true);
+    expect(feedback()).toHaveTextContent(/Untwisted the green pair/);
   });
 });
