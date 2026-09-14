@@ -155,6 +155,44 @@ describe("the physical bench's boundaries", () => {
     expect(codeOnly('// scenario.require is private\nconst label = "require";')).not.toMatch(PRIVATE);
   });
 
+  /*
+   * The physical gestures turn a hand into an action's parameters and nothing
+   * else, and the geometry turns a point into a place on the bench. Either may
+   * read the model's types and facts; neither may run the model, preview it,
+   * hold the bench, or judge a cable. Which end is in which port is only ever
+   * the model's `connections` — nothing on the bench keeps a copy.
+   */
+  const RUNS_OR_JUDGES = ["apply", "dryRun", "useCableBench", "wiremap", "wiremapFrom", "testerReadout", "linkState", "inspect", "standardOf"];
+  const gestures = Object.entries(bench).filter(([path]) => path.startsWith("./gestures/"));
+  const geometry = Object.entries(bench).filter(([path]) => /Geometry\.ts$/.test(path));
+
+  it("finds the gesture hooks and the geometry, connect, disconnect and ports among them", () => {
+    expect(gestures.map(([path]) => path)).toEqual(
+      expect.arrayContaining(["./gestures/useConnectGesture.ts", "./gestures/useDisconnectGesture.ts"]),
+    );
+    expect(geometry.map(([path]) => path)).toEqual(expect.arrayContaining(["./portGeometry.ts"]));
+  });
+
+  it.each(gestures)("%s takes only types from the model", (_path, source) => {
+    const fromModel = [...code(source).matchAll(/import\s+(type\s+)?\{[^}]*\}\s+from\s+["'](?:\.\.\/)+model["']/g)];
+
+    expect(fromModel.length).toBeGreaterThan(0);
+    for (const match of fromModel) expect(match[1], match[0]).toBeDefined();
+  });
+
+  it.each([...gestures, ...geometry])("%s runs, previews and judges nothing", (_path, source) => {
+    for (const { specifier, names } of importsOf(source)) {
+      expect(specifier).not.toMatch(/dryRun|useCableBench|\/components\//);
+      for (const name of RUNS_OR_JUDGES) expect(names, `${name} from ${specifier}`).not.toContain(name);
+    }
+  });
+
+  it("keeps no connection state of its own", () => {
+    for (const [path, source] of Object.entries(bench)) {
+      expect(code(source).match(/\bset(Connected|Connection|Connections|Port|Ports|PlugConnected)\w*\s*\(/)?.[0], path).toBeUndefined();
+    }
+  });
+
   it("the guard would catch an offender", () => {
     const offender = `import { useDrag } from "react-dnd";\nimport { PATTERNS } from "../model";\nlocalStorage.setItem("x", "y");`;
     const lines = importsOf(offender);

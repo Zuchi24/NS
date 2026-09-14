@@ -840,6 +840,60 @@ describe("the model's refusals, surfaced as the model's own", () => {
   });
 });
 
+describe("the cutters' reading is picture only", () => {
+  /** The label's box on the drawing, from its own transform and background. */
+  function labelBox() {
+    const label = screen.getByTestId("cable-cutters-label");
+    const [tx, ty] = label.getAttribute("transform")!.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    const rect = label.querySelector("rect")!;
+    const left = tx + Number(rect.getAttribute("x"));
+    const top = ty + Number(rect.getAttribute("y"));
+
+    return { label, left, top, right: left + Number(rect.getAttribute("width")), bottom: top + Number(rect.getAttribute("height")) };
+  }
+
+  it("never takes a press, even where it is drawn over a port — the cutters themselves still do", () => {
+    const { svg } = benchAt();
+    const cable = createInitialState(S1_PRACTICE);
+
+    // Standing well back on end A's jacket, the reading is drawn up among the ports.
+    placeCutters(svg, standingAt(cable, "A", 30));
+
+    const { label, left, top, right, bottom } = labelBox();
+    const port = screen.getByTestId("port-tester-main");
+    const px = Number(port.getAttribute("data-x"));
+    const py = Number(port.getAttribute("data-y"));
+    const overPort =
+      left < px + Number(port.getAttribute("data-width")) &&
+      right > px &&
+      top < py + Number(port.getAttribute("data-height")) &&
+      bottom > py;
+
+    // The setting of the original bug: the label lies over the MAIN port.
+    expect(overPort).toBe(true);
+
+    // It is drawn to be looked at, not pressed: neither it nor anything in it
+    // can be the target of a pointer, so a press there reaches the port below.
+    expect(label.getAttribute("pointer-events")).toBe("none");
+    for (const part of label.querySelectorAll("*")) {
+      expect([null, "none"]).toContain(part.getAttribute("pointer-events"));
+    }
+
+    // The cutters are still something a hand can close on.
+    const cutters = screen.getByTestId("cable-cutters");
+    expect(cutters.getAttribute("pointer-events")).toBeNull();
+    for (const part of cutters.querySelectorAll("*")) {
+      if (label.contains(part)) continue;
+      expect(part.getAttribute("pointer-events")).not.toBe("none");
+    }
+
+    squeeze(svg);
+
+    expect(jacketEdgeOf("A")).toBe(30);
+    expect(feedback()).toHaveTextContent(/Cut end A/);
+  });
+});
+
 describe("taking the cutters disturbs nothing else", () => {
   it("does not select an end, or start any other gesture", () => {
     const { svg } = benchAt();

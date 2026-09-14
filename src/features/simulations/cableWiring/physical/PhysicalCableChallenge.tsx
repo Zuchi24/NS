@@ -174,6 +174,26 @@ export function PhysicalCableChallenge({ scenario, title, difficulty, descriptio
                   selectEnd(end);
                   bench.act({ type: "insert", end, orientation, pushMm });
                 }}
+                onPush={(end, pushMm) => {
+                  selectEnd(end);
+                  bench.act({ type: "push", end, pushMm });
+                }}
+                onWithdraw={(end) => {
+                  selectEnd(end);
+                  bench.act({ type: "withdraw", end });
+                }}
+                onCrimp={(end, squeeze) => {
+                  selectEnd(end);
+                  bench.act({ type: "crimp", end, squeeze });
+                }}
+                onConnect={(end, endpoint) => {
+                  selectEnd(end);
+                  bench.act({ type: "connect", end, endpoint });
+                }}
+                onDisconnect={(end) => {
+                  selectEnd(end);
+                  bench.act({ type: "disconnect", end });
+                }}
               />
             </div>
 

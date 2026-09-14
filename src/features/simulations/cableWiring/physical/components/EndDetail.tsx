@@ -18,6 +18,7 @@ import { LANE_GAP, laneY as laneCentre, liftedRow, rowBounds } from "../conducto
 import { CONDUCTOR_LABEL } from "../messages";
 import { pairRegions, pairRowY } from "../pairGeometry";
 import { CONDUCTOR_PAINT, PAIR_PAINT } from "../paint";
+import type { PlugGrip } from "../plugGeometry";
 
 /**
  * One end of the cable, drawn to scale.
@@ -82,6 +83,14 @@ interface Props {
   pull?: PairPull;
   /** The conductor in hand, when one is being moved about this end's row. */
   lift?: ConductorLift;
+  /**
+   * Where the fitted plug on this end can be taken hold of, when the bench
+   * offers moving one — the very region the gesture hit-tests, so the grip
+   * drawn is the grip a hand closes on.
+   */
+  plugGrip?: PlugGrip | null;
+  /** True while a hand has this end's fitted plug out of its seat: the seated plug is drawn faint behind it. */
+  plugLifted?: boolean;
 }
 
 const WIRE = 5.5;
@@ -105,6 +114,8 @@ export function EndDetail({
   selected,
   pull,
   lift,
+  plugGrip,
+  plugLifted = false,
 }: Props) {
   const J = end.jacketEdgeMm;
   const rear = plugRearMm(end);
@@ -316,6 +327,26 @@ export function EndDetail({
       )}
 
       {/* ---- The plug, translucent, over whatever is inside it ---- */}
+      {/* ---- Where a hand takes hold of the fitted plug: along its length,
+             above the conductor row and below it, never over a conductor ---- */}
+      {end.plug && plugGrip && (
+        <g data-testid={`plug-grip-${id}`} data-x={plugGrip.x} data-width={plugGrip.width} style={{ cursor: "grab" }}>
+          <title>Push the plug further on, or pull it off the cable.</title>
+          {plugGrip.bands.map((band, index) => (
+            <rect
+              key={index}
+              x={plugGrip.x}
+              y={band.y}
+              width={plugGrip.width}
+              height={band.height}
+              rx={4}
+              fill="#9CC3E6"
+              fillOpacity={plugLifted ? 0.06 : 0.16}
+            />
+          ))}
+        </g>
+      )}
+
       {end.plug && rear !== null && front !== null && pins && (
         <PlugDrawing
           end={end}
@@ -326,6 +357,7 @@ export function EndDetail({
           laneY={laneY}
           pins={pins}
           dir={dir}
+          lifted={plugLifted}
         />
       )}
 
@@ -552,6 +584,7 @@ function PlugDrawing({
   laneY,
   pins,
   dir,
+  lifted,
 }: {
   end: CableEnd;
   x: (offsetMm: number) => number;
@@ -561,6 +594,8 @@ function PlugDrawing({
   laneY: (index: number) => number;
   pins: Conductor[];
   dir: 1 | -1;
+  /** True while a hand has the plug out of its seat: it stays drawn where the model has it, faint. */
+  lifted: boolean;
 }) {
   const plug = end.plug!;
   const fan = end.fan!;
@@ -571,7 +606,7 @@ function PlugDrawing({
   const bladeFill = plug.crimp === "full" ? "#E0B23C" : plug.crimp === "partial" ? "#E0B23C88" : "none";
 
   return (
-    <g data-testid="plug">
+    <g data-testid="plug" data-lifted={lifted} opacity={lifted ? 0.35 : undefined}>
       <rect {...body} y={cy - 38} height={76} rx={6} fill="#D7E9F7" fillOpacity={0.28} stroke="#9CC3E6" strokeWidth={2} />
 
       {/* Where the strain relief grips, and where the blades are. */}

@@ -16,8 +16,11 @@ import {
 } from "../model";
 import type { Action, CableState, EndInspection } from "../model";
 import { PhysicalCableChallenge } from "./PhysicalCableChallenge";
-import { HEIGHT, WIDTH } from "./benchGeometry";
+import { CY, HEIGHT, LAYOUT, SHELF_TOP, WIDTH, benchScale } from "./benchGeometry";
+import { CRIMPER_SHELF_X } from "./components/CrimperTool";
 import { VERDICT_LABEL } from "./messages";
+import { WITHDRAW_PULL_MM, plugGrip } from "./plugGeometry";
+import { PORT_REACH, leadHandle, portSlots } from "./portGeometry";
 import { PRACTICE_BENCH } from "./setup";
 
 /**
@@ -341,6 +344,60 @@ describe("physical actions", () => {
     expect(screen.getByTestId("tray-count")).toHaveTextContent("4 left · 0 used");
   });
 
+  it("10b. PUSH and WITHDRAW on the bench itself: the fitted plug is taken by its grip, pushed on, and pulled off", () => {
+    render(<PhysicalCableChallenge {...PRACTICE_BENCH} />);
+    strip(30);
+    untwistAll();
+    trim(12);
+    tool("Insert");
+    slide("Push the jacket into the plug", -5);
+    press(/^Pick up a plug$/);
+    press(/^Insert end A$/);
+    expect(endGroup("A")).toHaveAttribute("data-jacket-in-mm", "-5");
+
+    // The drawing is given a size, one unit to a pixel, and the hand works the
+    // plug by its grip, read off the bench's own geometry — never a click.
+    const svg = screen.getByRole("img", { name: /Workbench/ });
+    vi.spyOn(svg, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: WIDTH,
+      height: HEIGHT,
+      right: WIDTH,
+      bottom: HEIGHT,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+    const slidePlug = (cable: CableState, inwardMm: number) => {
+      const scale = benchScale(cable).scale;
+      const grip = plugGrip("A", cable.ends.A, scale)!;
+      const from = { clientX: grip.x + grip.width / 2, clientY: grip.bands[0].y + grip.bands[0].height / 2 };
+      const to = { clientX: from.clientX - LAYOUT.A.dir * inwardMm * scale, clientY: from.clientY };
+
+      fireEvent.pointerDown(svg, { pointerId: 1, ...from });
+      fireEvent.pointerMove(svg, { pointerId: 1, ...to });
+      fireEvent.pointerUp(svg, { pointerId: 1, ...to });
+    };
+    const fittedA: Action[] = [
+      { type: "strip", end: "A", amountMm: 30, slot: "correct" },
+      ...PAIR_IDS.map((pair): Action => ({ type: "untwist", end: "A", pair })),
+      { type: "trim", end: "A", leaveMm: 12 },
+      { type: "insert", end: "A", orientation: "contacts-up", pushMm: -5 },
+    ];
+
+    slidePlug(modelAfter(fittedA), 8);
+
+    expect(endGroup("A")).toHaveAttribute("data-jacket-in-mm", "3");
+    expect(feedback()).toHaveTextContent("Pushed the plug further on — jacket 3 mm inside the plug.");
+
+    slidePlug(modelAfter([...fittedA, { type: "push", end: "A", pushMm: 3 }]), -(WITHDRAW_PULL_MM + 1));
+
+    expect(endGroup("A")).toHaveAttribute("data-plug", "none");
+    expect(screen.getByTestId("tray-count")).toHaveTextContent("4 left · 0 used");
+    expect(feedback()).toHaveTextContent("Pulled the plug off end A and put it back in the tray.");
+  });
+
   it("11. CRIMP shows the model's crimp state, partial then full, and locks the plug", () => {
     render(<PhysicalCableChallenge {...PRACTICE_BENCH} />);
     strip(30);
@@ -362,6 +419,93 @@ describe("physical actions", () => {
     press(/^Pull plug off end A$/);
     expect(feedback()).toHaveTextContent("is crimped and can't move");
     expect(endGroup("A")).toHaveAttribute("data-plug", "contacts-up");
+  });
+
+  it("11b. CRIMP on the bench itself: the crimper from the shelf full-crimps the plug it stands on", () => {
+    render(<PhysicalCableChallenge {...PRACTICE_BENCH} />);
+    strip(30);
+    untwistAll();
+    trim(12);
+    insertPlug();
+    expect(endGroup("A")).toHaveAttribute("data-crimp", "none");
+
+    // The drawing is given a size, one unit to a pixel. The crimper is carried
+    // from its shelf spot to end A, put down, and squeezed — never clicked.
+    const svg = screen.getByRole("img", { name: /Workbench/ });
+    vi.spyOn(svg, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: WIDTH,
+      height: HEIGHT,
+      right: WIDTH,
+      bottom: HEIGHT,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+    const shelf = { clientX: CRIMPER_SHELF_X, clientY: SHELF_TOP + 28 };
+    const overA = { clientX: LAYOUT.A.x0 + LAYOUT.A.dir * 20, clientY: CY };
+
+    fireEvent.pointerDown(screen.getByTestId("take-crimper"), { pointerId: 1, ...shelf });
+    fireEvent.pointerMove(svg, { pointerId: 1, ...overA });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...overA });
+
+    // Standing on the plug is not a crimp.
+    expect(endGroup("A")).toHaveAttribute("data-crimp", "none");
+
+    fireEvent.pointerDown(screen.getByTestId("crimper"), { pointerId: 1, ...overA });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...overA });
+    fireEvent.click(svg);
+
+    expect(endGroup("A")).toHaveAttribute("data-crimp", "full");
+    expect(feedback()).toHaveTextContent("Crimped end A fully.");
+  });
+
+  it("12b. CONNECT and DISCONNECT on the bench itself: a plug's lead is carried to a port and pressed in, then pulled out", () => {
+    render(<PhysicalCableChallenge {...PRACTICE_BENCH} />);
+
+    // The drawing is given a size, one unit to a pixel. End B arrives with a
+    // plug on it, so its lead is on the bench.
+    const svg = screen.getByRole("img", { name: /Workbench/ });
+    vi.spyOn(svg, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: WIDTH,
+      height: HEIGHT,
+      right: WIDTH,
+      bottom: HEIGHT,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+    const cable = createInitialState(S1_PRACTICE);
+    const handle = leadHandle("B", cable.ends.B, benchScale(cable).scale)!;
+    const main = portSlots(S1_PRACTICE.endpoints).find((slot) => slot.endpoint === "tester-main")!;
+    const lead = { clientX: handle.cx, clientY: handle.cy };
+    const atMain = { clientX: main.mouthX, clientY: main.mouthY + PORT_REACH / 2 };
+
+    // Carried to MAIN and let go there: waiting, not plugged in.
+    fireEvent.pointerDown(svg, { pointerId: 1, ...lead });
+    fireEvent.pointerMove(svg, { pointerId: 1, ...atMain });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...atMain });
+    expect(screen.getByTestId("tester-main-end")).toHaveTextContent("—");
+
+    // Pressed in: never clicked.
+    fireEvent.pointerDown(screen.getByTestId("plug-at-port"), { pointerId: 1, ...atMain });
+    fireEvent.pointerUp(svg, { pointerId: 1, ...atMain });
+    fireEvent.click(svg);
+
+    expect(screen.getByTestId("tester-main-end")).toHaveTextContent("End B");
+    expect(feedback()).toHaveTextContent("Plugged end B into Tester MAIN.");
+
+    // Pulled down, out of the port.
+    const seated = { clientX: main.mouthX, clientY: main.mouthY + 10 };
+    fireEvent.pointerDown(svg, { pointerId: 1, ...seated });
+    fireEvent.pointerMove(svg, { pointerId: 1, clientX: seated.clientX, clientY: seated.clientY + 40 });
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: seated.clientX, clientY: seated.clientY + 40 });
+
+    expect(screen.getByTestId("tester-main-end")).toHaveTextContent("—");
+    expect(feedback()).toHaveTextContent("Unplugged end B.");
   });
 
   it("12. CONNECT and DISCONNECT move an end in and out of the tester", () => {
