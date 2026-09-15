@@ -29,6 +29,9 @@ import { StudentLayout } from "@/layouts/StudentLayout";
 /** Stable module-level identity — an inline arrow here would remount on every render. */
 const AdminOnly = () => <RoleRoute allow={["admin"]} />;
 
+/** The same, for the pages only a student has any use for. */
+const StudentOnly = () => <RoleRoute allow={["student"]} />;
+
 /**
  * Shown while the first route's chunk is still arriving.
  *
@@ -153,6 +156,22 @@ export const routes: RouteObject[] = [
         path: "/subtopic/:subtopicId",
         lazy: async () => ({
           Component: (await import("@/pages/student/SubtopicDetailsPage")).SubtopicDetailsPage,
+        }),
+      },
+    ],
+  },
+
+  // Students only. Taking an assessment is something only a student does — the
+  // server refuses a submission from anyone else — so an admin is sent on
+  // rather than shown a form that cannot be submitted. Full-bleed like a topic.
+  {
+    Component: StudentOnly,
+    HydrateFallback,
+    children: [
+      {
+        path: "/assessments/:assessmentId",
+        lazy: async () => ({
+          Component: (await import("@/pages/student/AssessmentPage")).AssessmentPage,
         }),
       },
     ],
