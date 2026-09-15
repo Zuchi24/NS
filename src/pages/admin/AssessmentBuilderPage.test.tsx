@@ -61,6 +61,9 @@ vi.mock("@/features/assessments/adminAssessmentService", async (importOriginal) 
     updateQuestion: vi.fn(),
     deleteQuestion: vi.fn(),
     reorderQuestions: vi.fn(),
+    publishAssessment: vi.fn(),
+    unpublishAssessment: vi.fn(),
+    deleteAssessment: vi.fn(),
   };
 });
 
@@ -363,10 +366,16 @@ describe("showing the questions", () => {
   it.each(LOCKED)("offers no question write when it is %s", async (_, lock) => {
     await show(assessment({ ...lock, questions: [question(), second] }));
 
-    // Title and description stay editable; nothing that touches a question does.
+    // Title and description stay editable, and the release controls are their
+    // own section; nothing that touches a question is offered.
+    const release = screen.getByRole("region", { name: "Release" });
+
     expect(questionWriteButtons()).toEqual([]);
     expect(
-      screen.getAllByRole("button").map((button) => button.textContent),
+      screen
+        .getAllByRole("button")
+        .filter((button) => !release.contains(button))
+        .map((button) => button.textContent),
     ).toEqual(["Back to roadmap", "Edit details"]);
     expect(screen.getAllByRole("article")).toHaveLength(2);
   });
@@ -1128,5 +1137,426 @@ describe("going back", () => {
     await user.click(screen.getByRole("button", { name: "Back to roadmap" }));
 
     expect(navigate).toHaveBeenCalledWith("/admin/roadmap");
+  });
+});
+
+/** The release section, so a query cannot stray into the question controls. */
+function release() {
+  return within(screen.getByRole("region", { name: "Release" }));
+}
+
+/** Renders a page whose first load is `before` and every reload after is `after`. */
+async function showThen(before: Assessment, after: Assessment) {
+  vi.mocked(service.fetchAssessment)
+    .mockResolvedValueOnce(before)
+    .mockResolvedValue(after);
+
+  render(<AssessmentBuilderPage />);
+
+  await screen.findByRole("region", { name: "Release" });
+}
+
+/*
+ * The four states an assessment can be in, and what each one offers — both on
+ * the assessment itself and on its questions. Unpublishing a taken assessment
+ * is the row that matters most: it withdraws the test and unlocks nothing.
+ */
+const STATES = [
+  {
+    state: "a draft nobody has taken",
+    lock: { isPublished: false, attemptsCount: 0 },
+    publish: true,
+    unpublish: false,
+    remove: true,
+    questions: true,
+  },
+  {
+    state: "published and untaken",
+    lock: { isPublished: true, attemptsCount: 0 },
+    publish: false,
+    unpublish: true,
+    remove: true,
+    questions: false,
+  },
+  {
+    state: "published and taken",
+    lock: { isPublished: true, attemptsCount: 3 },
+    publish: false,
+    unpublish: true,
+    remove: false,
+    questions: false,
+  },
+  {
+    state: "unpublished after being taken",
+    lock: { isPublished: false, attemptsCount: 3 },
+    publish: true,
+    unpublish: false,
+    remove: false,
+    questions: false,
+  },
+];
+
+describe("release controls in each state", () => {
+  it.each(STATES)(
+    "offers the right controls when it is $state",
+    async ({ lock, publish, unpublish, remove, questions }) => {
+      await show(assessment({ ...lock, questions: [question(), second] }));
+
+      expect(
+        release().queryByRole("button", { name: "Publish assessment" }) !== null,
+      ).toBe(publish);
+      expect(
+        release().queryByRole("button", { name: "Unpublish assessment" }) !== null,
+      ).toBe(unpublish);
+      expect(release().queryByRole("button", { name: "Delete" }) !== null).toBe(
+        remove,
+      );
+      expect(
+        release().queryByText(/cannot be deleted because students have attempted it/) !==
+          null,
+      ).toBe(!remove);
+
+      // And the questions follow the lock, not the publication alone.
+      expect(questionWriteButtons().length > 0).toBe(questions);
+    },
+  );
+});
+
+describe("publishing", () => {
+  it("is offered on a draft nobody has taken", async () => {
+    await show();
+
+    expect(
+      release().getByRole("button", { name: "Publish assessment" }),
+    ).toBeEnabled();
+  });
+
+  it("publishes through the service", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    vi.mocked(service.publishAssessment).mockResolvedValue(
+      assessment({ isPublished: true }),
+    );
+
+    await user.click(release().getByRole("button", { name: "Publish assessment" }));
+
+    expect(service.publishAssessment).toHaveBeenCalledWith(11);
+  });
+
+  it("sends one publish however often it is pressed", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    vi.mocked(service.publishAssessment).mockReturnValue(new Promise(() => {}));
+
+    await user.click(release().getByRole("button", { name: "Publish assessment" }));
+
+    const pending = release().getByRole("button", { name: "Publishing…" });
+    expect(pending).toBeDisabled();
+    expect(release().getByRole("button", { name: "Delete" })).toBeDisabled();
+
+    await user.click(pending);
+
+    expect(service.publishAssessment).toHaveBeenCalledTimes(1);
+  });
+
+  it("says so, reloads, and shows the published assessment with its questions locked", async () => {
+    const user = userEvent.setup();
+
+    await showThen(assessment(), assessment({ isPublished: true }));
+
+    vi.mocked(service.publishAssessment).mockResolvedValue(
+      assessment({ isPublished: true }),
+    );
+
+    expect(questionWriteButtons().length).toBeGreaterThan(0);
+
+    await user.click(release().getByRole("button", { name: "Publish assessment" }));
+
+    await waitFor(() => expect(service.fetchAssessment).toHaveBeenCalledTimes(2));
+    expect(toast.success).toHaveBeenCalledWith(
+      "“Before you start” is published. Students can open it.",
+    );
+
+    // What the server stored, not what the click assumed.
+    expect(
+      await release().findByRole("button", { name: "Unpublish assessment" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Published")).toBeInTheDocument();
+    expect(questionWriteButtons()).toEqual([]);
+  });
+
+  it("shows why the server refused, and leaves the page as it was", async () => {
+    const user = userEvent.setup();
+    const refusal =
+      'Question 1 of "Before you start" needs exactly one correct choice before it can be published.';
+
+    await show();
+
+    vi.mocked(service.publishAssessment).mockRejectedValue(
+      new ApiError(refusal, 422),
+    );
+
+    // Work in progress elsewhere on the page must survive the refusal.
+    await user.click(screen.getByRole("button", { name: "Add question" }));
+    await replace(
+      user,
+      questionForm("Add question").getByLabelText("Prompt"),
+      "Half-written question",
+    );
+
+    await user.click(release().getByRole("button", { name: "Publish assessment" }));
+
+    expect(await release().findByRole("alert")).toHaveTextContent(refusal);
+
+    expect(service.fetchAssessment).toHaveBeenCalledTimes(1);
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(screen.getByText("Draft")).toBeInTheDocument();
+    expect(
+      release().getByRole("button", { name: "Publish assessment" }),
+    ).toBeEnabled();
+    expect(questionForm("Add question").getByLabelText("Prompt")).toHaveValue(
+      "Half-written question",
+    );
+  });
+
+  it("reloads into the current state on a conflict, keeping the reason on screen", async () => {
+    const user = userEvent.setup();
+    const refusal = "This assessment changed while you were looking at it.";
+
+    await showThen(assessment(), assessment({ isPublished: true, attemptsCount: 2 }));
+
+    vi.mocked(service.publishAssessment).mockRejectedValue(new ApiError(refusal, 409));
+
+    await user.click(release().getByRole("button", { name: "Publish assessment" }));
+
+    await waitFor(() => expect(service.fetchAssessment).toHaveBeenCalledTimes(2));
+
+    expect(
+      await release().findByRole("button", { name: "Unpublish assessment" }),
+    ).toBeInTheDocument();
+    expect(release().getByRole("alert")).toHaveTextContent(refusal);
+    expect(questionWriteButtons()).toEqual([]);
+  });
+});
+
+describe("unpublishing", () => {
+  it("is offered on a published assessment", async () => {
+    await show(assessment({ isPublished: true }));
+
+    expect(
+      release().getByRole("button", { name: "Unpublish assessment" }),
+    ).toBeEnabled();
+    expect(
+      release().queryByRole("button", { name: "Publish assessment" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("asks first, and sends nothing when cancelled", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ isPublished: true }));
+
+    await user.click(release().getByRole("button", { name: "Unpublish assessment" }));
+
+    const dialog = within(
+      screen.getByRole("alertdialog", { name: "Unpublish “Before you start”?" }),
+    );
+    await user.click(dialog.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(service.unpublishAssessment).not.toHaveBeenCalled();
+  });
+
+  it("unpublishes through the service once confirmed", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ isPublished: true }));
+
+    vi.mocked(service.unpublishAssessment).mockResolvedValue(assessment());
+
+    await user.click(release().getByRole("button", { name: "Unpublish assessment" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Unpublish" }),
+    );
+
+    await waitFor(() =>
+      expect(service.unpublishAssessment).toHaveBeenCalledWith(11),
+    );
+  });
+
+  it("says so, reloads, and unlocks the questions of an untaken assessment", async () => {
+    const user = userEvent.setup();
+
+    await showThen(assessment({ isPublished: true }), assessment());
+
+    vi.mocked(service.unpublishAssessment).mockResolvedValue(assessment());
+
+    expect(questionWriteButtons()).toEqual([]);
+
+    await user.click(release().getByRole("button", { name: "Unpublish assessment" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Unpublish" }),
+    );
+
+    await waitFor(() => expect(service.fetchAssessment).toHaveBeenCalledTimes(2));
+    expect(toast.success).toHaveBeenCalledWith(
+      "“Before you start” is unpublished. Students can no longer open it.",
+    );
+
+    expect(
+      await release().findByRole("button", { name: "Publish assessment" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add question" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Edit question 1" })).toBeEnabled();
+  });
+
+  it("shows why the server refused, without reloading", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ isPublished: true }));
+
+    vi.mocked(service.unpublishAssessment).mockRejectedValue(
+      new ApiError("The server had a problem with that.", 500),
+    );
+
+    await user.click(release().getByRole("button", { name: "Unpublish assessment" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Unpublish" }),
+    );
+
+    expect(await release().findByRole("alert")).toHaveTextContent(
+      "The server had a problem with that.",
+    );
+    expect(service.fetchAssessment).toHaveBeenCalledTimes(1);
+    expect(
+      release().getByRole("button", { name: "Unpublish assessment" }),
+    ).toBeEnabled();
+  });
+
+  it("leaves a taken assessment's questions locked once it is withdrawn", async () => {
+    const user = userEvent.setup();
+
+    await showThen(
+      assessment({ isPublished: true, attemptsCount: 3 }),
+      assessment({ isPublished: false, attemptsCount: 3 }),
+    );
+
+    vi.mocked(service.unpublishAssessment).mockResolvedValue(
+      assessment({ isPublished: false, attemptsCount: 3 }),
+    );
+
+    await user.click(release().getByRole("button", { name: "Unpublish assessment" }));
+
+    // Said before it is done, not discovered afterwards.
+    expect(screen.getByRole("alertdialog")).toHaveTextContent(
+      /questions stay locked because it has been taken/,
+    );
+
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Unpublish" }),
+    );
+
+    await waitFor(() => expect(service.fetchAssessment).toHaveBeenCalledTimes(2));
+
+    expect(
+      await release().findByRole("button", { name: "Publish assessment" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(/already taken/);
+    expect(questionWriteButtons()).toEqual([]);
+    expect(release().queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+});
+
+describe("deleting the assessment", () => {
+  it("is offered while nobody has taken it", async () => {
+    await show();
+
+    expect(release().getByRole("button", { name: "Delete" })).toBeEnabled();
+  });
+
+  it("asks first, saying it comes off the topic", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    await user.click(release().getByRole("button", { name: "Delete" }));
+
+    expect(
+      screen.getByRole("alertdialog", { name: "Delete “Before you start”?" }),
+    ).toHaveTextContent(/removes the pre-test from its topic/);
+    expect(service.deleteAssessment).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when the confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    await user.click(release().getByRole("button", { name: "Delete" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cancel" }),
+    );
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(service.deleteAssessment).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("deletes once confirmed and returns to the roadmap and topic it came from", async () => {
+    const user = userEvent.setup();
+    search = "roadmap=3&topic=7";
+    await show();
+
+    vi.mocked(service.deleteAssessment).mockResolvedValue(undefined);
+
+    await user.click(release().getByRole("button", { name: "Delete" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Delete assessment",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith("/admin/roadmap?roadmap=3&topic=7"),
+    );
+    expect(service.deleteAssessment).toHaveBeenCalledWith(11);
+    expect(toast.success).toHaveBeenCalledWith("Deleted “Before you start”.");
+  });
+
+  it("stays and reloads when the server says it has been taken meanwhile", async () => {
+    const user = userEvent.setup();
+    const refusal =
+      '"Before you start" has already been taken, so it cannot be deleted. Unpublish it instead.';
+
+    await showThen(assessment(), assessment({ attemptsCount: 1 }));
+
+    vi.mocked(service.deleteAssessment).mockRejectedValue(new ApiError(refusal, 409));
+
+    await user.click(release().getByRole("button", { name: "Delete" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Delete assessment",
+      }),
+    );
+
+    await waitFor(() => expect(service.fetchAssessment).toHaveBeenCalledTimes(2));
+
+    expect(await release().findByRole("alert")).toHaveTextContent(refusal);
+    expect(release().queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(
+      release().getByText(/cannot be deleted because students have attempted it/),
+    ).toBeInTheDocument();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("is not offered once anyone has taken it, published or not", async () => {
+    for (const lock of [
+      { isPublished: true, attemptsCount: 1 },
+      { isPublished: false, attemptsCount: 1 },
+    ]) {
+      await show(assessment(lock));
+
+      expect(release().queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+
+      cleanup();
+    }
   });
 });

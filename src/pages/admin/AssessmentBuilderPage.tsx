@@ -6,6 +6,8 @@ import {
   ArrowUp,
   CheckCircle2,
   ClipboardList,
+  Eye,
+  EyeOff,
   Lock,
   Pencil,
   Plus,
@@ -29,12 +31,15 @@ import {
   ASSESSMENT_TYPE_LABELS,
   EMPTY_QUESTION_DRAFT,
   createQuestion,
+  deleteAssessment,
   deleteQuestion,
   draftOfAssessment,
   draftOfQuestion,
   fetchAssessment,
   lockStateOf,
+  publishAssessment,
   reorderQuestions,
+  unpublishAssessment,
   updateAssessment,
   updateQuestion,
   validateAssessmentDraft,
@@ -68,6 +73,12 @@ import {
  * offer, and when a write is refused anyway — another author published it, a
  * student submitted it — it shows the server's reason and reloads, so what is
  * on screen is the lock as it now stands rather than as it was.
+ *
+ * Its release is here as well: publishing, unpublishing, and deleting one that
+ * nobody has taken. Publishing is refused by the server until every question is
+ * complete, and the page does not second-guess that — it shows the refusal. A
+ * taken assessment is never deleted, and unpublishing one withdraws it from
+ * students without unlocking its questions.
  */
 
 /** The id in the address, or null when the address names no assessment. */
@@ -113,6 +124,66 @@ export function AssessmentBuilderPage() {
 
   const [editing, setEditing] = useState(false);
 
+  /*
+   * Publishing, unpublishing and deleting the assessment itself.
+   *
+   * Held here rather than in the release card: a refusal that reloads the page
+   * has to outlive the reload to be read, and the card is unmounted while the
+   * assessment loads again where this component is not.
+   */
+  const [releasing, setReleasing] = useState<ReleaseAction | null>(null);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
+
+  // The disabled buttons are what an author sees; this is what actually stops a
+  // second publish or delete going out before the next render.
+  const releaseInFlight = useRef(false);
+
+  const release = async (assessment: Assessment, action: ReleaseAction) => {
+    if (releaseInFlight.current) return;
+
+    releaseInFlight.current = true;
+    setReleasing(action);
+    setReleaseError(null);
+
+    try {
+      if (action === "publish") {
+        await publishAssessment(assessment.id);
+        toast.success(`“${assessment.title}” is published. Students can open it.`);
+        reload();
+      } else if (action === "unpublish") {
+        await unpublishAssessment(assessment.id);
+        toast.success(
+          `“${assessment.title}” is unpublished. Students can no longer open it.`,
+        );
+        reload();
+      } else {
+        await deleteAssessment(assessment.id);
+        toast.success(`Deleted “${assessment.title}”.`);
+        // Back to the roadmap and topic it was opened from, where its slot now
+        // offers to create it again.
+        navigate(roadmapPath);
+      }
+    } catch (e) {
+      // The server's own words: it names what is incomplete, or that the
+      // assessment has been taken, better than this page could.
+      setReleaseError(
+        e instanceof Error ? e.message : "Could not change this assessment.",
+      );
+
+      // Out of date rather than refused on its merits — taken since the page
+      // loaded (409), or gone altogether (404) — so read it again. A publish
+      // refused because a question is incomplete is not: the page is right and
+      // the assessment is not ready, so everything on it, open forms included,
+      // stays as it was.
+      if (e instanceof ApiError && (e.status === 409 || e.status === 404)) {
+        reload();
+      }
+    } finally {
+      releaseInFlight.current = false;
+      setReleasing(null);
+    }
+  };
+
   let body: React.ReactNode;
 
   if (loading) {
@@ -138,6 +209,14 @@ export function AssessmentBuilderPage() {
             setEditing(false);
             reload();
           }}
+        />
+        <ReleaseCard
+          assessment={data}
+          releasing={releasing}
+          error={releaseError}
+          onPublish={() => void release(data, "publish")}
+          onUnpublish={() => void release(data, "unpublish")}
+          onDelete={() => void release(data, "delete")}
         />
         <LockNotice state={lockStateOf(data)} />
         <QuestionList assessment={data} onChanged={reload} />
@@ -247,6 +326,188 @@ function AssessmentHeader({
             onClose={onClose}
             onSaved={onSaved}
           />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** A move on the assessment itself, as against on one of its questions. */
+type ReleaseAction = "publish" | "unpublish" | "delete";
+
+/** Where the assessment stands with students, in a sentence. */
+function releaseStatus(assessment: Assessment): string {
+  const taken = (assessment.attemptsCount ?? 0) > 0;
+
+  if (assessment.isPublished) {
+    return taken
+      ? "Published. Students can open it, and some have already taken it."
+      : "Published. Students can open it.";
+  }
+
+  return taken
+    ? "Draft. It has been withdrawn from students, and the results of those who took it are kept."
+    : "Draft. Students cannot see it until it is published.";
+}
+
+/**
+ * Putting the assessment in front of students, taking it back, or removing it.
+ *
+ * Only the moves this assessment actually has. Publish while it is a draft —
+ * including one withdrawn after being taken, which the server allows — and
+ * unpublish while it is out. Delete only while nobody has taken it, and hidden
+ * rather than disabled once somebody has: that never changes back, so a
+ * greyed-out button would be promising something that does not arrive.
+ */
+function ReleaseCard({
+  assessment,
+  releasing,
+  error,
+  onPublish,
+  onUnpublish,
+  onDelete,
+}: {
+  assessment: Assessment;
+  releasing: ReleaseAction | null;
+  error: string | null;
+  onPublish: () => void;
+  onUnpublish: () => void;
+  onDelete: () => void;
+}) {
+  const [confirming, setConfirming] = useState<"unpublish" | "delete" | null>(
+    null,
+  );
+
+  const busy = releasing !== null;
+  const taken = (assessment.attemptsCount ?? 0) > 0;
+  // Only when the server counted nobody: an uncounted total is no promise that
+  // the delete would be allowed.
+  const deletable = assessment.attemptsCount === 0;
+  const kind = ASSESSMENT_TYPE_LABELS[assessment.type].toLowerCase();
+
+  const confirm =
+    confirming === "delete"
+      ? {
+          question: `Delete “${assessment.title}”?`,
+          detail: `This removes the ${kind} from its topic, with all of its questions and choices. It cannot be undone.`,
+          verb: "Delete assessment",
+          destructive: true,
+          run: onDelete,
+        }
+      : confirming === "unpublish"
+        ? {
+            question: `Unpublish “${assessment.title}”?`,
+            detail: taken
+              ? "Students can no longer open it. Their results are kept, and its questions stay locked because it has been taken."
+              : "Students can no longer open it, and its questions can be edited again.",
+            verb: "Unpublish",
+            destructive: false,
+            run: onUnpublish,
+          }
+        : null;
+
+  return (
+    <Card
+      className="border-gray-200"
+      role="region"
+      aria-labelledby="assessment-release-title"
+    >
+      <CardHeader>
+        <CardTitle id="assessment-release-title" className="text-lg">
+          Release
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        <p className="text-sm text-gray-700">{releaseStatus(assessment)}</p>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {assessment.isPublished ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => setConfirming("unpublish")}
+            >
+              <EyeOff className="w-4 h-4 mr-2" />
+              {releasing === "unpublish" ? "Unpublishing…" : "Unpublish assessment"}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                setConfirming(null);
+                onPublish();
+              }}
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              {releasing === "publish" ? "Publishing…" : "Publish assessment"}
+            </Button>
+          )}
+
+          {deletable && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setConfirming("delete")}
+            >
+              <Trash2 className="w-4 h-4 mr-2 text-red-600" />
+              {releasing === "delete" ? "Deleting…" : "Delete"}
+            </Button>
+          )}
+        </div>
+
+        {taken && (
+          <p className="text-xs text-gray-600 flex items-center gap-1.5">
+            <Lock className="w-3 h-3 shrink-0" aria-hidden="true" />
+            This assessment cannot be deleted because students have attempted
+            it. Unpublish it to withdraw it instead.
+          </p>
+        )}
+
+        {confirm && (
+          <div
+            role="alertdialog"
+            aria-label={confirm.question}
+            className={`rounded-md border p-3 space-y-2 ${
+              confirm.destructive
+                ? "border-red-200 bg-red-50/60"
+                : "border-blue-200 bg-blue-50/50"
+            }`}
+          >
+            <p className="text-xs text-gray-700">
+              {confirm.question} {confirm.detail}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={confirm.destructive ? "destructive" : "default"}
+                disabled={busy}
+                onClick={() => {
+                  setConfirming(null);
+                  confirm.run();
+                }}
+              >
+                {confirm.verb}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => setConfirming(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <p role="alert" className="text-sm text-red-600">
+            {error}
+          </p>
         )}
       </CardContent>
     </Card>

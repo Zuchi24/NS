@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter, matchRoutes } from "react-router";
 
@@ -78,7 +78,12 @@ vi.mock("@/features/assessments/adminAssessmentService", async (importOriginal) 
     typeof import("@/features/assessments/adminAssessmentService")
   >();
 
-  return { ...actual, fetchAssessment: vi.fn(), fetchTopicAssessments: vi.fn() };
+  return {
+    ...actual,
+    fetchAssessment: vi.fn(),
+    fetchTopicAssessments: vi.fn(),
+    deleteAssessment: vi.fn(),
+  };
 });
 
 // Imported after the mocks so the route table's lazy imports pick them up.
@@ -256,5 +261,35 @@ describe("coming back from the builder", () => {
     expect(
       screen.getByRole("button", { name: "Collapse Routing" }),
     ).toHaveAttribute("aria-expanded", "true");
+  }, 30_000);
+
+  it("deletes from the builder and lands on the topic, its slot empty again", async () => {
+    const user = userEvent.setup();
+    const router = mountAt("/admin/roadmap/assessments/11?roadmap=2&topic=5");
+
+    vi.mocked(assessments.deleteAssessment).mockResolvedValue(undefined);
+
+    await user.click(await screen.findByRole("button", { name: "Delete" }, SLOW));
+
+    // What the topic's listing says once the delete has gone through.
+    vi.mocked(assessments.fetchTopicAssessments).mockResolvedValue([]);
+
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Delete assessment",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/admin/roadmap");
+      expect(router.state.location.search).toBe("?roadmap=2&topic=5");
+    });
+
+    expect(assessments.deleteAssessment).toHaveBeenCalledWith(11);
+    expect(
+      await screen.findByRole("button", { name: "Create pre-test" }, SLOW),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/authoring/i)).toHaveValue("2");
+    expect(screen.queryByText("Routing pre-test")).not.toBeInTheDocument();
   }, 30_000);
 });
