@@ -49,6 +49,7 @@ import type {
 } from "@/features/content/topicService";
 import type { Subtopic, Topic } from "@/features/content/types";
 import { TopicMaterialsPanel } from "./TopicMaterialsPanel";
+import { TopicAssessmentsPanel } from "./TopicAssessmentsPanel";
 
 /**
  * Authoring one roadmap's topics.
@@ -90,6 +91,7 @@ export function RoadmapTopicsPanel({
   roadmapTitle,
   topics,
   onChanged,
+  initialExpandedTopicId = null,
 }: {
   roadmapId: number;
   roadmapTitle: string;
@@ -97,6 +99,12 @@ export function RoadmapTopicsPanel({
   topics: Topic[];
   /** Reloads the catalogue after a write, so the page and server agree. */
   onChanged: () => void;
+  /**
+   * The topic to open on arrival — the one an author was in when they left for
+   * the assessment builder. Read once, on mount; the page keys this panel on
+   * the roadmap, so it is not carried into another one.
+   */
+  initialExpandedTopicId?: number | null;
 }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [busy, setBusy] = useState(false);
@@ -106,7 +114,9 @@ export function RoadmapTopicsPanel({
    * a reorder or a reload leaves the same topic open rather than whichever
    * topic has since moved into that slot.
    */
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(
+    initialExpandedTopicId,
+  );
 
   /**
    * The one section that is open, if any — the same rule as topics, and for
@@ -222,6 +232,7 @@ export function RoadmapTopicsPanel({
               <li key={topic.id}>
                 <TopicCard
                   topic={topic}
+                  roadmapId={roadmapId}
                   position={index + 1}
                   busy={busy}
                   // An open form is never folded away out from under the author
@@ -312,6 +323,7 @@ export function RoadmapTopicsPanel({
 
 function TopicCard({
   topic,
+  roadmapId,
   position,
   busy,
   isExpanded,
@@ -333,6 +345,8 @@ function TopicCard({
   children,
 }: {
   topic: Topic;
+  /** The roadmap the card is in, so the builder can bring the author back. */
+  roadmapId: number;
   position: number;
   busy: boolean;
   isExpanded: boolean;
@@ -577,6 +591,13 @@ function TopicCard({
               mounts a fresh panel rather than showing the previous topic's
               list while this one loads. */}
           <TopicMaterialsPanel topicId={topic.id} />
+
+          {/* A topic of the roadmap owns a pre-test and a post-test; a section
+              never does, and the server refuses one. The guard is on the row
+              itself rather than on where the card happens to be drawn. */}
+          {topic.parentId === null && (
+            <TopicAssessmentsPanel topicId={topic.id} roadmapId={roadmapId} />
+          )}
         </div>
       )}
     </div>

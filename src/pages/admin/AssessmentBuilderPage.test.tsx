@@ -25,10 +25,12 @@ import type {
 
 const navigate = vi.fn();
 let params: Record<string, string | undefined> = { assessmentId: "11" };
+let search = "";
 
 vi.mock("react-router", () => ({
   useNavigate: () => navigate,
   useParams: () => params,
+  useSearchParams: () => [new URLSearchParams(search), vi.fn()],
 }));
 
 vi.mock("@/features/assessments/adminAssessmentService", async (importOriginal) => {
@@ -104,6 +106,7 @@ function detailsForm() {
 beforeEach(() => {
   vi.clearAllMocks();
   params = { assessmentId: "11" };
+  search = "";
 });
 
 afterEach(cleanup);
@@ -436,6 +439,26 @@ describe("the lock notice", () => {
 describe("going back", () => {
   it("returns to the roadmap", async () => {
     const user = userEvent.setup();
+    await show();
+
+    await user.click(screen.getByRole("button", { name: "Back to roadmap" }));
+
+    expect(navigate).toHaveBeenCalledWith("/admin/roadmap");
+  });
+
+  it("returns to the roadmap and topic it was opened from", async () => {
+    const user = userEvent.setup();
+    search = "roadmap=3&topic=7";
+    await show();
+
+    await user.click(screen.getByRole("button", { name: "Back to roadmap" }));
+
+    expect(navigate).toHaveBeenCalledWith("/admin/roadmap?roadmap=3&topic=7");
+  });
+
+  it("returns to the plain roadmap page when the address carries nothing usable", async () => {
+    const user = userEvent.setup();
+    search = "roadmap=abc&topic=0";
     await show();
 
     await user.click(screen.getByRole("button", { name: "Back to roadmap" }));

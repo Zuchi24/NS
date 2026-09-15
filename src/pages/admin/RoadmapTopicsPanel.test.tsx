@@ -48,6 +48,22 @@ vi.mock("./TopicMaterialsPanel", () => ({
   ),
 }));
 
+// The assessments panel fetches and navigates on its own; stubbed for the same
+// reason, carrying the two ids it is handed so the card is seen to pass them.
+vi.mock("./TopicAssessmentsPanel", () => ({
+  TopicAssessmentsPanel: ({
+    topicId,
+    roadmapId,
+  }: {
+    topicId: number;
+    roadmapId: number;
+  }) => (
+    <div data-testid="assessments-panel">
+      Assessments for {topicId} in roadmap {roadmapId}
+    </div>
+  ),
+}));
+
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const service = await import("@/features/content/topicService");
@@ -71,13 +87,17 @@ const third = topic({ id: 3, title: "Third up", order: 2 });
 
 const onChanged = vi.fn();
 
-function renderWith(topics: Topic[]) {
+function renderWith(
+  topics: Topic[],
+  { initialExpandedTopicId }: { initialExpandedTopicId?: number | null } = {},
+) {
   return render(
     <RoadmapTopicsPanel
       roadmapId={4}
       roadmapTitle="Networking Essentials"
       topics={topics}
       onChanged={onChanged}
+      initialExpandedTopicId={initialExpandedTopicId}
     />,
   );
 }
@@ -842,6 +862,88 @@ describe("RoadmapTopicsPanel", () => {
       expect(screen.getByTestId("materials-panel")).toHaveTextContent(
         "Materials for 1",
       ),
+    );
+  });
+});
+
+/**
+ * A topic's pre-test and post-test.
+ *
+ * The panel itself is stubbed; these are about where the card puts it. It hangs
+ * off an open topic of the roadmap beside the materials, is a fetch like they
+ * are and so follows the same one-open-card rule, and is never offered on a row
+ * that is a section — which cannot own an assessment.
+ */
+describe("a topic's assessments", () => {
+  it("mounts no assessments panel on a folded card", () => {
+    renderWith([first, second]);
+
+    expect(screen.queryByTestId("assessments-panel")).not.toBeInTheDocument();
+  });
+
+  it("offers them inside an open topic's card, beside its materials", async () => {
+    const user = userEvent.setup();
+
+    renderWith([first, second]);
+
+    await user.click(screen.getByRole("button", { name: /expand first up/i }));
+
+    const card = screen.getAllByRole("listitem")[0];
+
+    expect(within(card).getByTestId("assessments-panel")).toHaveTextContent(
+      "Assessments for 1 in roadmap 4",
+    );
+    expect(within(card).getByTestId("materials-panel")).toHaveTextContent(
+      "Materials for 1",
+    );
+  });
+
+  it("keeps them to the one open card, and takes them down when it folds", async () => {
+    const user = userEvent.setup();
+
+    renderWith([first, second]);
+
+    await user.click(screen.getByRole("button", { name: /expand first up/i }));
+    await user.click(screen.getByRole("button", { name: /expand second up/i }));
+
+    expect(screen.getAllByTestId("assessments-panel")).toHaveLength(1);
+    expect(screen.getByTestId("assessments-panel")).toHaveTextContent(
+      "Assessments for 2",
+    );
+
+    await user.click(screen.getByRole("button", { name: /collapse second up/i }));
+
+    expect(screen.queryByTestId("assessments-panel")).not.toBeInTheDocument();
+  });
+
+  it("offers none on a row that is a section, while its materials stay", async () => {
+    const user = userEvent.setup();
+
+    // Sections are drawn in their parent's branch, not handed here as topics.
+    // The guard is on the row regardless, so one that did arrive gets nothing.
+    renderWith([topic({ id: 9, title: "Stray section", parentId: 1 })]);
+
+    await user.click(
+      screen.getByRole("button", { name: /expand stray section/i }),
+    );
+
+    expect(screen.getByTestId("materials-panel")).toHaveTextContent(
+      "Materials for 9",
+    );
+    expect(screen.queryByTestId("assessments-panel")).not.toBeInTheDocument();
+  });
+
+  it("opens the topic the page names on arrival", () => {
+    renderWith([first, second], { initialExpandedTopicId: 2 });
+
+    expect(
+      screen.getByRole("button", { name: /collapse second up/i }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("materials-panel")).toHaveTextContent(
+      "Materials for 2",
+    );
+    expect(screen.getByTestId("assessments-panel")).toHaveTextContent(
+      "Assessments for 2",
     );
   });
 });

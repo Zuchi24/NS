@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { RouterProvider, createMemoryRouter } from "react-router";
 
 import { RoadmapAdminPage } from "./RoadmapAdminPage";
 import type { Challenge, Roadmap, Topic } from "@/features/content/types";
@@ -38,6 +39,11 @@ vi.mock("@/features/content/contentService", async (importOriginal) => {
 // card is open; stubbed so these tests are about the page rather than about it.
 vi.mock("./TopicMaterialsPanel", () => ({
   TopicMaterialsPanel: () => <div data-testid="materials-panel" />,
+}));
+
+// The same for a topic's assessments, which fetch and navigate on their own.
+vi.mock("./TopicAssessmentsPanel", () => ({
+  TopicAssessmentsPanel: () => <div data-testid="assessments-panel" />,
 }));
 
 // The roadmap writes go to their own service; stubbed so these say what the
@@ -96,17 +102,27 @@ const draft = roadmap({
   topics: [topic({ id: 2, roadmapId: 2, title: "Unreleased topic" })],
 });
 
-async function renderWith(roadmaps: Roadmap[], challenges: Challenge[] = []) {
+async function renderWith(
+  roadmaps: Roadmap[],
+  challenges: Challenge[] = [],
+  path = "/admin/roadmap",
+) {
   vi.mocked(content.fetchRoadmaps).mockResolvedValue(roadmaps);
   vi.mocked(content.fetchChallenges).mockResolvedValue(challenges);
 
-  const result = render(<RoadmapAdminPage />);
+  // Inside a router, because the selected roadmap lives in the address.
+  const router = createMemoryRouter(
+    [{ path: "/admin/roadmap", element: <RoadmapAdminPage /> }],
+    { initialEntries: [path] },
+  );
+
+  const result = render(<RouterProvider router={router} />);
 
   await waitFor(() =>
     expect(screen.queryByText(/loading catalogue/i)).not.toBeInTheDocument(),
   );
 
-  return result;
+  return { ...result, router };
 }
 
 beforeEach(() => {
@@ -292,5 +308,73 @@ describe("managing roadmaps alongside their topics", () => {
       screen.getByRole("button", { name: /new roadmap/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/nothing to author yet/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * The selection, held in the address.
+ *
+ * The assessment builder is a page of its own, and its Back link can only
+ * return an author to where they were if where they were is written down
+ * somewhere both pages can read. These say the page reads it, writes it, and
+ * degrades to its old behaviour when there is nothing usable there.
+ */
+describe("remembering where the author was", () => {
+  it("opens on the roadmap the address names", async () => {
+    await renderWith([roadmap(), draft], [], "/admin/roadmap?roadmap=2");
+
+    expect(screen.getByLabelText(/authoring/i)).toHaveValue("2");
+    expect(
+      screen.getByText(/1 topic in Unreleased roadmap/i),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to the first roadmap when the one named is not there", async () => {
+    await renderWith([roadmap(), draft], [], "/admin/roadmap?roadmap=99");
+
+    expect(screen.getByLabelText(/authoring/i)).toHaveValue("1");
+  });
+
+  it("writes the picked roadmap into the address", async () => {
+    const user = userEvent.setup();
+
+    const { router } = await renderWith([roadmap(), draft]);
+
+    expect(router.state.location.search).toBe("");
+
+    await user.selectOptions(screen.getByLabelText(/authoring/i), "2");
+
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?roadmap=2"),
+    );
+    expect(screen.getByLabelText(/authoring/i)).toHaveValue("2");
+  });
+
+  it("reopens the topic the address names", async () => {
+    await renderWith([roadmap(), draft], [], "/admin/roadmap?roadmap=2&topic=2");
+
+    expect(
+      screen.getByRole("button", { name: /collapse unreleased topic/i }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("assessments-panel")).toBeInTheDocument();
+  });
+
+  it("forgets the topic once another roadmap is picked", async () => {
+    const user = userEvent.setup();
+
+    const { router } = await renderWith(
+      [roadmap(), draft],
+      [],
+      "/admin/roadmap?roadmap=2&topic=2",
+    );
+
+    await user.selectOptions(screen.getByLabelText(/authoring/i), "1");
+
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?roadmap=1"),
+    );
+    expect(
+      screen.getByRole("button", { name: /expand released topic/i }),
+    ).toHaveAttribute("aria-expanded", "false");
   });
 });

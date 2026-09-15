@@ -1,0 +1,70 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  assessmentBuilderPath,
+  readRoadmapContext,
+  roadmapAdminPath,
+} from "./assessmentPaths";
+
+/**
+ * The roadmap context that rides along to the assessment builder and back.
+ *
+ * Small, but both pages depend on reading exactly what the other wrote — and on
+ * a hand-edited or stale address degrading to the plain page rather than to a
+ * broken one.
+ */
+
+describe("building the addresses", () => {
+  it("leaves the query off when there is no context", () => {
+    expect(roadmapAdminPath()).toBe("/admin/roadmap");
+    expect(assessmentBuilderPath(11)).toBe("/admin/roadmap/assessments/11");
+    expect(
+      assessmentBuilderPath(11, { roadmapId: null, topicId: null }),
+    ).toBe("/admin/roadmap/assessments/11");
+  });
+
+  it("carries the roadmap and topic when given", () => {
+    expect(roadmapAdminPath({ roadmapId: 3, topicId: 7 })).toBe(
+      "/admin/roadmap?roadmap=3&topic=7",
+    );
+    expect(assessmentBuilderPath(11, { roadmapId: 3, topicId: 7 })).toBe(
+      "/admin/roadmap/assessments/11?roadmap=3&topic=7",
+    );
+  });
+
+  it("carries only the half it has", () => {
+    expect(roadmapAdminPath({ roadmapId: 3 })).toBe("/admin/roadmap?roadmap=3");
+  });
+});
+
+describe("reading the context back", () => {
+  it("reads what the builder address carried", () => {
+    expect(
+      readRoadmapContext(new URLSearchParams("roadmap=3&topic=7")),
+    ).toEqual({ roadmapId: 3, topicId: 7 });
+  });
+
+  it("round-trips through the address it built", () => {
+    const path = assessmentBuilderPath(11, { roadmapId: 3, topicId: 7 });
+    const query = path.slice(path.indexOf("?"));
+
+    expect(roadmapAdminPath(readRoadmapContext(new URLSearchParams(query)))).toBe(
+      "/admin/roadmap?roadmap=3&topic=7",
+    );
+  });
+
+  it("ignores anything that is not a positive whole id", () => {
+    for (const raw of ["", "abc", "0", "-1", "1.5", "3x", "1e3"]) {
+      expect(
+        readRoadmapContext(new URLSearchParams({ roadmap: raw, topic: raw })),
+      ).toEqual({ roadmapId: null, topicId: null });
+    }
+  });
+
+  it("has nothing to say about an address with no query", () => {
+    expect(readRoadmapContext(new URLSearchParams())).toEqual({
+      roadmapId: null,
+      topicId: null,
+    });
+  });
+});

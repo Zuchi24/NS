@@ -48,6 +48,14 @@ vi.mock("./TopicMaterialsPanel", () => ({
   ),
 }));
 
+// Stubbed like the materials panel: it fetches and navigates on its own, and
+// what matters here is only which rows it is mounted on.
+vi.mock("./TopicAssessmentsPanel", () => ({
+  TopicAssessmentsPanel: ({ topicId }: { topicId: number }) => (
+    <div data-testid="assessments-panel">Assessments for {topicId}</div>
+  ),
+}));
+
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const service = await import("@/features/content/topicService");
@@ -520,6 +528,42 @@ describe("a section's learning materials", () => {
     expect(screen.getByTestId("materials-panel")).toHaveTextContent(
       "Materials for 1",
     );
+  });
+
+  it("offers no assessments on an open section", async () => {
+    const user = userEvent.setup();
+
+    renderWith([withSections]);
+
+    await user.click(materialsButton("OSI Model"));
+
+    // A section's materials, and nothing else: a section cannot own a pre-test
+    // or a post-test, so neither is offered on it.
+    expect(screen.getByTestId("materials-panel")).toHaveTextContent(
+      "Materials for 101",
+    );
+    expect(screen.queryByTestId("assessments-panel")).not.toBeInTheDocument();
+  });
+
+  it("keeps the assessments on the topic holding the sections", async () => {
+    const user = userEvent.setup();
+
+    renderWith([withSections]);
+
+    await user.click(
+      screen.getByRole("button", { name: /expand Networking Fundamentals/i }),
+    );
+
+    // One panel, for the topic by its own id — not one per section inside it.
+    expect(screen.getAllByTestId("assessments-panel")).toHaveLength(1);
+    expect(
+      within(cardFor("Networking Fundamentals")).getByTestId("assessments-panel"),
+    ).toHaveTextContent("Assessments for 1");
+
+    // Opening a section folds the topic, and its assessments go with it.
+    await user.click(materialsButton("OSI Model"));
+
+    expect(screen.queryByTestId("assessments-panel")).not.toBeInTheDocument();
   });
 
   it("carries the count on the action that opens them, open or shut", async () => {

@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { ArrowLeft, CheckCircle2, ClipboardList, Lock, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
@@ -29,6 +29,10 @@ import type {
   AssessmentLockState,
   AssessmentQuestion,
 } from "@/features/assessments/adminAssessmentService";
+import {
+  readRoadmapContext,
+  roadmapAdminPath,
+} from "@/features/assessments/assessmentPaths";
 
 /**
  * Building one of a topic's assessments.
@@ -46,8 +50,6 @@ import type {
  * a refusal.
  */
 
-const ROADMAP_PATH = "/admin/roadmap";
-
 /** The id in the address, or null when the address names no assessment. */
 function parseAssessmentId(raw: string | undefined): number | null {
   if (raw === undefined || !/^\d+$/.test(raw)) return null;
@@ -61,6 +63,12 @@ export function AssessmentBuilderPage() {
   const { assessmentId } = useParams();
   const navigate = useNavigate();
   const id = parseAssessmentId(assessmentId);
+
+  // Back to where the author came from: the roadmap and topic the builder was
+  // opened from ride along in the address, and it is the plain roadmap page
+  // when they do not.
+  const [searchParams] = useSearchParams();
+  const roadmapPath = roadmapAdminPath(readRoadmapContext(searchParams));
 
   // An address with no usable id is not worth a request: it can only 404.
   const load = useCallback(
@@ -108,7 +116,7 @@ export function AssessmentBuilderPage() {
       {/* Above every state, so the way out is there whether the assessment
           loaded, failed, or is still on its way. */}
       <div>
-        <Button variant="ghost" size="sm" onClick={() => navigate(ROADMAP_PATH)}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(roadmapPath)}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to roadmap
         </Button>

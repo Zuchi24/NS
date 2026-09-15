@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useSearchParams } from "react-router";
 import {
   EmptyState,
   ErrorState,
   LoadingState,
 } from "@/components/common/AsyncStates";
+import { readRoadmapContext } from "@/features/assessments/assessmentPaths";
 import { fetchRoadmaps } from "@/features/content/contentService";
 import { useAsync } from "@/services/useAsync";
 import { RoadmapPanel } from "./RoadmapPanel";
@@ -36,9 +37,22 @@ export function RoadmapAdminPage() {
     fetchRoadmaps({ withSubtopics: true }).then((roadmaps) => ({ roadmaps })),
   );
 
-  const [selectedRoadmapId, setSelectedRoadmapId] = useState<number | null>(
-    null,
-  );
+  /*
+   * Which roadmap is being authored, and which topic to open on arrival, are
+   * held in the address rather than in state. The assessment builder is a page
+   * of its own, and this is what lets its Back link return an author to the
+   * roadmap and topic they left from. Picking a roadmap replaces the entry
+   * rather than adding one: Back should leave the page, not step through every
+   * roadmap that was glanced at.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { roadmapId: selectedRoadmapId, topicId: arrivalTopicId } =
+    readRoadmapContext(searchParams);
+
+  const setSelectedRoadmapId = (next: number | null) =>
+    setSearchParams(next === null ? {} : { roadmap: String(next) }, {
+      replace: true,
+    });
 
   if (loading) return <LoadingState label="Loading catalogue…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
@@ -81,6 +95,9 @@ export function RoadmapAdminPage() {
           roadmapTitle={roadmap.title}
           topics={roadmap.topics}
           onChanged={reload}
+          // Only on arrival: picking another roadmap writes an address with no
+          // topic in it, so this does not follow the author into it.
+          initialExpandedTopicId={arrivalTopicId}
         />
       )}
     </div>
