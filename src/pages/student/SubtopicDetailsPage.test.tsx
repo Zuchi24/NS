@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SubtopicDetailsPage } from "./SubtopicDetailsPage";
 import type { LearningMaterial, Subtopic, Topic } from "@/features/content/types";
+import type { TopicProgression } from "@/features/content/progressionService";
 
 /**
  * The student's view of one section, on a page of its own.
@@ -22,10 +23,16 @@ import type { LearningMaterial, Subtopic, Topic } from "@/features/content/types
  * can be typed, so "this section is in a roadmap nobody has published" and
  * "this id is not a section at all" both have to land somewhere honest rather
  * than on a half-drawn page.
+ *
+ * And a section is finished only by saying so. Opening it completes nothing;
+ * "Mark as Complete" does, once, and what that opened is what the server
+ * answered — never assumed before it arrives. The progression service is
+ * stubbed, so each test hands the page the server's judgement to draw.
  */
 
 const navigate = vi.fn();
 const user = userEvent.setup();
+let isAdmin = false;
 
 vi.mock("react-router", () => ({
   useNavigate: () => navigate,
@@ -33,8 +40,18 @@ vi.mock("react-router", () => ({
 }));
 
 vi.mock("@/features/auth/useAuth", () => ({
-  useAuth: () => ({ isAdmin: false }),
+  useAuth: () => ({ isAdmin }),
 }));
+
+vi.mock("@/features/content/progressionService", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/features/content/progressionService")
+  >();
+
+  return { ...actual, fetchTopicProgression: vi.fn(), completeSubtopic: vi.fn() };
+});
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 vi.mock("@/features/content/contentService", async (importOriginal) => {
   const actual = await importOriginal<
@@ -45,6 +62,8 @@ vi.mock("@/features/content/contentService", async (importOriginal) => {
 });
 
 const content = await import("@/features/content/contentService");
+const progress = await import("@/features/content/progressionService");
+const { toast } = await import("sonner");
 const { ApiError } = await import("@/services/api");
 
 function material(over: Partial<LearningMaterial> = {}): LearningMaterial {
@@ -109,8 +128,34 @@ function serve(over: Partial<Subtopic> = {}) {
   });
 }
 
+/**
+ * The topic's progression as the server would answer it.
+ *
+ * By default the student is past 100 and 101 and on to 102 — so every section
+ * the navigation tests walk to is one the server has opened.
+ */
+function progression(over: Partial<TopicProgression> = {}): TopicProgression {
+  return {
+    topicId: 1,
+    preTest: null,
+    subtopics: [
+      { id: 100, title: "What a Network Is", order: 0, status: "completed" },
+      { id: 101, title: "OSI Model", order: 1, status: "completed" },
+      { id: 102, title: "TCP/IP", order: 2, status: "available" },
+    ],
+    nextSubtopicId: 102,
+    completedCount: 2,
+    totalCount: 3,
+    remainingCount: 1,
+    postTest: null,
+    ...over,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  isAdmin = false;
+  vi.mocked(progress.fetchTopicProgression).mockResolvedValue(progression());
 });
 
 afterEach(cleanup);
@@ -166,7 +211,7 @@ describe("a section's own page", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows nothing that paces a section", async () => {
+  it("shows no challenge, video or progress bar", async () => {
     serve({ materials: [material()] });
 
     render(<SubtopicDetailsPage />);
@@ -174,9 +219,9 @@ describe("a section's own page", () => {
     await screen.findByText("Layer chart");
 
     /*
-     * A section is a heading with materials under it. There is no standing to
-     * report, nothing to unlock and no challenges of its own — and no video
-     * either, which a section cannot be given.
+     * A section is a heading with materials under it: no challenges of its own
+     * and no video, which a section cannot be given. Its only standing is
+     * whether it is complete, which the progress panel says in words.
      */
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByText(/challenge/i)).not.toBeInTheDocument();
@@ -272,6 +317,27 @@ describe("when there is no section to draw", () => {
     expect(await screen.findByText(/subtopic locked/i)).toBeInTheDocument();
   });
 
+  it("gives the server's reason when the section has not been reached", async () => {
+    vi.mocked(content.fetchSubtopic).mockRejectedValue(
+      new ApiError(
+        'Take the pre-test for "Networking Fundamentals" before starting its subtopics.',
+        403,
+      ),
+    );
+
+    render(<SubtopicDetailsPage />);
+
+    expect(await screen.findByText(/subtopic locked/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Take the pre-test for "Networking Fundamentals" before starting its subtopics.',
+      ),
+    ).toBeInTheDocument();
+    // Nothing of it is drawn, and nothing about it is asked.
+    expect(screen.queryByText("Learning Materials")).not.toBeInTheDocument();
+    expect(progress.fetchTopicProgression).not.toHaveBeenCalled();
+  });
+
   it("says so when the id names a topic rather than a section", async () => {
     // fetchSubtopic answers null for a root topic: it has a page of its own
     // and this route is not it.
@@ -280,5 +346,217 @@ describe("when there is no section to draw", () => {
     render(<SubtopicDetailsPage />);
 
     expect(await screen.findByText(/subtopic not found/i)).toBeInTheDocument();
+  });
+});
+
+describe("marking a subtopic complete", () => {
+  /** On 101, with the section before it done and the one after still shut. */
+  const reading = progression({
+    subtopics: [
+      { id: 100, title: "What a Network Is", order: 0, status: "completed" },
+      { id: 101, title: "OSI Model", order: 1, status: "available" },
+      { id: 102, title: "TCP/IP", order: 2, status: "locked" },
+    ],
+    nextSubtopicId: 101,
+    completedCount: 1,
+    remainingCount: 2,
+  });
+
+  /** What the server answers once 101 is complete. */
+  const afterward = progression({
+    subtopics: [
+      { id: 100, title: "What a Network Is", order: 0, status: "completed" },
+      { id: 101, title: "OSI Model", order: 1, status: "completed" },
+      { id: 102, title: "TCP/IP", order: 2, status: "available" },
+    ],
+    nextSubtopicId: 102,
+    completedCount: 2,
+    remainingCount: 1,
+  });
+
+  /** Renders 101 while it is the section to finish, and hands back its button. */
+  async function showReading() {
+    serve();
+    vi.mocked(progress.fetchTopicProgression).mockResolvedValue(reading);
+
+    render(<SubtopicDetailsPage />);
+
+    return screen.findByRole("button", { name: "Mark as Complete" });
+  }
+
+  it("does not complete a subtopic by opening it", async () => {
+    expect(await showReading()).toBeEnabled();
+
+    // The parent topic's progression, read for this student.
+    expect(progress.fetchTopicProgression).toHaveBeenCalledWith(1);
+    expect(progress.completeSubtopic).not.toHaveBeenCalled();
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument();
+  });
+
+  it("keeps the sections the server has not opened out of reach", async () => {
+    await showReading();
+
+    expect(screen.getByRole("button", { name: /next subtopic/i })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: /open TCP\/IP/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("(locked)")).toBeInTheDocument();
+
+    // What came before stays open for review.
+    expect(screen.getByRole("button", { name: /previous subtopic/i })).toBeEnabled();
+  });
+
+  it("marks it complete through the service and shows what the server opened", async () => {
+    vi.mocked(progress.completeSubtopic).mockResolvedValue(afterward);
+
+    await user.click(await showReading());
+
+    expect(progress.completeSubtopic).toHaveBeenCalledWith(101);
+    expect(await screen.findByText("Completed")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Mark as Complete" }),
+    ).not.toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith("Marked “OSI Model” complete.");
+
+    // The next section, open because the server's answer said so.
+    expect(screen.getByRole("button", { name: /next subtopic/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /open TCP\/IP/i })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Continue to TCP/IP" }));
+
+    expect(navigate).toHaveBeenCalledWith("/subtopic/102");
+    // Drawn from the progression the completion answered with.
+    expect(progress.fetchTopicProgression).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends one completion however often it is pressed", async () => {
+    vi.mocked(progress.completeSubtopic).mockReturnValue(new Promise(() => {}));
+
+    await user.click(await showReading());
+
+    const pending = screen.getByRole("button", { name: "Marking complete…" });
+    expect(pending).toBeDisabled();
+
+    await user.click(pending);
+
+    expect(progress.completeSubtopic).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks nothing complete when the server refuses", async () => {
+    vi.mocked(progress.completeSubtopic).mockRejectedValue(
+      new ApiError("The server had a problem with that.", 500),
+    );
+
+    await user.click(await showReading());
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("The server had a problem with that."),
+    );
+    expect(screen.getByRole("button", { name: "Mark as Complete" })).toBeEnabled();
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /next subtopic/i })).toBeDisabled();
+  });
+
+  it("reads the page again when the server says the section is shut after all", async () => {
+    const refusal = 'Complete "What a Network Is" before moving on to "OSI Model".';
+
+    vi.mocked(content.fetchSubtopic)
+      .mockResolvedValueOnce({
+        subtopic: subtopic({ order: 1 }),
+        parent,
+        roadmapTitle: "Networking Essentials",
+        siblings,
+      })
+      .mockRejectedValue(new ApiError(refusal, 403));
+    vi.mocked(progress.fetchTopicProgression).mockResolvedValue(reading);
+    vi.mocked(progress.completeSubtopic).mockRejectedValue(new ApiError(refusal, 403));
+
+    render(<SubtopicDetailsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Mark as Complete" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(refusal));
+
+    // The page as the server now has it, not a completion nobody confirmed.
+    expect(await screen.findByText(/subtopic locked/i)).toBeInTheDocument();
+    expect(screen.getByText(refusal)).toBeInTheDocument();
+    expect(content.fetchSubtopic).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument();
+  });
+
+  it("offers the post-test once the last section is complete", async () => {
+    const both = [siblings[0], subtopic({ id: 101, title: "OSI Model", order: 1 })];
+    const post = {
+      id: 52,
+      title: "Check your understanding",
+      submitted: false,
+      result: null,
+    };
+
+    vi.mocked(content.fetchSubtopic).mockResolvedValue({
+      subtopic: both[1],
+      parent,
+      roadmapTitle: "Networking Essentials",
+      siblings: both,
+    });
+    vi.mocked(progress.fetchTopicProgression).mockResolvedValue(
+      progression({
+        subtopics: [
+          { id: 100, title: "What a Network Is", order: 0, status: "completed" },
+          { id: 101, title: "OSI Model", order: 1, status: "available" },
+        ],
+        nextSubtopicId: 101,
+        completedCount: 1,
+        totalCount: 2,
+        remainingCount: 1,
+        postTest: {
+          ...post,
+          available: false,
+          lockedReason:
+            'Complete every subtopic of "Networking Fundamentals" before taking its post-test (1 left).',
+        },
+      }),
+    );
+    vi.mocked(progress.completeSubtopic).mockResolvedValue(
+      progression({
+        subtopics: [
+          { id: 100, title: "What a Network Is", order: 0, status: "completed" },
+          { id: 101, title: "OSI Model", order: 1, status: "completed" },
+        ],
+        nextSubtopicId: null,
+        completedCount: 2,
+        totalCount: 2,
+        remainingCount: 0,
+        postTest: { ...post, available: true, lockedReason: null },
+      }),
+    );
+
+    render(<SubtopicDetailsPage />);
+
+    const mark = await screen.findByRole("button", { name: "Mark as Complete" });
+
+    // Not before the server says so.
+    expect(
+      screen.queryByRole("button", { name: "Take the post-test" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(mark);
+    await user.click(await screen.findByRole("button", { name: "Take the post-test" }));
+
+    expect(navigate).toHaveBeenCalledWith("/assessments/52");
+  });
+
+  it("asks nothing about progress for staff, who have none to record", async () => {
+    isAdmin = true;
+    serve();
+
+    render(<SubtopicDetailsPage />);
+
+    await screen.findByText(/subtopic 2 of 3/i);
+
+    expect(progress.fetchTopicProgression).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Mark as Complete" }),
+    ).not.toBeInTheDocument();
   });
 });

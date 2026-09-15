@@ -20,6 +20,7 @@ import {
 import { fetchTopic } from "@/features/content/contentService";
 import { fetchTopicMaterials, youtubeId } from "@/features/content/materialService";
 import { MaterialList } from "@/features/content/components/MaterialList";
+import { TopicProgressCard } from "@/features/content/components/TopicProgressCard";
 import type { LearningMaterial, Topic } from "@/features/content/types";
 import { ApiError } from "@/services/api";
 import { useAsync } from "@/services/useAsync";
@@ -28,11 +29,11 @@ import { useAsync } from "@/services/useAsync";
  * One topic: what it covers, its video, its learning materials, and how
  * far the student has got.
  *
- * Its subtopics are deliberately absent. Each of them has a page of its own,
- * reached by clicking it on the roadmap, and that page is where its materials
- * are drawn — so listing them again here would be the same reading in two
- * places and a topic page that grew with every subtopic added to it. What this
- * page holds is the topic's own, and nothing else's.
+ * What its subtopics hold is not drawn here. Each has a page of its own, and
+ * that page is where its materials are — so the same reading is never in two
+ * places. What a student is shown of them is their way through the topic: the
+ * pre-test, each subtopic's standing and a way into the open ones, and the
+ * post-test, all exactly as the server judged them (TopicProgressCard).
  *
  * Everything here is the server's — including whether the topic is open at all.
  * The roadmap locks topics in order and the API refuses a locked one outright,
@@ -157,6 +158,15 @@ export function TopicDetailsPage() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* First, because it is what decides what a student can open next.
+              Staff read everything and have no progress to record. Only for a
+              topic of the roadmap, as the server describes it: progression is
+              read from the topic holding a subtopic, and the server refuses it
+              for a subtopic reached at this address. */}
+          {!isAdmin && topic.parentId === null && (
+            <TopicProgressCard topicId={topic.id} />
+          )}
+
           {topic.description && (
             <Card className="border border-gray-200 shadow-sm bg-gradient-to-br from-blue-50 to-white">
               <CardContent className="p-6">

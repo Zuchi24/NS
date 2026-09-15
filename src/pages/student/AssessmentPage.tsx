@@ -23,6 +23,10 @@ import type {
   AssessmentSelections,
   StudentAssessment,
 } from "@/features/assessments/studentAssessmentService";
+import {
+  fetchTopicProgression,
+  openNextSubtopic,
+} from "@/features/content/progressionService";
 import { ApiError } from "@/services/api";
 import { shortDate } from "@/services/time";
 import { useAsync } from "@/services/useAsync";
@@ -173,7 +177,17 @@ export function AssessmentPage() {
       )}
 
       {result !== null ? (
-        <ResultCard result={result} />
+        <>
+          <ResultCard result={result} />
+          {/* A submitted pre-test is what opens a topic's subtopics. Which one
+              it opened is read from the server afresh, not assumed. */}
+          {assessment.type === "pre_test" && (
+            <NextSubtopic
+              topicId={assessment.topicId}
+              onOpen={(subtopicId) => navigate(`/subtopic/${subtopicId}`)}
+            />
+          )}
+        </>
       ) : assessment.questions.length === 0 ? (
         <EmptyState
           title="No questions yet"
@@ -262,6 +276,41 @@ function ResultCard({ result }: { result: AssessmentResult }) {
           </p>
         )}
         <p className="text-xs text-gray-500">Each assessment can be taken once.</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Where a submitted pre-test leads: the subtopic the server now opens.
+ *
+ * Mounted only once there is a result, so the progression it reads is the one
+ * after the submission. The topic is the one the server says this assessment
+ * belongs to. If nothing is open — a waiver or completion elsewhere changed the
+ * picture, or the read fails — it offers nothing, and Back still leads to the
+ * topic, which shows the whole of it.
+ */
+function NextSubtopic({
+  topicId,
+  onOpen,
+}: {
+  topicId: number;
+  onOpen: (subtopicId: number) => void;
+}) {
+  const load = useCallback(() => fetchTopicProgression(topicId), [topicId]);
+  const { data } = useAsync(load, [topicId]);
+
+  const next = openNextSubtopic(data);
+
+  if (next === null) return null;
+
+  return (
+    <Card className="border border-gray-200 shadow-sm">
+      <CardContent className="p-6 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-gray-700">
+          The topic&apos;s subtopics are open. Next up: {next.title}.
+        </p>
+        <Button onClick={() => onOpen(next.id)}>Start {next.title}</Button>
       </CardContent>
     </Card>
   );

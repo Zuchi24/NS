@@ -11,6 +11,7 @@ import type {
   StudentAssessment,
   StudentAssessmentQuestion,
 } from "@/features/assessments/studentAssessmentService";
+import type { TopicProgression } from "@/features/content/progressionService";
 
 /**
  * A student taking a pre-test or post-test.
@@ -55,9 +56,18 @@ vi.mock("@/features/assessments/studentAssessmentService", async (importOriginal
   };
 });
 
+vi.mock("@/features/content/progressionService", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/features/content/progressionService")
+  >();
+
+  return { ...actual, fetchTopicProgression: vi.fn() };
+});
+
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const service = await import("@/features/assessments/studentAssessmentService");
+const progress = await import("@/features/content/progressionService");
 const realService = await vi.importActual<
   typeof import("@/features/assessments/studentAssessmentService")
 >("@/features/assessments/studentAssessmentService");
@@ -144,6 +154,7 @@ function submitButton() {
 beforeEach(() => {
   vi.clearAllMocks();
   params = { assessmentId: "11" };
+  vi.mocked(progress.fetchTopicProgression).mockResolvedValue(progression());
 });
 
 afterEach(cleanup);
@@ -629,5 +640,100 @@ describe("the answer key", () => {
       "submittedAt",
       "totalPoints",
     ]);
+  });
+});
+
+/** The topic's progression once its pre-test has been submitted. */
+function progression(over: Partial<TopicProgression> = {}): TopicProgression {
+  return {
+    topicId: 4,
+    preTest: {
+      id: 11,
+      title: "Networking Fundamentals",
+      submitted: true,
+      waived: false,
+      required: false,
+      result: { earnedPoints: 8, totalPoints: 10, percent: 80, submittedAt: null },
+    },
+    subtopics: [
+      { id: 101, title: "OSI Model", order: 0, status: "available" },
+      { id: 102, title: "TCP/IP", order: 1, status: "locked" },
+    ],
+    nextSubtopicId: 101,
+    completedCount: 0,
+    totalCount: 2,
+    remainingCount: 2,
+    postTest: null,
+    ...over,
+  };
+}
+
+describe("where the assessment leads", () => {
+  it("reads the topic's progression again after a pre-test is submitted, and offers what it opened", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    vi.mocked(service.submitAssessment).mockResolvedValue(result);
+
+    // Nothing is asked about the topic while the form is still being answered.
+    expect(progress.fetchTopicProgression).not.toHaveBeenCalled();
+
+    await answerAll(user);
+    await user.click(submitButton());
+
+    const start = await screen.findByRole("button", { name: "Start OSI Model" });
+
+    // The topic the server says the assessment belongs to, read after the
+    // submission rather than assumed to be open.
+    expect(progress.fetchTopicProgression).toHaveBeenCalledWith(4);
+
+    await user.click(start);
+
+    expect(navigate).toHaveBeenCalledWith("/subtopic/101");
+  });
+
+  it("offers no subtopic the server has not opened", async () => {
+    vi.mocked(progress.fetchTopicProgression).mockResolvedValue(
+      progression({
+        subtopics: [
+          { id: 101, title: "OSI Model", order: 0, status: "locked" },
+          { id: 102, title: "TCP/IP", order: 1, status: "locked" },
+        ],
+      }),
+    );
+
+    await show(assessment(), result);
+
+    await waitFor(() => expect(progress.fetchTopicProgression).toHaveBeenCalledWith(4));
+    await screen.findByRole("region", { name: "Assessment submitted" });
+
+    expect(screen.queryByRole("button", { name: /^Start/ })).not.toBeInTheDocument();
+  });
+
+  it("offers a taken pre-test's next subtopic when the result is reopened", async () => {
+    await show(assessment(), result);
+
+    expect(
+      await screen.findByRole("button", { name: "Start OSI Model" }),
+    ).toBeInTheDocument();
+  });
+
+  it("sends a post-test back to its topic and offers no subtopic", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ type: "post_test", title: "Check your understanding" }), result);
+
+    await user.click(screen.getByRole("button", { name: "Back to topic" }));
+
+    expect(navigate).toHaveBeenCalledWith("/topic/4");
+    expect(progress.fetchTopicProgression).not.toHaveBeenCalled();
+  });
+
+  it("goes back to the topic the server names, whatever the student came from", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ topicId: 9 }));
+
+    await user.click(screen.getByRole("button", { name: "Back to topic" }));
+
+    expect(navigate).toHaveBeenCalledWith("/topic/9");
   });
 });
