@@ -212,6 +212,15 @@ export const routes: RouteObject[] = [
               Component: (await import("@/pages/admin/RoadmapAdminPage")).RoadmapAdminPage,
             }),
           },
+          // An assessment is built on a page of its own, addressed by its id
+          // like a student is, and under roadmap because that is where it is
+          // reached from and where its Back link returns to.
+          {
+            path: "roadmap/assessments/:assessmentId",
+            lazy: async () => ({
+              Component: (await import("@/pages/admin/AssessmentBuilderPage")).AssessmentBuilderPage,
+            }),
+          },
           {
             path: "achievements",
             lazy: async () => ({

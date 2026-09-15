@@ -68,6 +68,7 @@ const EXPECTED_PATHS = [
   "/admin/students/:year/:sectionId/:studentId",
   "/admin/analytics",
   "/admin/roadmap",
+  "/admin/roadmap/assessments/:assessmentId",
   "/admin/achievements",
   "/admin/profile",
 ];
