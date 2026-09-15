@@ -1,6 +1,16 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { ArrowLeft, CheckCircle2, ClipboardList, Lock, Pencil } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  CheckCircle2,
+  ClipboardList,
+  Lock,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -17,17 +27,26 @@ import { ApiError } from "@/services/api";
 import { useAsync } from "@/services/useAsync";
 import {
   ASSESSMENT_TYPE_LABELS,
+  EMPTY_QUESTION_DRAFT,
+  createQuestion,
+  deleteQuestion,
   draftOfAssessment,
+  draftOfQuestion,
   fetchAssessment,
   lockStateOf,
+  reorderQuestions,
   updateAssessment,
+  updateQuestion,
   validateAssessmentDraft,
+  validateQuestionDraft,
 } from "@/features/assessments/adminAssessmentService";
 import type {
   Assessment,
+  AssessmentChoiceDraft,
   AssessmentDraft,
   AssessmentLockState,
   AssessmentQuestion,
+  AssessmentQuestionDraft,
 } from "@/features/assessments/adminAssessmentService";
 import {
   readRoadmapContext,
@@ -41,13 +60,14 @@ import {
  * list of questions, each with four choices, and that does not fit inside a
  * topic's card without crowding out the topic.
  *
- * What an author can change here is the title and the description, which stay
- * editable for the assessment's whole life. The questions are shown as they are
- * stored, answer key included, and whether they could still be changed is said
- * rather than left to be discovered: a published assessment's questions are
- * locked until it is unpublished, and a taken one's are locked for good. Both
- * locks are the server's; the notice is here so an author is not surprised by
- * a refusal.
+ * Title and description stay editable for the assessment's whole life. The
+ * questions are authored here too — written, rewritten, deleted and put in
+ * order — but only while nothing has settled them: a published assessment's
+ * questions are locked until it is unpublished, and a taken one's are locked
+ * for good. Both locks are the server's. The page reads them to decide what to
+ * offer, and when a write is refused anyway — another author published it, a
+ * student submitted it — it shows the server's reason and reloads, so what is
+ * on screen is the lock as it now stands rather than as it was.
  */
 
 /** The id in the address, or null when the address names no assessment. */
@@ -57,6 +77,20 @@ function parseAssessmentId(raw: string | undefined): number | null {
   const id = Number(raw);
 
   return id > 0 ? id : null;
+}
+
+/**
+ * A refusal that says this page is out of date rather than that the input was
+ * wrong: 409 once the assessment has been taken, and a 422 carrying no field
+ * errors once it has been published (or its questions changed under a reorder).
+ * Either way the answer is the same — say why, and read the assessment again.
+ */
+function isStaleRefusal(e: unknown): boolean {
+  return (
+    e instanceof ApiError &&
+    Object.keys(e.errors).length === 0 &&
+    (e.status === 409 || e.status === 422)
+  );
 }
 
 export function AssessmentBuilderPage() {
@@ -106,7 +140,7 @@ export function AssessmentBuilderPage() {
           }}
         />
         <LockNotice state={lockStateOf(data)} />
-        <QuestionList questions={data.questions ?? []} />
+        <QuestionList assessment={data} onChanged={reload} />
       </>
     );
   }
@@ -366,44 +400,525 @@ function DetailsForm({
   );
 }
 
-function QuestionList({ questions }: { questions: AssessmentQuestion[] }) {
-  const ordered = [...questions].sort((a, b) => a.order - b.order);
+/** Which question form is open, if any. One at a time, like every other list. */
+type QuestionEditing = { mode: "new" } | { mode: "edit"; questionId: number };
+
+/**
+ * The questions, and — while the assessment is editable — writing them.
+ *
+ * While it is locked nothing here offers a write at all: no add, no edit, no
+ * delete, no reorder. The lock notice above says why. Hidden rather than
+ * disabled, because a taken assessment never unlocks and a greyed-out button
+ * would be promising something that does not arrive.
+ *
+ * Every write reloads the whole assessment afterwards rather than patching the
+ * list: the server decides a new question's place and renumbers after a delete,
+ * and the page shows what it stored.
+ */
+function QuestionList({
+  assessment,
+  onChanged,
+}: {
+  assessment: Assessment;
+  onChanged: () => void;
+}) {
+  const ordered = [...(assessment.questions ?? [])].sort(
+    (a, b) => a.order - b.order,
+  );
+  const authoring = lockStateOf(assessment) === "editable";
+
+  const [editing, setEditing] = useState<QuestionEditing | null>(null);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // The disabled buttons are what an author sees; this is what actually stops
+  // a second reorder or delete going out before the next render.
+  const inFlight = useRef(false);
+
+  const formOpen = editing !== null;
+
+  /** One list-level write at a time, reloading on success or a stale refusal. */
+  const write = async (action: () => Promise<void>, fallback: string) => {
+    if (inFlight.current) return;
+
+    inFlight.current = true;
+    setBusy(true);
+
+    try {
+      await action();
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : fallback);
+
+      if (isStaleRefusal(e)) onChanged();
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+      setConfirmingId(null);
+    }
+  };
+
+  const move = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+
+    if (target < 0 || target >= ordered.length) return;
+
+    // The whole order, as the server insists: what is stored is the list the
+    // author is looking at, not a guess assembled from one move.
+    const ids = ordered.map((question) => question.id);
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+
+    void write(async () => {
+      await reorderQuestions(assessment.id, ids);
+    }, "Could not reorder the questions.");
+  };
+
+  const remove = (question: AssessmentQuestion, number: number) =>
+    void write(async () => {
+      await deleteQuestion(question.id);
+      toast.success(`Question ${number} deleted.`);
+    }, "Could not delete the question.");
 
   return (
     <Card className="border-gray-200">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <CardTitle className="text-lg">Questions</CardTitle>
+
+        {authoring && (
+          <Button
+            size="sm"
+            disabled={formOpen || busy}
+            onClick={() => {
+              setConfirmingId(null);
+              setEditing({ mode: "new" });
+            }}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add question
+          </Button>
+        )}
       </CardHeader>
 
-      <CardContent>
-        {ordered.length === 0 ? (
+      <CardContent className="space-y-4">
+        {ordered.length === 0 && !(authoring && editing?.mode === "new") && (
           <EmptyState
-            title="No questions yet"
-            description="This assessment has no questions, and it cannot be published until it has at least one."
+            title="No questions yet."
+            description={
+              authoring
+                ? "Add your first question."
+                : "This assessment is locked, so questions cannot be added to it."
+            }
           />
-        ) : (
+        )}
+
+        {ordered.length > 0 && (
           <ol className="space-y-3">
-            {ordered.map((question, index) => (
-              <li key={question.id}>
-                <QuestionCard question={question} number={index + 1} />
-              </li>
-            ))}
+            {ordered.map((question, index) => {
+              const number = index + 1;
+
+              return (
+                <li key={question.id}>
+                  {authoring &&
+                  editing?.mode === "edit" &&
+                  editing.questionId === question.id ? (
+                    <QuestionForm
+                      key={question.id}
+                      assessmentId={assessment.id}
+                      question={question}
+                      number={number}
+                      onClose={() => setEditing(null)}
+                      onSaved={onChanged}
+                      onStale={onChanged}
+                    />
+                  ) : (
+                    <QuestionCard question={question} number={number}>
+                      {authoring && (
+                        <QuestionControls
+                          number={number}
+                          isFirst={index === 0}
+                          isLast={index === ordered.length - 1}
+                          // A reload under an open form would take the
+                          // author's unsaved typing with it.
+                          disabled={busy || formOpen}
+                          busy={busy}
+                          confirming={confirmingId === question.id}
+                          onUp={() => move(index, -1)}
+                          onDown={() => move(index, 1)}
+                          onEdit={() => {
+                            setConfirmingId(null);
+                            setEditing({ mode: "edit", questionId: question.id });
+                          }}
+                          onAskDelete={() => setConfirmingId(question.id)}
+                          onCancelDelete={() => setConfirmingId(null)}
+                          onDelete={() => remove(question, number)}
+                        />
+                      )}
+                    </QuestionCard>
+                  )}
+                </li>
+              );
+            })}
           </ol>
+        )}
+
+        {authoring && editing?.mode === "new" && (
+          <QuestionForm
+            key="new"
+            assessmentId={assessment.id}
+            question={null}
+            number={ordered.length + 1}
+            onClose={() => setEditing(null)}
+            onSaved={onChanged}
+            onStale={onChanged}
+          />
         )}
       </CardContent>
     </Card>
   );
 }
 
+function QuestionControls({
+  number,
+  isFirst,
+  isLast,
+  disabled,
+  busy,
+  confirming,
+  onUp,
+  onDown,
+  onEdit,
+  onAskDelete,
+  onCancelDelete,
+  onDelete,
+}: {
+  number: number;
+  isFirst: boolean;
+  isLast: boolean;
+  /** A write is out, or a form is open. */
+  disabled: boolean;
+  /** A write is out. */
+  busy: boolean;
+  confirming: boolean;
+  onUp: () => void;
+  onDown: () => void;
+  onEdit: () => void;
+  onAskDelete: () => void;
+  onCancelDelete: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="space-y-2 border-t border-gray-100 pt-3">
+      <div className="flex flex-wrap items-center gap-1">
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label={`Move question ${number} up`}
+          disabled={isFirst || disabled}
+          onClick={onUp}
+        >
+          <ArrowUp className="w-4 h-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label={`Move question ${number} down`}
+          disabled={isLast || disabled}
+          onClick={onDown}
+        >
+          <ArrowDown className="w-4 h-4" />
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          aria-label={`Edit question ${number}`}
+          disabled={disabled}
+          onClick={onEdit}
+        >
+          <Pencil className="w-4 h-4 mr-2" />
+          Edit
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={`Delete question ${number}`}
+          disabled={disabled}
+          onClick={onAskDelete}
+        >
+          <Trash2 className="w-4 h-4 mr-2 text-red-600" />
+          Delete
+        </Button>
+      </div>
+
+      {confirming && (
+        <div
+          role="alertdialog"
+          aria-label={`Delete question ${number}?`}
+          className="rounded-md border border-red-200 bg-red-50/60 p-3 space-y-2"
+        >
+          <p className="text-xs text-gray-700">
+            Delete question {number}? Its four choices go with it, and this
+            cannot be undone.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="destructive" disabled={busy} onClick={onDelete}>
+              Delete
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={onCancelDelete}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const CHOICE_LETTERS = ["A", "B", "C", "D"];
 
-/** One question as it is stored, answer key included — read-only. */
+/** A blank question, with the first choice marked correct to start from. */
+function newQuestionDraft(): AssessmentQuestionDraft {
+  return {
+    ...EMPTY_QUESTION_DRAFT,
+    choices: EMPTY_QUESTION_DRAFT.choices.map((choice, index) => ({
+      ...choice,
+      isCorrect: index === 0,
+    })),
+  };
+}
+
+/**
+ * Where a server field error belongs in the question form.
+ *
+ * A choice's label keeps its own key, so the message sits under that choice. A
+ * complaint about the set, or about a choice as a whole or its is_correct flag,
+ * goes under the choices together — there is no separate box for any of those.
+ */
+function questionFieldOf(field: string): string {
+  if (/^choices\.\d+\.label$/.test(field)) return field;
+  if (field === "choices" || field.startsWith("choices.")) return "choices";
+
+  return field;
+}
+
+const QUESTION_FORM_FIELD = /^(prompt|points|choices|choices\.\d+\.label)$/;
+
+/** One question being written, new or existing. */
+function QuestionForm({
+  assessmentId,
+  question,
+  number,
+  onClose,
+  onSaved,
+  onStale,
+}: {
+  assessmentId: number;
+  question: AssessmentQuestion | null;
+  number: number;
+  onClose: () => void;
+  onSaved: () => void;
+  /** The server says the page is out of date — reload it. */
+  onStale: () => void;
+}) {
+  const isNew = question === null;
+  const prefix = isNew ? "question-new" : `question-${question.id}`;
+
+  const [draft, setDraft] = useState<AssessmentQuestionDraft>(() =>
+    question === null ? newQuestionDraft() : draftOfQuestion(question),
+  );
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const inFlight = useRef(false);
+
+  const setChoice = (index: number, patch: Partial<AssessmentChoiceDraft>) =>
+    setDraft((current) => ({
+      ...current,
+      choices: current.choices.map((choice, at) =>
+        at === index ? { ...choice, ...patch } : choice,
+      ),
+    }));
+
+  // One correct answer: choosing one un-chooses the rest.
+  const markCorrect = (index: number) =>
+    setDraft((current) => ({
+      ...current,
+      choices: current.choices.map((choice, at) => ({
+        ...choice,
+        isCorrect: at === index,
+      })),
+    }));
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (inFlight.current) return;
+
+    // Checked here so the author is told which box to fix without a round trip,
+    // and what they typed stays where it is. The server checks all of it again
+    // and has the final say.
+    const found = validateQuestionDraft(draft);
+
+    if (Object.keys(found).length > 0) {
+      // Keyed as Laravel keys them (`choices.2.label`), which is a string key
+      // like any other to the error state this form keeps.
+      setErrors(found as Record<string, string>);
+      return;
+    }
+
+    setErrors({});
+    inFlight.current = true;
+    setSaving(true);
+
+    try {
+      if (question === null) {
+        await createQuestion(assessmentId, draft);
+        toast.success("Question added.");
+      } else {
+        await updateQuestion(question.id, draft);
+        toast.success(`Question ${number} saved.`);
+      }
+
+      onSaved();
+    } catch (e) {
+      if (e instanceof ApiError && Object.keys(e.errors).length > 0) {
+        const fields: Record<string, string> = {};
+
+        for (const [field, messages] of Object.entries(e.errors)) {
+          const key = questionFieldOf(field);
+
+          if (fields[key] === undefined && messages[0]) fields[key] = messages[0];
+        }
+
+        setErrors(fields);
+
+        // A refusal about nothing this form has would otherwise land nowhere.
+        if (!Object.keys(fields).some((key) => QUESTION_FORM_FIELD.test(key))) {
+          toast.error(e.message);
+        }
+      } else {
+        toast.error(e instanceof Error ? e.message : "Could not save the question.");
+
+        if (isStaleRefusal(e)) onStale();
+      }
+    } finally {
+      inFlight.current = false;
+      setSaving(false);
+    }
+  };
+
+  const describedBy = (key: string) =>
+    errors[key] ? `${prefix}-${key.replace(/\./g, "-")}-error` : undefined;
+
+  return (
+    <form
+      onSubmit={submit}
+      noValidate
+      aria-label={isNew ? "Add question" : `Edit question ${number}`}
+      className="rounded-md border border-blue-200 bg-blue-50/40 p-4 space-y-4"
+    >
+      <div className="space-y-2">
+        <Label htmlFor={`${prefix}-prompt`}>Prompt</Label>
+        <Textarea
+          id={`${prefix}-prompt`}
+          value={draft.prompt}
+          rows={3}
+          aria-invalid={errors.prompt ? true : undefined}
+          aria-describedby={describedBy("prompt")}
+          onChange={(e) => setDraft((current) => ({ ...current, prompt: e.target.value }))}
+        />
+        {errors.prompt && (
+          <FieldError id={describedBy("prompt")!} message={errors.prompt} />
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`${prefix}-points`}>Points</Label>
+        <Input
+          id={`${prefix}-points`}
+          inputMode="numeric"
+          className="w-24"
+          value={draft.points}
+          aria-invalid={errors.points ? true : undefined}
+          aria-describedby={describedBy("points")}
+          onChange={(e) => setDraft((current) => ({ ...current, points: e.target.value }))}
+        />
+        {errors.points && (
+          <FieldError id={describedBy("points")!} message={errors.points} />
+        )}
+      </div>
+
+      <fieldset className="space-y-2" aria-describedby={describedBy("choices")}>
+        <legend className="text-sm font-medium text-gray-900">Choices</legend>
+        <p className="text-xs text-gray-600">
+          Four choices. Select the one that is correct.
+        </p>
+
+        {draft.choices.map((choice, index) => {
+          const letter = CHOICE_LETTERS[index] ?? String(index + 1);
+          const labelKey = `choices.${index}.label`;
+          const inputId = `${prefix}-choice-${index}`;
+
+          return (
+            <div key={index} className="space-y-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name={`${prefix}-correct`}
+                  checked={choice.isCorrect}
+                  onChange={() => markCorrect(index)}
+                  aria-label={`Choice ${letter} is correct`}
+                  className="h-4 w-4 shrink-0 accent-emerald-600"
+                />
+                <Label htmlFor={inputId} className="w-16 shrink-0">
+                  Choice {letter}
+                </Label>
+                <Input
+                  id={inputId}
+                  value={choice.label}
+                  aria-invalid={errors[labelKey] ? true : undefined}
+                  aria-describedby={describedBy(labelKey)}
+                  onChange={(e) => setChoice(index, { label: e.target.value })}
+                />
+              </div>
+              {errors[labelKey] && (
+                <FieldError id={describedBy(labelKey)!} message={errors[labelKey]} />
+              )}
+            </div>
+          );
+        })}
+
+        {errors.choices && (
+          <FieldError id={describedBy("choices")!} message={errors.choices} />
+        )}
+      </fieldset>
+
+      <div className="flex items-center gap-2">
+        <Button type="submit" size="sm" disabled={saving}>
+          {saving ? "Saving…" : isNew ? "Add question" : "Save question"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={saving}
+          onClick={onClose}
+        >
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** One question as it is stored, answer key included. */
 function QuestionCard({
   question,
   number,
+  children,
 }: {
   question: AssessmentQuestion;
   number: number;
+  /** The authoring controls, while the assessment is editable. */
+  children?: React.ReactNode;
 }) {
   const choices = [...question.choices].sort((a, b) => a.order - b.order);
 
@@ -451,6 +966,8 @@ function QuestionCard({
           </li>
         ))}
       </ul>
+
+      {children}
     </article>
   );
 }
