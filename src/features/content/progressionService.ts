@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import type { SubtopicStatus } from "./types";
 
 /**
  * A student's way through one root topic: its pre-test, the subtopics inside
@@ -14,8 +15,15 @@ import { api } from "@/services/api";
  * request names one; there is nothing to change to read someone else's.
  */
 
-/** A subtopic, as the server sees this student's standing on it. */
-export type SubtopicStatus = "completed" | "available" | "locked";
+/**
+ * A subtopic, as the server sees this student's standing on it.
+ *
+ * Declared with the rest of the content types, because the roadmap carries the
+ * same judgement on its own nested sections and the two must be the one type
+ * rather than two unions that happen to agree. Re-exported here so that a page
+ * reading a progression still takes it from the service it came from.
+ */
+export type { SubtopicStatus };
 
 /** A submitted assessment's totals — nothing about which answers were right. */
 export interface ProgressionResult {

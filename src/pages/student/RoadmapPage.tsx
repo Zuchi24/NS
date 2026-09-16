@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router";
-import { ChevronDown, ChevronUp, Route, Youtube } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, Lock, Route, Youtube } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +9,12 @@ import {
   LoadingState,
 } from "@/components/common/AsyncStates";
 import { fetchRoadmaps } from "@/features/content/contentService";
-import type { Roadmap, Subtopic, Topic } from "@/features/content/types";
+import {
+  SUBTOPIC_STATUS_LABEL,
+  SUBTOPIC_STATUS_STYLE,
+  labelWithStatus,
+} from "@/features/content/subtopicStatus";
+import type { Roadmap, Subtopic, SubtopicStatus, Topic } from "@/features/content/types";
 import { useAsync } from "@/services/useAsync";
 
 /**
@@ -20,14 +25,19 @@ import { useAsync } from "@/services/useAsync";
  * running through them does. So each roadmap is one continuous vertical path:
  * a spine, a numbered node on it for every topic, and the card that node opens.
  *
- * The path draws no standing. Inside a topic the sections are paced — the
- * topic's pre-test first where it has one, then its sections in order, then its
- * post-test — and where a student stands on all of that is the server's to say,
- * on the topic's own page. This page is not sent that standing, so it shows
- * none rather than guessing at it: every card opens, and a section the student
- * has not reached yet opens onto the server's reason. (The server also leaves
- * such a section's description out of the roadmap, which is why some section
- * cards have none.)
+ * The path itself draws no standing: a topic of a roadmap is not paced behind
+ * the topics before it, so its node and its card look the same whatever the
+ * student has done. The sections inside a topic are paced, and each one the
+ * server judged says which of the three it is — finished, open now, or not yet
+ * reached. That judgement arrives with the section and is only drawn here;
+ * nothing on this page works one out, and a section the server said nothing
+ * about is drawn without one rather than guessed at.
+ *
+ * A locked section still opens. The badge is there to save a student the trip,
+ * not to stop them making it: the lock is the server's, enforced when the
+ * section is asked for, and pressing one lands on the server's own reason.
+ * (The server also leaves a locked section's description out of the roadmap,
+ * which is why some section cards have none.)
  *
  * Challenges are a separate top-level feature, in no topic and behind no
  * roadmap, so this page neither fetches nor mentions them.
@@ -111,8 +121,10 @@ export function RoadmapPage() {
           <h1 className="text-xl font-bold text-gray-900">
             Networking Roadmap
           </h1>
-          {/* No claim about order or access: this page is not given the
-              student's standing, and the topic page is where it is shown. */}
+          {/* Counts the topics and stops there. The sections below carry the
+              standing the server sent for each of them; a topic has none to
+              carry, so the line above them claims nothing about order or
+              access, and the topic's own page is where the rest is shown. */}
           <p className="text-sm text-gray-600 mt-1">
             {totalCount} topic{totalCount === 1 ? "" : "s"}. Open a topic to
             see your progress through it.
@@ -428,6 +440,27 @@ function TopicNode({
 }
 
 /**
+ * The badge a section carries: what the server said about this student and it.
+ *
+ * Small, and deliberately quieter than the title above it — a section is
+ * already subordinate to its topic, and a standing is subordinate to the
+ * section. The word is what carries it; the icon only agrees with the word, so
+ * nothing here rests on colour or on a shape alone.
+ */
+function SectionStatus({ status }: { status: SubtopicStatus }) {
+  const Icon = status === "locked" ? Lock : status === "completed" ? CheckCircle2 : null;
+
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium ${SUBTOPIC_STATUS_STYLE[status]}`}
+    >
+      {Icon && <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />}
+      {SUBTOPIC_STATUS_LABEL[status]}
+    </span>
+  );
+}
+
+/**
  * The sections inside one topic, branching off the outer edge of its card.
  *
  * Off the *card*, deliberately, and never off the spine. The spine is the
@@ -579,13 +612,36 @@ function TopicSections({
                 <button
                   type="button"
                   onClick={() => onOpen(section)}
-                  aria-label={`Open ${section.title}`}
+                  /*
+                   * The standing goes in the name rather than beside it, so it
+                   * is read once and reads as part of what the control is. No
+                   * `disabled` and no `aria-disabled`, on a locked section
+                   * least of all: it still opens, and saying otherwise here
+                   * would be this page answering an authorization question
+                   * that is the server's.
+                   */
+                  aria-label={labelWithStatus(`Open ${section.title}`, section.status)}
                   className="group block w-full text-left rounded-lg border border-blue-100 bg-blue-50/40 px-3 py-2.5 transition-all hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
-                  <p className="text-[11px] font-semibold text-blue-600 tabular-nums">
-                    {position}.{index + 1}
-                  </p>
-                  <p className="mt-0.5 text-sm font-semibold text-gray-800 group-hover:text-blue-700 break-words">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-semibold text-blue-600 tabular-nums">
+                      {position}.{index + 1}
+                    </p>
+
+                    {/* Only where the server judged. Undefined is "nothing was
+                        said", which is not "locked" — a badge drawn for it
+                        would be this page inventing the one state a student
+                        cannot act on. */}
+                    {section.status !== undefined && (
+                      <SectionStatus status={section.status} />
+                    )}
+                  </div>
+
+                  <p
+                    className={`mt-0.5 text-sm font-semibold break-words group-hover:text-blue-700 ${
+                      section.status === "locked" ? "text-gray-500" : "text-gray-800"
+                    }`}
+                  >
                     {section.title}
                   </p>
                   {section.description && (

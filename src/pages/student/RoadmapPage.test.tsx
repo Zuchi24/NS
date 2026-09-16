@@ -13,7 +13,12 @@ import userEvent from "@testing-library/user-event";
 import { RoadmapPage } from "./RoadmapPage";
 import { PAGE_GUTTER } from "@/layouts/StudentLayout";
 import { TOPIC_DESCRIPTION_MAX } from "@/features/content/topicService";
-import type { Roadmap, Subtopic, Topic } from "@/features/content/types";
+import type {
+  Roadmap,
+  Subtopic,
+  SubtopicStatus,
+  Topic,
+} from "@/features/content/types";
 
 /**
  * The student's roadmap, as a path.
@@ -673,6 +678,125 @@ describe("the sections branching off a topic", () => {
     expect(
       screen.getByRole("button", { name: /open Topic 2$/i }),
     ).toBeInTheDocument();
+  });
+
+  /**
+   * What a section says about where the student stands on it.
+   *
+   * The server judges that and sends it with the section; this draws it. So
+   * what is pinned here is the drawing — the three states are told apart, and
+   * a section the server judged nothing about is drawn plainly rather than as
+   * the one state a student cannot act on.
+   *
+   * The lock is the other half. A locked section is still a way in: it is the
+   * server that refuses the section when it is asked for, and the badge is
+   * there to save the trip rather than to prevent it. A roadmap that disabled
+   * the control would be answering an authorization question of its own, and
+   * would also hide the server's reason behind a button nobody can press.
+   */
+  describe("the standing a section carries", () => {
+    /** One topic with the given sections, so a status can be read off it. */
+    function roadmapWithStatuses(...statuses: (SubtopicStatus | undefined)[]) {
+      const base = roadmapOf(1);
+
+      return {
+        ...base,
+        topics: [
+          {
+            ...base.topics[0],
+            subtopics: statuses.map((status, index) =>
+              section({
+                id: 900 + index,
+                parentId: base.topics[0].id,
+                title: `Section ${index + 1}`,
+                order: index,
+                status,
+              }),
+            ),
+          },
+        ],
+      };
+    }
+
+    /** The control that opens one section, whatever its name has grown to. */
+    function sectionButton(title: string): HTMLElement {
+      return screen.getByRole("button", { name: new RegExp(`^open ${title}\\b`, "i") });
+    }
+
+    it("marks a finished section completed", async () => {
+      await renderWith([roadmapWithStatuses("completed")]);
+
+      expect(within(nodeFor("Topic 1")).getByText("Completed")).toBeInTheDocument();
+      // Said in the control's own name too, so it is not colour alone.
+      expect(sectionButton("Section 1")).toHaveAccessibleName(
+        "Open Section 1 — Completed",
+      );
+    });
+
+    it("marks the section the student may open now available", async () => {
+      await renderWith([roadmapWithStatuses("available")]);
+
+      expect(within(nodeFor("Topic 1")).getByText("Available")).toBeInTheDocument();
+      expect(sectionButton("Section 1")).toHaveAccessibleName(
+        "Open Section 1 — Available",
+      );
+    });
+
+    it("marks a section the student has not reached locked", async () => {
+      await renderWith([roadmapWithStatuses("available", "locked")]);
+
+      const branch = within(branchOf("Topic 1"));
+
+      expect(branch.getByText("Locked")).toBeInTheDocument();
+      expect(sectionButton("Section 2")).toHaveAccessibleName(
+        "Open Section 2 — Locked",
+      );
+    });
+
+    it("draws no standing on a section the server judged none for", async () => {
+      await renderWith([roadmapWithStatuses(undefined, undefined)]);
+
+      const branch = within(branchOf("Topic 1"));
+
+      // Absent is "nothing was said", not "locked". Staff are sent no standing
+      // at all, and so is anything the server made no judgement about; a lock
+      // drawn for that silence would be this page inventing one.
+      expect(branch.queryByText("Locked")).toBeNull();
+      expect(branch.queryByText("Available")).toBeNull();
+      expect(branch.queryByText("Completed")).toBeNull();
+
+      // And the section is otherwise drawn exactly as it always was.
+      expect(branch.getByText("Section 1")).toBeInTheDocument();
+      expect(sectionButton("Section 1")).toHaveAccessibleName("Open Section 1");
+    });
+
+    it("leaves a locked section a way in rather than a dead end", async () => {
+      const user = userEvent.setup();
+      await renderWith([roadmapWithStatuses("locked")]);
+
+      const locked = sectionButton("Section 1");
+
+      // Not disabled, and not saying it is: the server refuses the section when
+      // it is asked for, and the refusal page is where its reason is read.
+      expect(locked).toBeEnabled();
+      expect(locked).not.toHaveAttribute("aria-disabled");
+
+      await user.click(locked);
+
+      expect(navigate).toHaveBeenCalledWith("/subtopic/900");
+    });
+
+    it("says each standing in words, not in colour alone", async () => {
+      await renderWith([roadmapWithStatuses("completed", "available", "locked")]);
+
+      const branch = within(branchOf("Topic 1"));
+
+      // The same three words the topic page's progress card uses, from the one
+      // definition both read.
+      expect(branch.getByText("Completed")).toBeInTheDocument();
+      expect(branch.getByText("Available")).toBeInTheDocument();
+      expect(branch.getByText("Locked")).toBeInTheDocument();
+    });
   });
 
   it("opens a section on a page of its own", async () => {

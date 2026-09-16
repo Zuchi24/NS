@@ -44,15 +44,27 @@ export interface Topic {
 }
 
 /**
+ * Where a student stands on one section: finished it, may open it now, or has
+ * not reached it yet.
+ *
+ * The server's judgement, never the client's. It is read from whatever the
+ * response said and carried about unchanged — working it out here, from a
+ * section's place in the list or from what came back with it, would be a second
+ * opinion on a question the server has already answered and the one the policy
+ * will actually enforce.
+ */
+export type SubtopicStatus = "completed" | "available" | "locked";
+
+/**
  * A section inside a topic, and what it holds.
  *
  * The same row as a topic, seen in its other role — which is why it carries no
  * `subtopics` of its own. The hierarchy is one level deep and the server keeps
  * it that way, so there is nowhere further down for this type to describe.
  *
- * It paces nothing either. A section is a heading with materials under it: no
- * standing, no lock, no challenges of its own — those stay with the topic
- * holding it.
+ * A section is paced, but it does not pace itself: where the student stands on
+ * it arrives already decided, and the challenges stay with the topic holding
+ * it.
  */
 export interface Subtopic {
   id: number;
@@ -61,6 +73,19 @@ export interface Subtopic {
   title: string;
   description: string | null;
   order: number;
+
+  /**
+   * Where the student reading it stands on this section, when the response
+   * said.
+   *
+   * Optional because the server sends it only where it has a judgement to
+   * report: a student's nested sections carry one, staff — who read everything
+   * — are sent none, and a response from before the field existed says nothing
+   * either. Undefined therefore means "not said", which is not "locked": the
+   * absence must never be drawn as a lock, and nothing here fills it in.
+   */
+  status?: SubtopicStatus;
+
   /** Its own materials, as its author ordered them. */
   materials: LearningMaterial[];
 }

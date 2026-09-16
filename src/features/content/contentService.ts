@@ -10,6 +10,7 @@ import type {
   RequirementResult,
   Roadmap,
   Subtopic,
+  SubtopicStatus,
   Topic,
 } from "./types";
 
@@ -48,6 +49,11 @@ interface ApiSubtopic {
   title: string;
   description: string | null;
   order: number;
+  /**
+   * Sent only where the server made the judgement: a student's nested sections
+   * carry one, staff are sent none, and an older response has none to send.
+   */
+  status?: SubtopicStatus;
   materials?: ApiMaterial[];
 }
 
@@ -118,6 +124,10 @@ function toSubtopic(subtopic: ApiSubtopic): Subtopic {
     title: subtopic.title,
     description: subtopic.description,
     order: subtopic.order,
+    // Carried through exactly as it arrived, absence included: a response that
+    // said nothing leaves this undefined rather than having a status guessed
+    // for it here. What the server did not judge, this does not judge either.
+    status: subtopic.status,
     // Read through the material service's own mapper, so a nested material and
     // one fetched from the materials endpoint are the same shape.
     materials: (subtopic.materials ?? []).map(toMaterial),

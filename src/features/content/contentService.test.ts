@@ -234,6 +234,70 @@ describe("subtopics", () => {
       "include=topics,subtopics",
     );
   });
+
+  /**
+   * The standing a section arrives with.
+   *
+   * The server judges where a student stands on each section and sends it along
+   * with the section; this carries it and nothing else. So what is pinned here
+   * is that each of the three values survives the mapping unaltered, and — the
+   * one that actually costs something to get wrong — that a section sent
+   * without a judgement keeps none.
+   *
+   * A response says nothing about standing in three ordinary cases: staff read
+   * everything and are judged on nothing, a topic of the roadmap is not paced,
+   * and a response written before the field existed has none to send. Turning
+   * any of those into "locked" here would invent a lock the server never asked
+   * for, on a section a student may well be free to open.
+   */
+  describe("the status it carries", () => {
+    const withStatus = (status?: string) => ({
+      ...topicWithSections,
+      subtopics: [{ ...topicWithSections.subtopics[0], status }],
+    });
+
+    it.each(["completed", "available", "locked"] as const)(
+      "carries %s through exactly as the server sent it",
+      async (status) => {
+        vi.mocked(api.get).mockResolvedValue({ data: withStatus(status) });
+
+        const detail = await fetchTopic(1);
+
+        expect(detail.subtopics[0].status).toBe(status);
+      },
+    );
+
+    it("leaves a section the server did not judge without a status", async () => {
+      const { status: _absent, ...noStatus } = withStatus("locked").subtopics[0];
+      vi.mocked(api.get).mockResolvedValue({
+        data: { ...topicWithSections, subtopics: [noStatus] },
+      });
+
+      const detail = await fetchTopic(1);
+
+      // Undefined, and specifically not "locked": what the server did not say,
+      // this does not say either.
+      expect(detail.subtopics[0].status).toBeUndefined();
+      expect(detail.subtopics[0]).toMatchObject({ id: 101, title: "OSI Model" });
+    });
+
+    it("carries it down the roadmap list, where the roadmap reads it", async () => {
+      vi.mocked(api.get).mockResolvedValue(
+        page([
+          {
+            ...live,
+            topics: [
+              { ...live.topics[0], subtopics: withStatus("completed").subtopics },
+            ],
+          },
+        ]),
+      );
+
+      const [roadmap] = await fetchRoadmaps({ withSubtopics: true });
+
+      expect(roadmap.topics[0].subtopics?.[0].status).toBe("completed");
+    });
+  });
 });
 
 /**

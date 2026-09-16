@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorState, LoadingState } from "@/components/common/AsyncStates";
 import { fetchTopicProgression } from "@/features/content/progressionService";
+import {
+  SUBTOPIC_STATUS_LABEL,
+  SUBTOPIC_STATUS_STYLE,
+} from "@/features/content/subtopicStatus";
 import type {
   ProgressionPostTest,
   ProgressionPreTest,
   ProgressionResult,
-  SubtopicStatus,
   TopicProgression,
 } from "@/features/content/progressionService";
 import { useAsync } from "@/services/useAsync";
@@ -33,19 +36,6 @@ import { useAsync } from "@/services/useAsync";
 export function formatResult(result: ProgressionResult): string {
   return `${result.earnedPoints} / ${result.totalPoints} (${Math.round(result.percent * 100) / 100}%)`;
 }
-
-const STATUS_LABEL: Record<SubtopicStatus, string> = {
-  completed: "Completed",
-  // Not "Open", which the student flow already uses as an action.
-  available: "Available",
-  locked: "Locked",
-};
-
-const STATUS_STYLE: Record<SubtopicStatus, string> = {
-  completed: "text-emerald-700 bg-emerald-50 border-emerald-200",
-  available: "text-blue-700 bg-blue-50 border-blue-200",
-  locked: "text-gray-600 bg-gray-100 border-gray-200",
-};
 
 export function TopicProgressCard({ topicId }: { topicId: number }) {
   const navigate = useNavigate();
@@ -205,9 +195,9 @@ function SubtopicSteps({
               {subtopic.title}
             </span>
             <span
-              className={`text-xs font-medium rounded px-1.5 py-0.5 border ${STATUS_STYLE[subtopic.status]}`}
+              className={`text-xs font-medium rounded px-1.5 py-0.5 border ${SUBTOPIC_STATUS_STYLE[subtopic.status]}`}
             >
-              {STATUS_LABEL[subtopic.status]}
+              {SUBTOPIC_STATUS_LABEL[subtopic.status]}
             </span>
 
             {subtopic.status === "available" && (
