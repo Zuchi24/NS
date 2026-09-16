@@ -737,3 +737,70 @@ describe("where the assessment leads", () => {
     expect(navigate).toHaveBeenCalledWith("/topic/9");
   });
 });
+
+describe("where focus goes after submitting", () => {
+  it("lands on the result once the server has answered", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    vi.mocked(service.submitAssessment).mockResolvedValue(result);
+
+    await answerAll(user);
+    await user.click(submitButton());
+
+    // The Submit button that had focus is gone; the student lands on the result.
+    const heading = await screen.findByRole("heading", { name: "Assessment submitted" });
+
+    await waitFor(() => expect(heading).toHaveFocus());
+    // Focusable from code only, so it is not a new stop in the tab order.
+    expect(heading).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("moves nothing before the server answers", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    vi.mocked(service.submitAssessment).mockReturnValue(new Promise(() => {}));
+
+    await answerAll(user);
+    await user.click(submitButton());
+
+    expect(screen.getByRole("button", { name: "Submitting…" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Assessment submitted" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("leaves focus alone when a result that was already there is opened", async () => {
+    await show(assessment(), result);
+
+    expect(
+      screen.getByRole("heading", { name: "Assessment submitted" }),
+    ).not.toHaveFocus();
+  });
+});
+
+describe("a long title on the next step", () => {
+  it("lets the Start button wrap it", async () => {
+    const longTitle =
+      "Subnetting, supernetting and the arithmetic of CIDR prefixes, step by step";
+
+    vi.mocked(progress.fetchTopicProgression).mockResolvedValue(
+      progression({
+        subtopics: [
+          { id: 101, title: longTitle, order: 0, status: "available" },
+          { id: 102, title: "TCP/IP", order: 1, status: "locked" },
+        ],
+      }),
+    );
+
+    await show(assessment(), result);
+
+    const start = await screen.findByRole("button", { name: `Start ${longTitle}` });
+
+    // The shared Button never wraps; this one must. Whether it looks right at
+    // a phone's width is a browser check — jsdom cannot measure overflow.
+    expect(start).toHaveClass("whitespace-normal", "h-auto");
+    expect(start).not.toHaveClass("whitespace-nowrap");
+  });
+});

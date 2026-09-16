@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckCircle2, Lock } from "lucide-react";
 import { toast } from "sonner";
@@ -178,7 +178,13 @@ export function AssessmentPage() {
 
       {result !== null ? (
         <>
-          <ResultCard result={result} />
+          <ResultCard
+            result={result}
+            // Only for a submission made here, once the server has answered:
+            // the Submit button that had focus is gone. Opening a result that
+            // was already there moves nothing.
+            focusOnMount={submitted !== null && submitted.assessmentId === assessment.id}
+          />
           {/* A submitted pre-test is what opens a topic's subtopics. Which one
               it opened is read from the server afresh, not assumed. */}
           {assessment.type === "pre_test" && (
@@ -245,7 +251,22 @@ function AssessmentHeading({ assessment }: { assessment: StudentAssessment }) {
 }
 
 /** The server's numbers, and only those: nothing about which answers were right. */
-function ResultCard({ result }: { result: AssessmentResult }) {
+function ResultCard({
+  result,
+  focusOnMount = false,
+}: {
+  result: AssessmentResult;
+  /** Move focus to the result as it appears, for a submission just made. */
+  focusOnMount?: boolean;
+}) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (focusOnMount) headingRef.current?.focus();
+    // Once, as the result arrives — not again on later renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <Card
       role="region"
@@ -254,7 +275,14 @@ function ResultCard({ result }: { result: AssessmentResult }) {
     >
       <CardContent className="p-8 text-center space-y-4">
         <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" aria-hidden="true" />
-        <h2 id="assessment-result-title" className="text-xl font-bold text-gray-900">
+        {/* Focusable from code only (tabIndex -1), so landing a student here
+            after they submit adds no stop to the tab order. */}
+        <h2
+          ref={headingRef}
+          id="assessment-result-title"
+          tabIndex={-1}
+          className="text-xl font-bold text-gray-900 focus:outline-none"
+        >
           Assessment submitted
         </h2>
 
@@ -310,7 +338,14 @@ function NextSubtopic({
         <p className="text-sm text-gray-700">
           The topic&apos;s subtopics are open. Next up: {next.title}.
         </p>
-        <Button onClick={() => onOpen(next.id)}>Start {next.title}</Button>
+        {/* Wraps and grows for a long section title: the shared Button never
+            wraps. Narrow-width appearance is a browser check. */}
+        <Button
+          className="h-auto min-h-9 max-w-full whitespace-normal break-words py-2"
+          onClick={() => onOpen(next.id)}
+        >
+          Start {next.title}
+        </Button>
       </CardContent>
     </Card>
   );

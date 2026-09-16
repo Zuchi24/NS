@@ -170,6 +170,19 @@ describe("RoadmapPage", () => {
     expect(navigate).toHaveBeenCalledWith("/topic/1002");
   });
 
+  it("points to a topic for progress, and claims nothing about order or access", async () => {
+    await renderWith([roadmapOf(3)]);
+
+    // The page is not given the student's standing: sections inside a topic
+    // are paced, so it neither promises "any order" nor draws a lock or a tick
+    // it would have to make up.
+    expect(
+      screen.getByText("3 topics. Open a topic to see your progress through it."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/any order/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\b(locked|completed|available)\b/i)).not.toBeInTheDocument();
+  });
+
   it("says there is nothing to walk yet when no roadmap has topics", async () => {
     await renderWith([roadmapOf(0)]);
 

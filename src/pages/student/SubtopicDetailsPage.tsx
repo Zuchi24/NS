@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
   ArrowLeft,
@@ -29,6 +29,7 @@ import {
   subtopicStatus,
 } from "@/features/content/progressionService";
 import type { TopicProgression } from "@/features/content/progressionService";
+import { refusalReason } from "@/features/content/refusal";
 import type { Subtopic } from "@/features/content/types";
 import { ApiError } from "@/services/api";
 import { useAsync } from "@/services/useAsync";
@@ -45,8 +46,10 @@ import { useAsync } from "@/services/useAsync";
  * a heading with materials under it — and it stays inside the topic holding it:
  * previous and next walk that topic's sections rather than the roadmap's
  * topics. Which topic that is, and which roadmap, is written above the title;
- * back goes to the roadmap, because that is where a section is opened from and
- * so where leaving one should put a student.
+ * back goes to that topic — as the server named it in its response — because
+ * the topic's page is where the student's progress through its sections is
+ * shown. A locked section's topic is never named, since the server refuses
+ * before sending anything, so back from one goes to the roadmap.
  *
  * A student works through a topic's sections in order, and finishes each one
  * by saying so: reading a section completes nothing, and "Mark as Complete" is
@@ -64,9 +67,6 @@ type SubtopicView =
   | { state: "locked"; message: string }
   | { state: "missing" }
   | { state: "ready"; detail: SubtopicDetail };
-
-/** Laravel's wording for a refusal with no reason of its own. */
-const UNEXPLAINED_REFUSAL = "This action is unauthorized.";
 
 export function SubtopicDetailsPage() {
   const { isAdmin } = useAuth();
@@ -119,6 +119,14 @@ export function SubtopicDetailsPage() {
 
   const [completing, setCompleting] = useState(false);
 
+  /**
+   * The section just completed on this page, once the server has confirmed it
+   * — which is when the panel may move focus off the button that is now gone.
+   * Cleared as soon as it has, so reopening a completed section later never
+   * pulls focus.
+   */
+  const [justCompletedId, setJustCompletedId] = useState<number | null>(null);
+
   // The disabled button is what a student sees; this is what actually stops a
   // second completion going out before the next render.
   const completingRef = useRef(false);
@@ -131,6 +139,7 @@ export function SubtopicDetailsPage() {
 
     try {
       setAnswered(await completeSubtopic(subtopic.id));
+      setJustCompletedId(subtopic.id);
       toast.success(`Marked “${subtopic.title}” complete.`);
     } catch (e) {
       toast.error(
@@ -198,9 +207,10 @@ export function SubtopicDetailsPage() {
             {/* The server's reason — take the pre-test first, finish the
                 section before this one — so the student knows what to do. */}
             <p className="text-sm text-gray-600">
-              {data.message && data.message !== UNEXPLAINED_REFUSAL
-                ? data.message
-                : "This subtopic is not open to you yet. Its roadmap may not be published, or there is something to finish first in its topic."}
+              {refusalReason(
+                data.message,
+                "This subtopic is not open to you yet. Its roadmap may not be published, or there is something to finish first in its topic.",
+              )}
             </p>
             <Button onClick={() => navigate("/roadmap")} className="mt-2">
               Back to Roadmap
@@ -244,11 +254,18 @@ export function SubtopicDetailsPage() {
   return shell(
     <>
       <div className="mb-6">
-        {/* Back goes to the roadmap, the same place the topic page's does — and
-            the same place the student clicked this subtopic from, since that is
-            where subtopics are opened. The topic is still named just below, so
-            nothing is lost by not making it the way out. */}
-        {backToRoadmap}
+        {/* Back to the topic holding this section: the one the server named in
+            its response, never an id read off the address. The topic's page is
+            where the student's progress through its sections is shown. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(`/topic/${parent.id}`)}
+          className="mb-4 text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to topic
+        </Button>
 
         {/* Where this section sits, said before its own title: the roadmap,
             then the topic. Without it a section page is a page about something
@@ -321,6 +338,9 @@ export function SubtopicDetailsPage() {
           {!isAdmin && (
             <SubtopicProgressPanel
               subtopic={subtopic}
+              topicId={parent.id}
+              focusNextStep={justCompletedId === subtopic.id}
+              onFocused={() => setJustCompletedId(null)}
               progression={progression}
               loading={progressionState.loading}
               error={progressionState.error}
@@ -434,12 +454,26 @@ export function SubtopicDetailsPage() {
 }
 
 /**
+ * Classes that let a next-step button carry a long title.
+ *
+ * The shared Button never wraps (`whitespace-nowrap`, fixed height), which is
+ * right for short labels and wrong for one that names a section — so these
+ * buttons, and only these, wrap onto more lines and grow to fit. That it looks
+ * right at a narrow width is a browser check; jsdom cannot measure overflow.
+ */
+const WRAPPING_BUTTON = "h-auto min-h-9 whitespace-normal break-words py-2";
+
+/**
  * Where the student stands on this section, and the one thing they can do
  * about it: mark it complete. Once it is, what that opened — the next section,
- * or the topic's post-test — as the server said.
+ * or the topic's post-test — as the server said; or, when it opened nothing
+ * further, the way back to the topic.
  */
 function SubtopicProgressPanel({
   subtopic,
+  topicId,
+  focusNextStep,
+  onFocused,
   progression,
   loading,
   error,
@@ -449,6 +483,11 @@ function SubtopicProgressPanel({
   onOpen,
 }: {
   subtopic: Subtopic;
+  /** The topic holding this section, as the server named it. */
+  topicId: number;
+  /** A completion made here was just confirmed: put focus on what comes next. */
+  focusNextStep: boolean;
+  onFocused: () => void;
   progression: TopicProgression | null;
   loading: boolean;
   error: string | null;
@@ -458,6 +497,20 @@ function SubtopicProgressPanel({
   onOpen: (path: string) => void;
 }) {
   const status = subtopicStatus(progression, subtopic.id);
+
+  // The shared Card does not forward refs, so focus is found from a plain
+  // element inside it.
+  const stepsRef = useRef<HTMLDivElement>(null);
+
+  // The button that was pressed is gone once the completion is confirmed.
+  // Focus goes to the next step rather than falling back to the page — and not
+  // before the server's answer, which is what turns the status to completed.
+  useEffect(() => {
+    if (!focusNextStep || status !== "completed") return;
+
+    stepsRef.current?.querySelector<HTMLElement>("[data-next-step]")?.focus();
+    onFocused();
+  }, [focusNextStep, status, onFocused]);
 
   let body: React.ReactNode = null;
 
@@ -484,17 +537,34 @@ function SubtopicProgressPanel({
         </p>
 
         {next ? (
-          <Button className="w-full" onClick={() => onOpen(`/subtopic/${next.id}`)}>
+          <Button
+            data-next-step
+            className={`w-full ${WRAPPING_BUTTON}`}
+            onClick={() => onOpen(`/subtopic/${next.id}`)}
+          >
             Continue to {next.title}
           </Button>
         ) : postTest && postTest.available ? (
           <Button
+            data-next-step
             className="w-full"
             onClick={() => onOpen(`/assessments/${postTest.id}`)}
           >
             Take the post-test
           </Button>
-        ) : null}
+        ) : (
+          // Nothing further opens from here — the last section of a topic with
+          // no post-test to take now. The topic's page shows where that leaves
+          // the student, so that is the way on rather than a bare "Completed".
+          <Button
+            data-next-step
+            variant="outline"
+            className="w-full"
+            onClick={() => onOpen(`/topic/${topicId}`)}
+          >
+            Back to topic
+          </Button>
+        )}
       </div>
     );
   } else if (progression !== null && status === "available") {
@@ -536,7 +606,7 @@ function SubtopicProgressPanel({
             </span>
           )}
         </div>
-        {body}
+        <div ref={stepsRef}>{body}</div>
       </CardContent>
     </Card>
   );

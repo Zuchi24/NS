@@ -203,10 +203,13 @@ describe("coming back from the builder", () => {
       await screen.findByRole("button", { name: "Back to roadmap" }, SLOW),
     );
 
+    // The router commits the new location only once the roadmap page's lazy
+    // chunk has loaded, which under a full parallel run can outlast waitFor's
+    // default second — so this wait gets the same allowance as the finds.
     await waitFor(() => {
       expect(router.state.location.pathname).toBe("/admin/roadmap");
       expect(router.state.location.search).toBe("?roadmap=2&topic=5");
-    });
+    }, SLOW);
 
     expect(await screen.findByLabelText(/authoring/i, {}, SLOW)).toHaveValue("2");
     expect(

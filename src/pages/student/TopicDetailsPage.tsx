@@ -21,6 +21,7 @@ import { fetchTopic } from "@/features/content/contentService";
 import { fetchTopicMaterials, youtubeId } from "@/features/content/materialService";
 import { MaterialList } from "@/features/content/components/MaterialList";
 import { TopicProgressCard } from "@/features/content/components/TopicProgressCard";
+import { refusalReason } from "@/features/content/refusal";
 import type { LearningMaterial, Topic } from "@/features/content/types";
 import { ApiError } from "@/services/api";
 import { useAsync } from "@/services/useAsync";
@@ -42,7 +43,8 @@ import { useAsync } from "@/services/useAsync";
 
 /** What the loader hands back: the topic, or the fact that it is shut. */
 type TopicView =
-  | { locked: true }
+  /** Refused by the server, with its reason as it was sent. */
+  | { locked: true; message: string }
   | {
       locked: false;
       detail: Awaited<ReturnType<typeof fetchTopic>>;
@@ -66,7 +68,7 @@ export function TopicDetailsPage() {
     } catch (e) {
       // A locked topic is a 403 by design, not a failure worth an error page.
       if (e instanceof ApiError && e.status === 403) {
-        return { locked: true };
+        return { locked: true, message: e.message };
       }
 
       throw e;
@@ -118,8 +120,10 @@ export function TopicDetailsPage() {
               <Lock className="w-7 h-7 text-gray-400" />
             </div>
             <h1 className="text-xl font-bold text-gray-900">Topic locked</h1>
+            {/* The server's reason. A topic of a roadmap is not paced behind
+                the topics before it, so no reason is made up here. */}
             <p className="text-sm text-gray-600">
-              Finish the topics before this one to open it.
+              {refusalReason(data.message, "This topic is not open to you right now.")}
             </p>
             <Button onClick={() => navigate("/roadmap")} className="mt-2">
               Back to Roadmap

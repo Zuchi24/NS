@@ -20,10 +20,17 @@ import { useAsync } from "@/services/useAsync";
  * running through them does. So each roadmap is one continuous vertical path:
  * a spine, a numbered node on it for every topic, and the card that node opens.
  *
- * Nothing here is gated. Every topic of a roadmap the student can see is open
- * to them: a topic carries reading and watching, and no challenge stands in
- * front of one. Challenges are a separate top-level feature, in no topic and
- * behind no roadmap, so this page neither fetches nor mentions them.
+ * The path draws no standing. Inside a topic the sections are paced — the
+ * topic's pre-test first where it has one, then its sections in order, then its
+ * post-test — and where a student stands on all of that is the server's to say,
+ * on the topic's own page. This page is not sent that standing, so it shows
+ * none rather than guessing at it: every card opens, and a section the student
+ * has not reached yet opens onto the server's reason. (The server also leaves
+ * such a section's description out of the roadmap, which is why some section
+ * cards have none.)
+ *
+ * Challenges are a separate top-level feature, in no topic and behind no
+ * roadmap, so this page neither fetches nor mentions them.
  */
 
 /**
@@ -104,9 +111,11 @@ export function RoadmapPage() {
           <h1 className="text-xl font-bold text-gray-900">
             Networking Roadmap
           </h1>
+          {/* No claim about order or access: this page is not given the
+              student's standing, and the topic page is where it is shown. */}
           <p className="text-sm text-gray-600 mt-1">
-            {totalCount} topic{totalCount === 1 ? "" : "s"} of reading and
-            watching. Read them in any order.
+            {totalCount} topic{totalCount === 1 ? "" : "s"}. Open a topic to
+            see your progress through it.
           </p>
         </div>
       </div>

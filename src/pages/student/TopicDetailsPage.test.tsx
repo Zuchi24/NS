@@ -629,3 +629,100 @@ describe("the student's way through the topic", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("a topic the server will not open", () => {
+  function refuse(message: string) {
+    const refusal = new ApiError(message, 403);
+
+    vi.mocked(content.fetchTopic).mockRejectedValue(refusal);
+    vi.mocked(materials.fetchTopicMaterials).mockRejectedValue(refusal);
+  }
+
+  it("gives the server's reason rather than one made up here", async () => {
+    refuse("This topic has not been released yet.");
+
+    render(<TopicDetailsPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Topic locked" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("This topic has not been released yet."),
+    ).toBeInTheDocument();
+
+    // A topic of a roadmap is not paced behind the topics before it, so the
+    // old instruction was one no student could follow.
+    expect(
+      screen.queryByText(/finish the topics before this one/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Learning Materials")).not.toBeInTheDocument();
+    expect(progress.fetchTopicProgression).not.toHaveBeenCalled();
+  });
+
+  it("says only that it is not open when the server gave no reason of its own", async () => {
+    refuse("This action is unauthorized.");
+
+    render(<TopicDetailsPage />);
+
+    expect(
+      await screen.findByText("This topic is not open to you right now."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("This action is unauthorized."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still leads back to the roadmap", async () => {
+    const user = userEvent.setup();
+    refuse("This topic has not been released yet.");
+
+    render(<TopicDetailsPage />);
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: /back to roadmap/i }))[0],
+    );
+
+    expect(navigate).toHaveBeenCalledWith("/roadmap");
+  });
+
+  it("keeps the retry for a failure that is not a refusal", async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(content.fetchTopic)
+      .mockRejectedValueOnce(new ApiError("The server had a problem with that.", 500))
+      .mockResolvedValue({
+        topic: topic(),
+        roadmapTitle: "Networking Essentials",
+        siblings,
+        subtopics: [],
+      });
+    vi.mocked(materials.fetchTopicMaterials).mockResolvedValue([
+      material({ title: "Topic handout" }),
+    ]);
+
+    render(<TopicDetailsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("Topic handout")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Topic locked" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("the words a subtopic's status is given", () => {
+  it("calls an open subtopic Available, leaving Open to the actions", async () => {
+    serve({ topicMaterials: [material({ title: "Topic handout" })] });
+    vi.mocked(progress.fetchTopicProgression).mockResolvedValue(paced());
+
+    render(<TopicDetailsPage />);
+
+    await screen.findByRole("button", { name: "Start OSI Model" });
+
+    const row = screen.getByText("OSI Model").closest("li") as HTMLElement;
+
+    expect(within(row).getByText("Available")).toBeInTheDocument();
+    expect(screen.queryByText("Open")).not.toBeInTheDocument();
+  });
+});

@@ -16,8 +16,9 @@ import type { TopicProgression } from "@/features/content/progressionService";
  * which topic and which roadmap it sits in, because a page about a part is
  * meaningless without the whole; previous and next walk that topic's sections
  * rather than the roadmap's topics, so a student cannot fall out of the topic
- * they are reading by pressing next; and back goes to the roadmap, where the
- * section was opened from.
+ * they are reading by pressing next; and back goes to the topic holding it, as
+ * the server named it — where the student's progress through it is shown. A
+ * locked section's topic is never named, so back from one goes to the roadmap.
  *
  * The refusals are here for the same reason they are on the topic page. A URL
  * can be typed, so "this section is in a roadmap nobody has published" and
@@ -230,19 +231,26 @@ describe("a section's own page", () => {
 });
 
 describe("navigation", () => {
-  it("goes back to the roadmap", async () => {
-    serve();
+  it("goes back to the topic the server says holds the section", async () => {
+    vi.mocked(content.fetchSubtopic).mockResolvedValue({
+      subtopic: subtopic({ order: 1 }),
+      parent: { ...parent, id: 7 },
+      roadmapTitle: "Networking Essentials",
+      siblings,
+    });
+    vi.mocked(progress.fetchTopicProgression).mockResolvedValue(
+      progression({ topicId: 7 }),
+    );
 
     render(<SubtopicDetailsPage />);
 
-    // Where the section was opened from, and so where leaving it puts a
-    // student back. Which topic holds it is written above the title instead.
-    await user.click(
-      await screen.findByRole("button", { name: /back to roadmap/i }),
-    );
+    // 7 is the parent the server returned with the section. The address names
+    // only the section (101), so nothing here could have been read off it.
+    // The topic page is where the student's progress through it is shown.
+    await user.click(await screen.findByRole("button", { name: "Back to topic" }));
 
-    expect(navigate).toHaveBeenCalledWith("/roadmap");
-    expect(navigate).not.toHaveBeenCalledWith("/topic/1");
+    expect(navigate).toHaveBeenCalledWith("/topic/7");
+    expect(navigate).not.toHaveBeenCalledWith("/roadmap");
   });
 
   it("walks the topic's sections rather than the roadmap's topics", async () => {
@@ -558,5 +566,168 @@ describe("marking a subtopic complete", () => {
     expect(
       screen.queryByRole("button", { name: "Mark as Complete" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("after a subtopic is marked complete", () => {
+  /** 101 is the section to finish; 102 is still shut. */
+  const before = progression({
+    subtopics: [
+      { id: 100, title: "What a Network Is", order: 0, status: "completed" },
+      { id: 101, title: "OSI Model", order: 1, status: "available" },
+      { id: 102, title: "TCP/IP", order: 2, status: "locked" },
+    ],
+    nextSubtopicId: 101,
+    completedCount: 1,
+    remainingCount: 2,
+  });
+
+  it("puts focus on the next section's button once the server confirms", async () => {
+    serve();
+    vi.mocked(progress.fetchTopicProgression).mockResolvedValue(before);
+    // The default progression: 101 completed, 102 now open.
+    vi.mocked(progress.completeSubtopic).mockResolvedValue(progression());
+
+    render(<SubtopicDetailsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Mark as Complete" }));
+
+    // The button that was pressed is gone; focus is on the way on, not lost.
+    const next = await screen.findByRole("button", { name: "Continue to TCP/IP" });
+
+    await waitFor(() => expect(next).toHaveFocus());
+  });
+
+  it("moves nothing while the server has not answered", async () => {
+    serve();
+    vi.mocked(progress.fetchTopicProgression).mockResolvedValue(before);
+    vi.mocked(progress.completeSubtopic).mockReturnValue(new Promise(() => {}));
+
+    render(<SubtopicDetailsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Mark as Complete" }));
+
+    expect(
+      screen.getByRole("button", { name: "Marking complete…" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Continue to TCP/IP" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument();
+  });
+
+  it("offers the topic, and puts focus on it, when the last section opens nothing further", async () => {
+    const pair = [siblings[0], subtopic({ id: 101, title: "OSI Model", order: 1 })];
+
+    vi.mocked(content.fetchSubtopic).mockResolvedValue({
+      subtopic: pair[1],
+      parent: { ...parent, id: 7 },
+      roadmapTitle: "Networking Essentials",
+      siblings: pair,
+    });
+    vi.mocked(progress.fetchTopicProgression).mockResolvedValue(
+      progression({
+        topicId: 7,
+        subtopics: [
+          { id: 100, title: "What a Network Is", order: 0, status: "completed" },
+          { id: 101, title: "OSI Model", order: 1, status: "available" },
+        ],
+        nextSubtopicId: 101,
+        completedCount: 1,
+        totalCount: 2,
+        remainingCount: 1,
+        postTest: null,
+      }),
+    );
+    // Every section done, and no post-test to take: nothing further opens.
+    vi.mocked(progress.completeSubtopic).mockResolvedValue(
+      progression({
+        topicId: 7,
+        subtopics: [
+          { id: 100, title: "What a Network Is", order: 0, status: "completed" },
+          { id: 101, title: "OSI Model", order: 1, status: "completed" },
+        ],
+        nextSubtopicId: null,
+        completedCount: 2,
+        totalCount: 2,
+        remainingCount: 0,
+        postTest: null,
+      }),
+    );
+
+    render(<SubtopicDetailsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Mark as Complete" }));
+
+    const panel = within(await screen.findByRole("region", { name: "Your progress" }));
+    const back = await panel.findByRole("button", { name: "Back to topic" });
+
+    expect(panel.getByText("Completed")).toBeInTheDocument();
+    await waitFor(() => expect(back).toHaveFocus());
+
+    await user.click(back);
+
+    expect(navigate).toHaveBeenCalledWith("/topic/7");
+  });
+
+  it("does not pull focus to a section that was already complete when opened", async () => {
+    // The default progression: 101 was completed before this visit.
+    serve();
+
+    render(<SubtopicDetailsPage />);
+
+    const next = await screen.findByRole("button", { name: "Continue to TCP/IP" });
+
+    expect(next).not.toHaveFocus();
+  });
+
+  it("lets the next-section button wrap a long title", async () => {
+    const longTitle =
+      "Subnetting, supernetting and the arithmetic of CIDR prefixes, step by step";
+
+    serve();
+    vi.mocked(progress.fetchTopicProgression).mockResolvedValue(
+      progression({
+        subtopics: [
+          { id: 100, title: "What a Network Is", order: 0, status: "completed" },
+          { id: 101, title: "OSI Model", order: 1, status: "completed" },
+          { id: 102, title: longTitle, order: 2, status: "available" },
+        ],
+      }),
+    );
+
+    render(<SubtopicDetailsPage />);
+
+    const button = await screen.findByRole("button", {
+      name: `Continue to ${longTitle}`,
+    });
+
+    // The shared Button never wraps; this one must. Whether it looks right at
+    // a phone's width is a browser check — jsdom cannot measure overflow.
+    expect(button).toHaveClass("whitespace-normal", "h-auto");
+    expect(button).not.toHaveClass("whitespace-nowrap");
+  });
+});
+
+describe("the way back from a locked section", () => {
+  it("stays the roadmap, because the server never named the section's topic", async () => {
+    vi.mocked(content.fetchSubtopic).mockRejectedValue(
+      new ApiError(
+        'Take the pre-test for "Networking Fundamentals" before starting its subtopics.',
+        403,
+      ),
+    );
+
+    render(<SubtopicDetailsPage />);
+
+    await screen.findByText(/subtopic locked/i);
+
+    expect(
+      screen.queryByRole("button", { name: "Back to topic" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: /back to roadmap/i })[0]);
+
+    expect(navigate).toHaveBeenCalledWith("/roadmap");
   });
 });

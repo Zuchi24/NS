@@ -36,7 +36,8 @@ export function formatResult(result: ProgressionResult): string {
 
 const STATUS_LABEL: Record<SubtopicStatus, string> = {
   completed: "Completed",
-  available: "Open",
+  // Not "Open", which the student flow already uses as an action.
+  available: "Available",
   locked: "Locked",
 };
 
