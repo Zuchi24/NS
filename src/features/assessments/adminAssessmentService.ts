@@ -71,6 +71,42 @@ export interface Assessment {
   questions: AssessmentQuestion[] | null;
 }
 
+/**
+ * One student's result on an assessment, as their instructor reads it.
+ *
+ * Who took it, what they scored and when — and nothing about how. Which
+ * choices were picked is the answer key seen from the other side, and the
+ * server does not send it here.
+ */
+export interface AssessmentResult {
+  /** The attempt's own id, which is what makes a row unique. */
+  id: number;
+  student: {
+    id: number;
+    /** The school's id for them, as the roster pages show it. */
+    studentId: string | null;
+    fullName: string;
+  };
+  earnedPoints: number;
+  totalPoints: number;
+  /** Earned over total, rounded by the server. Never recomputed here. */
+  percent: number;
+  submittedAt: string | null;
+}
+
+interface ApiAssessmentResult {
+  id: number;
+  student: {
+    id: number;
+    student_id: string | null;
+    full_name: string;
+  };
+  earned_points: number;
+  total_points: number;
+  percent: number | string;
+  submitted_at: string | null;
+}
+
 interface ApiAssessmentChoice {
   id: number;
   label: string;
@@ -306,6 +342,40 @@ export async function fetchAssessment(assessmentId: number): Promise<Assessment>
   );
 
   return toAssessment(data);
+}
+
+function toResult(row: ApiAssessmentResult): AssessmentResult {
+  return {
+    id: row.id,
+    student: {
+      id: row.student.id,
+      studentId: row.student.student_id,
+      fullName: row.student.full_name,
+    },
+    earnedPoints: row.earned_points,
+    totalPoints: row.total_points,
+    // Carried as the server rounded it. A second rounding here is how an
+    // instructor and a student end up reading different scores.
+    percent: Number(row.percent),
+    submittedAt: row.submitted_at,
+  };
+}
+
+/**
+ * Who has taken one assessment, and what they scored.
+ *
+ * Newest submission first, as the server orders it. Empty means nobody has
+ * taken it yet, which is an answer rather than an error — there is no 404 for
+ * an assessment awaiting its first student.
+ */
+export async function fetchAssessmentResults(
+  assessmentId: number,
+): Promise<AssessmentResult[]> {
+  const { data } = await api.get<{ data: ApiAssessmentResult[] }>(
+    `/admin/assessments/${assessmentId}/results`,
+  );
+
+  return data.map(toResult);
 }
 
 /**

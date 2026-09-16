@@ -57,6 +57,7 @@ import {
   readRoadmapContext,
   roadmapAdminPath,
 } from "@/features/assessments/assessmentPaths";
+import { AssessmentResultsPanel } from "./AssessmentResultsPanel";
 
 /**
  * Building one of a topic's assessments.
@@ -220,6 +221,11 @@ export function AssessmentBuilderPage() {
         />
         <LockNotice state={lockStateOf(data)} />
         <QuestionList assessment={data} onChanged={reload} />
+
+        {/* Below the questions, because an author writes an assessment before
+            anyone has taken it: the results are what the page becomes about
+            afterwards. Read-only, and it changes nothing above it. */}
+        <AssessmentResultsPanel assessmentId={data.id} />
       </>
     );
   }

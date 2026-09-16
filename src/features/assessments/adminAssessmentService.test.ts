@@ -10,6 +10,7 @@ import {
   draftOfAssessment,
   draftOfQuestion,
   fetchAssessment,
+  fetchAssessmentResults,
   fetchTopicAssessments,
   lockStateOf,
   publishAssessment,
@@ -23,6 +24,7 @@ import {
 import type {
   Assessment,
   AssessmentDraft,
+  AssessmentResult,
   AssessmentQuestion,
   AssessmentQuestionDraft,
 } from "./adminAssessmentService";
@@ -241,6 +243,71 @@ describe("reading assessments", () => {
     const assessment = await fetchAssessment(11);
 
     expect(assessment.questions?.[0].choices).toEqual([]);
+  });
+});
+
+describe("reading results", () => {
+  const apiResult = () => ({
+    id: 500,
+    student: { id: 7, student_id: "2024-00123", full_name: "Juan Dela Cruz" },
+    earned_points: 8,
+    total_points: 10,
+    percent: 80,
+    submitted_at: "2026-09-17T08:30:00.000000Z",
+  });
+
+  it("asks the admin results route for one assessment", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [] });
+
+    await fetchAssessmentResults(11);
+
+    expect(api.get).toHaveBeenCalledWith("/admin/assessments/11/results");
+  });
+
+  it("maps a result to who took it, what they scored and when", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [apiResult()] });
+
+    const [result] = await fetchAssessmentResults(11);
+
+    expect(result).toEqual<AssessmentResult>({
+      id: 500,
+      student: { id: 7, studentId: "2024-00123", fullName: "Juan Dela Cruz" },
+      earnedPoints: 8,
+      totalPoints: 10,
+      percent: 80,
+      submittedAt: "2026-09-17T08:30:00.000000Z",
+    });
+  });
+
+  it("keeps the percentage the server rounded, whichever way it sent it", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      // Two thirds, and as a string: the API sends a decimal, and a driver may
+      // hand it over quoted. Recomputing it here is how an instructor and a
+      // student end up reading different scores.
+      data: [{ ...apiResult(), earned_points: 2, total_points: 3, percent: "66.67" }],
+    });
+
+    const [result] = await fetchAssessmentResults(11);
+
+    expect(result.percent).toBe(66.67);
+  });
+
+  it("reads an assessment nobody has taken as an empty list", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [] });
+
+    // An answer, not a failure: nothing here turns it into one.
+    await expect(fetchAssessmentResults(11)).resolves.toEqual([]);
+  });
+
+  it("carries a student with no school id of their own", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: [{ ...apiResult(), student: { id: 7, student_id: null, full_name: "Juan Dela Cruz" } }],
+    });
+
+    const [result] = await fetchAssessmentResults(11);
+
+    expect(result.student.studentId).toBeNull();
+    expect(result.student.fullName).toBe("Juan Dela Cruz");
   });
 });
 

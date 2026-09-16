@@ -64,6 +64,9 @@ vi.mock("@/features/assessments/adminAssessmentService", async (importOriginal) 
     publishAssessment: vi.fn(),
     unpublishAssessment: vi.fn(),
     deleteAssessment: vi.fn(),
+    // The results panel below the questions reads on mount. Stubbed here so
+    // these tests are about the builder rather than about what a class scored.
+    fetchAssessmentResults: vi.fn(),
   };
 });
 
@@ -201,6 +204,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   params = { assessmentId: "11" };
   search = "";
+  // Nobody has taken it unless a test says otherwise, so the results panel
+  // settles on its empty state and adds no controls to the page.
+  vi.mocked(service.fetchAssessmentResults).mockResolvedValue([]);
 });
 
 afterEach(cleanup);
