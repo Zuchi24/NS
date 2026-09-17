@@ -3,12 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   answersFor,
   fetchOwnAttempt,
+  fetchOwnAttemptReview,
   fetchStudentAssessment,
   submitAssessment,
   unansweredQuestions,
 } from "./studentAssessmentService";
 import type {
   AssessmentResult,
+  AssessmentReview,
   StudentAssessment,
   StudentAssessmentQuestion,
 } from "./studentAssessmentService";
@@ -57,6 +59,58 @@ function apiAttempt(over: Record<string, unknown> = {}) {
     total_points: 10,
     percent: 80,
     submitted_at: "2026-09-15T10:00:00.000000Z",
+    ...over,
+  };
+}
+
+/**
+ * A reviewed attempt: the 3-pointer answered wrongly, the 1-pointer rightly.
+ *
+ * Every number is its own — the points asked, the points awarded, the choice
+ * picked and the choice that was right all differ — so a mapping that read the
+ * wrong field could not land on a value that happens to match.
+ */
+function apiReview(over: Record<string, unknown> = {}) {
+  return {
+    ...apiAttempt({ earned_points: 1, total_points: 4, percent: 25 }),
+    assessment: {
+      id: 11,
+      topic_id: 4,
+      type: "pre_test",
+      title: "Networking Fundamentals",
+      description: "What you already know about cabling.",
+    },
+    questions: [
+      {
+        id: 21,
+        prompt: "What does a switch primarily do?",
+        points: 3,
+        order: 1,
+        choices: [
+          { id: 31, label: "Assign public IP addresses", order: 1 },
+          { id: 32, label: "Connect devices within a LAN", order: 2 },
+          { id: 33, label: "Encrypt traffic", order: 3 },
+        ],
+        selected_choice_id: 33,
+        correct_choice_id: 32,
+        is_correct: false,
+        points_awarded: 0,
+      },
+      {
+        id: 22,
+        prompt: "Which layer does a router work at?",
+        points: 1,
+        order: 2,
+        choices: [
+          { id: 41, label: "Network", order: 1 },
+          { id: 42, label: "Physical", order: 2 },
+        ],
+        selected_choice_id: 41,
+        correct_choice_id: 41,
+        is_correct: true,
+        points_awarded: 1,
+      },
+    ],
     ...over,
   };
 }
@@ -179,6 +233,242 @@ describe("reading the student's own result", () => {
     vi.mocked(api.get).mockResolvedValue({ data: apiAttempt({ percent: "66.67" }) });
 
     expect((await fetchOwnAttempt(11))?.percent).toBe(66.67);
+  });
+
+  it("still reads the totals alone out of the fuller reply the route now sends", async () => {
+    // The route answers with the whole review. This caller asked for the score,
+    // so the score is all it gets: the questions and the key stay behind.
+    vi.mocked(api.get).mockResolvedValue({ data: apiReview() });
+
+    const result = await fetchOwnAttempt(11);
+
+    expect(result).toEqual<AssessmentResult>({
+      id: 5,
+      assessmentId: 11,
+      earnedPoints: 1,
+      totalPoints: 4,
+      percent: 25,
+      submittedAt: "2026-09-15T10:00:00.000000Z",
+    });
+    expect(Object.keys(result ?? {})).not.toContain("questions");
+  });
+});
+
+describe("reading the student's own review", () => {
+  it("asks the same route, naming nobody, and maps the whole review", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: apiReview() });
+
+    expect(await fetchOwnAttemptReview(11)).toEqual<AssessmentReview>({
+      id: 5,
+      assessmentId: 11,
+      earnedPoints: 1,
+      totalPoints: 4,
+      percent: 25,
+      submittedAt: "2026-09-15T10:00:00.000000Z",
+      assessment: {
+        id: 11,
+        topicId: 4,
+        type: "pre_test",
+        title: "Networking Fundamentals",
+        description: "What you already know about cabling.",
+      },
+      questions: [
+        {
+          id: 21,
+          prompt: "What does a switch primarily do?",
+          points: 3,
+          order: 1,
+          choices: [
+            { id: 31, label: "Assign public IP addresses", order: 1 },
+            { id: 32, label: "Connect devices within a LAN", order: 2 },
+            { id: 33, label: "Encrypt traffic", order: 3 },
+          ],
+          selectedChoiceId: 33,
+          correctChoiceId: 32,
+          isCorrect: false,
+          pointsAwarded: 0,
+        },
+        {
+          id: 22,
+          prompt: "Which layer does a router work at?",
+          points: 1,
+          order: 2,
+          choices: [
+            { id: 41, label: "Network", order: 1 },
+            { id: 42, label: "Physical", order: 2 },
+          ],
+          selectedChoiceId: 41,
+          correctChoiceId: 41,
+          isCorrect: true,
+          pointsAwarded: 1,
+        },
+      ],
+    });
+    expect(api.get).toHaveBeenCalledWith("/assessments/11/attempt");
+  });
+
+  it("keeps the choice picked apart from the choice that was right", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: apiReview() });
+
+    const [wrong, right] = (await fetchOwnAttemptReview(11))!.questions;
+
+    // A wrong answer: two different ids, and neither read from the other.
+    expect(wrong.selectedChoiceId).toBe(33);
+    expect(wrong.correctChoiceId).toBe(32);
+
+    // A right one: the same id twice, which is what makes it right.
+    expect(right.selectedChoiceId).toBe(41);
+    expect(right.correctChoiceId).toBe(41);
+  });
+
+  it("keeps the correctness and the points the server awarded, rather than working them out", async () => {
+    // The server has awarded 2 of the 3 points and called it wrong. Neither
+    // number follows from the choices, so only a mapping that copies them can
+    // produce them.
+    vi.mocked(api.get).mockResolvedValue({
+      data: apiReview({
+        questions: [
+          {
+            id: 21,
+            prompt: "What does a switch primarily do?",
+            points: 3,
+            order: 1,
+            choices: [{ id: 31, label: "Connect devices within a LAN", order: 1 }],
+            selected_choice_id: 31,
+            correct_choice_id: 31,
+            is_correct: false,
+            points_awarded: 2,
+          },
+        ],
+      }),
+    });
+
+    const [question] = (await fetchOwnAttemptReview(11))!.questions;
+
+    expect(question.isCorrect).toBe(false);
+    expect(question.pointsAwarded).toBe(2);
+  });
+
+  it("keeps a zero award and a false correctness as themselves, not as gaps", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: apiReview() });
+
+    const [wrong] = (await fetchOwnAttemptReview(11))!.questions;
+
+    expect(wrong.pointsAwarded).toBe(0);
+    expect(wrong.isCorrect).toBe(false);
+  });
+
+  it("keeps the questions and their choices in the order the server sent them", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: apiReview() });
+
+    const { questions } = (await fetchOwnAttemptReview(11))!;
+
+    expect(questions.map((question) => question.id)).toEqual([21, 22]);
+    expect(questions.map((question) => question.order)).toEqual([1, 2]);
+    expect(questions.map((question) => question.points)).toEqual([3, 1]);
+    expect(questions[0].choices.map((choice) => choice.id)).toEqual([31, 32, 33]);
+    expect(questions[0].choices.map((choice) => choice.label)).toEqual([
+      "Assign public IP addresses",
+      "Connect devices within a LAN",
+      "Encrypt traffic",
+    ]);
+    expect(questions[0].choices.map((choice) => choice.order)).toEqual([1, 2, 3]);
+  });
+
+  it("carries a question with no stored answer as a gap rather than as a zero", async () => {
+    // Nothing a student can reach produces one, but a null must stay a null:
+    // read as 0 it would claim the question was answered and scored nothing.
+    vi.mocked(api.get).mockResolvedValue({
+      data: apiReview({
+        questions: [
+          {
+            id: 21,
+            prompt: "What does a switch primarily do?",
+            points: 3,
+            order: 1,
+            choices: [],
+            selected_choice_id: null,
+            correct_choice_id: null,
+            is_correct: null,
+            points_awarded: null,
+          },
+        ],
+      }),
+    });
+
+    expect((await fetchOwnAttemptReview(11))!.questions[0]).toMatchObject({
+      selectedChoiceId: null,
+      correctChoiceId: null,
+      isCorrect: null,
+      pointsAwarded: null,
+      choices: [],
+    });
+  });
+
+  it("drops anything else the reply carried", async () => {
+    // As if the server had named the student and flagged the choices. The
+    // review says which choice was right on the question and nowhere else.
+    vi.mocked(api.get).mockResolvedValue({
+      data: apiReview({
+        user_id: 7,
+        student: { id: 7, full_name: "A Classmate" },
+        assessment: {
+          id: 11,
+          topic_id: 4,
+          type: "pre_test",
+          title: "Networking Fundamentals",
+          description: null,
+          is_published: false,
+          attempts_count: 12,
+        },
+        questions: [
+          {
+            id: 21,
+            prompt: "What does a switch primarily do?",
+            points: 3,
+            order: 1,
+            choices: [{ id: 31, label: "Connect devices within a LAN", order: 1, is_correct: true }],
+            selected_choice_id: 31,
+            correct_choice_id: 31,
+            is_correct: true,
+            points_awarded: 3,
+          },
+        ],
+      }),
+    });
+
+    const review = (await fetchOwnAttemptReview(11))!;
+
+    expect(review).not.toHaveProperty("user_id");
+    expect(review).not.toHaveProperty("student");
+    expect(Object.keys(review.assessment)).toEqual([
+      "id",
+      "topicId",
+      "type",
+      "title",
+      "description",
+    ]);
+    expect(Object.keys(review.questions[0].choices[0])).toEqual(["id", "label", "order"]);
+  });
+
+  it("reads 'not taken yet' as no review rather than as a failure", async () => {
+    vi.mocked(api.get).mockRejectedValue(new ApiError("Not found.", 404));
+
+    await expect(fetchOwnAttemptReview(11)).resolves.toBeNull();
+  });
+
+  it("passes any other refusal on", async () => {
+    vi.mocked(api.get).mockRejectedValue(
+      new ApiError("This topic has not been released yet.", 403),
+    );
+
+    await expect(fetchOwnAttemptReview(11)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("reads a percentage sent as text as a number", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: apiReview({ percent: "66.67" }) });
+
+    expect((await fetchOwnAttemptReview(11))?.percent).toBe(66.67);
   });
 });
 
