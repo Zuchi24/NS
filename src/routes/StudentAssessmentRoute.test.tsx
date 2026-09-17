@@ -63,7 +63,7 @@ vi.mock("@/features/assessments/studentAssessmentService", async (importOriginal
     typeof import("@/features/assessments/studentAssessmentService")
   >();
 
-  return { ...actual, fetchStudentAssessment: vi.fn(), fetchOwnAttempt: vi.fn() };
+  return { ...actual, fetchStudentAssessment: vi.fn(), fetchOwnAttemptReview: vi.fn() };
 });
 
 // Imported after the mocks so the route table's lazy imports pick them up.
@@ -90,7 +90,9 @@ beforeEach(() => {
     description: null,
     questions: [],
   });
-  vi.mocked(service.fetchOwnAttempt).mockResolvedValue(null);
+  // The page asks this of every assessment it opens, ahead of the assessment
+  // itself: nothing taken here, so the form is what the student lands on.
+  vi.mocked(service.fetchOwnAttemptReview).mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -131,7 +133,7 @@ describe("the student assessment route", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/dashboard"));
 
     expect(service.fetchStudentAssessment).not.toHaveBeenCalled();
-    expect(service.fetchOwnAttempt).not.toHaveBeenCalled();
+    expect(service.fetchOwnAttemptReview).not.toHaveBeenCalled();
   });
 
   it("sends a signed-out visitor to sign in", async () => {

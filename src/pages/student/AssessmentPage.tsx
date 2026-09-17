@@ -13,16 +13,18 @@ import {
 import {
   STUDENT_ASSESSMENT_TYPE_LABELS,
   answersFor,
-  fetchOwnAttempt,
+  fetchOwnAttemptReview,
   fetchStudentAssessment,
   submitAssessment,
   unansweredQuestions,
 } from "@/features/assessments/studentAssessmentService";
 import type {
   AssessmentResult,
+  AssessmentReview,
   AssessmentSelections,
   StudentAssessment,
 } from "@/features/assessments/studentAssessmentService";
+import { AssessmentAnswerReview } from "./AssessmentReview";
 import {
   fetchTopicProgression,
   openNextSubtopic,
@@ -35,15 +37,25 @@ import { useAsync } from "@/services/useAsync";
  * Taking a pre-test or post-test.
  *
  * The questions, one answer each, and a single submission — after which the
- * page shows the score the server worked out and never the form again. A
- * student who has already taken it lands on that result directly.
+ * page shows the score the server worked out, the review of what was answered,
+ * and never the form again. A student who has already taken it lands on that
+ * review directly.
  *
  * Everything that matters is the server's. Whether the assessment may be
  * opened at all: a draft is absent and a topic that has not been released is
  * refused, and the page shows those states rather than any contents. Whether it
  * may be submitted: once only, and a second tab that got there first wins. And
- * the score: the page is never sent which choices were right, so it has nothing
- * to work one out from, and shows the server's numbers as they come.
+ * the score: the page is never sent which choices were right until there is an
+ * attempt to review, so while the form is up it has nothing to work one out
+ * from, and it shows the server's numbers as they come.
+ *
+ * The two halves are asked for in that order, and deliberately. What a student
+ * already did outlasts what the catalogue offers: the server keeps a submitted
+ * attempt readable after its assessment is unpublished or its roadmap
+ * withdrawn, and the review carries the assessment's own title and topic for
+ * exactly that case. So the review is read first and the assessment is only
+ * asked about when there is no review — a refusal on what is offered now is not
+ * a refusal on what was done then.
  */
 
 /** The id in the address, or null when the address names no assessment. */
@@ -61,16 +73,22 @@ type AssessmentView =
   | { kind: "missing" }
   /** 403: the topic has not been released, or the post-test is not open yet. */
   | { kind: "withheld"; message: string }
-  | { kind: "open"; assessment: StudentAssessment; result: AssessmentResult | null };
+  /** Taken. The review is the page, and it carries its own assessment. */
+  | { kind: "reviewed"; review: AssessmentReview }
+  /** Not taken, and open to be: the assessment as it is offered now. */
+  | { kind: "open"; assessment: StudentAssessment };
 
 async function loadView(assessmentId: number): Promise<AssessmentView> {
-  try {
-    // The assessment first: if it cannot be opened, there is no result to ask
-    // about either — the server withholds both behind the same rule.
-    const assessment = await fetchStudentAssessment(assessmentId);
-    const result = await fetchOwnAttempt(assessmentId);
+  // What the student already did, asked for on its own terms. Null means they
+  // have not taken it — not that anything was refused.
+  const review = await fetchOwnAttemptReview(assessmentId);
 
-    return { kind: "open", assessment, result };
+  if (review !== null) return { kind: "reviewed", review };
+
+  try {
+    // Only now does what the catalogue offers today matter, because only now is
+    // there a form to put up.
+    return { kind: "open", assessment: await fetchStudentAssessment(assessmentId) };
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) return { kind: "missing" };
     if (e instanceof ApiError && e.status === 403) {
@@ -99,11 +117,17 @@ export function AssessmentPage() {
   const { data, error, loading, reload } = useAsync(load, [id]);
 
   /**
-   * The result the server returned for a submission made on this page, shown
-   * straight from that response. Held against the assessment it belongs to, so
-   * it cannot surface on another one opened in the same page.
+   * The assessment submitted from this page, if one was.
+   *
+   * The score and the review are read back from the server rather than made
+   * here — the submission's own reply carries the totals and not the answers —
+   * so what is kept is only which assessment it was. That decides whether the
+   * review appearing is news worth moving focus to, and whether a failure to
+   * read it back needs saying that the answers still went in. Held by id so it
+   * cannot carry over to another assessment opened in the same page.
    */
-  const [submitted, setSubmitted] = useState<AssessmentResult | null>(null);
+  const [submittedFor, setSubmittedFor] = useState<number | null>(null);
+  const justSubmitted = submittedFor !== null && submittedFor === id;
 
   /**
    * Why the page was read again under the student — another tab submitted
@@ -112,7 +136,15 @@ export function AssessmentPage() {
    */
   const [notice, setNotice] = useState<string | null>(null);
 
-  const topicId = data?.kind === "open" ? data.assessment.topicId : null;
+  // Where Back leads. The topic is the server's to name, and a review names it
+  // as well as an assessment does — so a result stays reachable from its topic
+  // even once the assessment itself is no longer offered.
+  const topicId =
+    data?.kind === "open"
+      ? data.assessment.topicId
+      : data?.kind === "reviewed"
+        ? data.review.assessment.topicId
+        : null;
 
   const back = (
     <Button
@@ -147,8 +179,33 @@ export function AssessmentPage() {
   );
 
   if (id === null) return notFound;
-  if (loading) return shell(<LoadingState label="Loading assessment…" />);
-  if (error) return shell(<ErrorState message={error} onRetry={reload} />);
+
+  if (loading) {
+    return shell(
+      <LoadingState
+        label={justSubmitted ? "Loading your review…" : "Loading assessment…"}
+      />,
+    );
+  }
+
+  if (error) {
+    return shell(
+      <>
+        {/* The submission is the server's now. Only reading it back failed, and
+            a student told nothing would reasonably think it had not gone in. */}
+        {justSubmitted && (
+          <p
+            role="status"
+            className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+          >
+            Your answers were submitted. Only the review could not be loaded.
+          </p>
+        )}
+        <ErrorState message={error} onRetry={reload} />
+      </>,
+    );
+  }
+
   if (data === null || data.kind === "missing") return notFound;
 
   if (data.kind === "withheld") {
@@ -157,11 +214,8 @@ export function AssessmentPage() {
     );
   }
 
-  const { assessment } = data;
-  const result =
-    submitted !== null && submitted.assessmentId === assessment.id
-      ? submitted
-      : data.result;
+  const assessment =
+    data.kind === "reviewed" ? data.review.assessment : data.assessment;
 
   return shell(
     <div className="space-y-6">
@@ -176,37 +230,45 @@ export function AssessmentPage() {
         </p>
       )}
 
-      {result !== null ? (
+      {data.kind === "reviewed" ? (
         <>
           <ResultCard
-            result={result}
+            result={data.review}
             // Only for a submission made here, once the server has answered:
-            // the Submit button that had focus is gone. Opening a result that
+            // the Submit button that had focus is gone. Opening a review that
             // was already there moves nothing.
-            focusOnMount={submitted !== null && submitted.assessmentId === assessment.id}
+            focusOnMount={justSubmitted}
           />
           {/* A submitted pre-test is what opens a topic's subtopics. Which one
-              it opened is read from the server afresh, not assumed. */}
+              it opened is read from the server afresh, not assumed. Kept above
+              the review, where it has always been, so moving on does not mean
+              scrolling past every question first. */}
           {assessment.type === "pre_test" && (
             <NextSubtopic
               topicId={assessment.topicId}
               onOpen={(subtopicId) => navigate(`/subtopic/${subtopicId}`)}
             />
           )}
+          <AssessmentAnswerReview review={data.review} />
         </>
-      ) : assessment.questions.length === 0 ? (
+      ) : data.assessment.questions.length === 0 ? (
         <EmptyState
           title="No questions yet"
           description="This assessment has no questions to answer."
         />
       ) : (
         <AnswerForm
-          key={assessment.id}
-          assessment={assessment}
-          onSubmitted={(saved) => {
+          key={data.assessment.id}
+          assessment={data.assessment}
+          onSubmitted={() => {
             setNotice(null);
-            setSubmitted(saved);
+            setSubmittedFor(data.assessment.id);
             toast.success("Assessment submitted.");
+            // The submission's reply is the totals alone. The review — what was
+            // picked, what was right — is a reading of the attempt, so the page
+            // is read again rather than a second way of loading it invented
+            // here. That read is what puts the review up.
+            reload();
           }}
           onStale={(message) => {
             setNotice(message);
@@ -232,7 +294,18 @@ function Unavailable({ title, message }: { title: string; message: string }) {
   );
 }
 
-function AssessmentHeading({ assessment }: { assessment: StudentAssessment }) {
+/**
+ * What the assessment is called, and which of the two it is.
+ *
+ * Takes only those fields, so that it draws the same heading over a form and
+ * over a review — the review carries its own copy of them for an assessment
+ * that is no longer on offer.
+ */
+function AssessmentHeading({
+  assessment,
+}: {
+  assessment: Pick<StudentAssessment, "type" | "title" | "description">;
+}) {
   return (
     <Card className="border border-gray-200 shadow-sm">
       <CardContent className="p-6 space-y-2">
@@ -364,7 +437,12 @@ function AnswerForm({
   onStale,
 }: {
   assessment: StudentAssessment;
-  onSubmitted: (result: AssessmentResult) => void;
+  /**
+   * The submission landed. No result goes with it: the totals come back with
+   * the review, read from the server, so this says that it happened and not
+   * what it came to.
+   */
+  onSubmitted: () => void;
   /** The server says the page is out of date: taken elsewhere, or withdrawn. */
   onStale: (message: string) => void;
 }) {
@@ -404,12 +482,9 @@ function AnswerForm({
     setFailure(null);
 
     try {
-      const result = await submitAssessment(
-        assessment.id,
-        answersFor(questions, selections),
-      );
+      await submitAssessment(assessment.id, answersFor(questions, selections));
 
-      onSubmitted(result);
+      onSubmitted();
     } catch (e) {
       if (e instanceof ApiError && [403, 404, 409].includes(e.status)) {
         // Not a problem with the answers: submitted from somewhere else first,

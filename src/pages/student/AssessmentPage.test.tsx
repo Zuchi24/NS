@@ -8,6 +8,7 @@ import { AssessmentPage } from "./AssessmentPage";
 import { ApiError } from "@/services/api";
 import type {
   AssessmentResult,
+  AssessmentReview,
   StudentAssessment,
   StudentAssessmentQuestion,
 } from "@/features/assessments/studentAssessmentService";
@@ -51,7 +52,7 @@ vi.mock("@/features/assessments/studentAssessmentService", async (importOriginal
   return {
     ...actual,
     fetchStudentAssessment: vi.fn(),
-    fetchOwnAttempt: vi.fn(),
+    fetchOwnAttemptReview: vi.fn(),
     submitAssessment: vi.fn(),
   };
 });
@@ -121,17 +122,84 @@ const result: AssessmentResult = {
   submittedAt: "2026-09-15T10:00:00Z",
 };
 
-/** Renders the page and waits for the assessment to land. */
+/**
+ * The attempt behind the two questions above: the first answered wrongly, the
+ * second rightly.
+ *
+ * Every number is its own — what each question was worth, what was awarded for
+ * it, the choice picked and the choice that was right — so a page that read the
+ * wrong one could not land on a value that happens to look right.
+ */
+function review(over: Partial<AssessmentReview> = {}): AssessmentReview {
+  return {
+    id: 5,
+    assessmentId: 11,
+    earnedPoints: 1,
+    totalPoints: 3,
+    percent: 33.33,
+    submittedAt: "2026-09-15T10:00:00Z",
+    assessment: {
+      id: 11,
+      topicId: 4,
+      type: "pre_test",
+      title: "Networking Fundamentals",
+      description: "Answer what you can.",
+    },
+    questions: [
+      {
+        ...switching,
+        selectedChoiceId: 32, // Assign public IP addresses
+        correctChoiceId: 31, // Connect devices within a LAN
+        isCorrect: false,
+        pointsAwarded: 0,
+      },
+      {
+        ...routing,
+        selectedChoiceId: 41, // Network
+        correctChoiceId: 41,
+        isCorrect: true,
+        pointsAwarded: 1,
+      },
+    ],
+    ...over,
+  };
+}
+
+/**
+ * Renders the page and waits for the assessment to land.
+ *
+ * A review is of the assessment it is shown with, so the one passed here is
+ * given the same title, type and topic the server would have sent with it —
+ * the page reads its heading from the review once there is one.
+ */
 async function show(
   value: StudentAssessment = assessment(),
-  attempt: AssessmentResult | null = null,
+  attempt: AssessmentReview | null = null,
 ) {
   vi.mocked(service.fetchStudentAssessment).mockResolvedValue(value);
-  vi.mocked(service.fetchOwnAttempt).mockResolvedValue(attempt);
+  vi.mocked(service.fetchOwnAttemptReview).mockResolvedValue(
+    attempt === null
+      ? null
+      : {
+          ...attempt,
+          assessment: {
+            id: value.id,
+            topicId: value.topicId,
+            type: value.type,
+            title: value.title,
+            description: value.description,
+          },
+        },
+  );
 
   render(<AssessmentPage />);
 
   await screen.findByRole("heading", { name: value.title });
+}
+
+/** What the read after a submission finds. The page puts the review up from it. */
+function reviewLandsOn(attempt: AssessmentReview = review()) {
+  vi.mocked(service.fetchOwnAttemptReview).mockResolvedValue(attempt);
 }
 
 /** One question, so a query cannot stray into another. */
@@ -154,6 +222,9 @@ function submitButton() {
 beforeEach(() => {
   vi.clearAllMocks();
   params = { assessmentId: "11" };
+  // Not taken, unless a test says otherwise: the page asks this of every
+  // assessment it opens, before it asks anything else.
+  vi.mocked(service.fetchOwnAttemptReview).mockResolvedValue(null);
   vi.mocked(progress.fetchTopicProgression).mockResolvedValue(progression());
 });
 
@@ -177,7 +248,7 @@ describe("opening an assessment", () => {
 
       expect(await screen.findByText("Assessment not found")).toBeInTheDocument();
       expect(service.fetchStudentAssessment).not.toHaveBeenCalled();
-      expect(service.fetchOwnAttempt).not.toHaveBeenCalled();
+      expect(service.fetchOwnAttemptReview).not.toHaveBeenCalled();
     },
   );
 
@@ -185,7 +256,7 @@ describe("opening an assessment", () => {
     await show();
 
     expect(service.fetchStudentAssessment).toHaveBeenCalledWith(11);
-    expect(service.fetchOwnAttempt).toHaveBeenCalledWith(11);
+    expect(service.fetchOwnAttemptReview).toHaveBeenCalledWith(11);
   });
 
   it("shows its type, title and description", async () => {
@@ -238,8 +309,9 @@ describe("opening an assessment", () => {
     expect(
       screen.queryByRole("button", { name: "Submit assessment" }),
     ).not.toBeInTheDocument();
-    // No result is asked for an assessment that cannot be opened.
-    expect(service.fetchOwnAttempt).not.toHaveBeenCalled();
+    // The review was asked for first and answered with nothing of theirs, so
+    // what the catalogue says about the assessment itself is what decides.
+    expect(service.fetchOwnAttemptReview).toHaveBeenCalledWith(11);
   });
 
   it("shows the server's reason when the assessment is withheld", async () => {
@@ -262,7 +334,7 @@ describe("opening an assessment", () => {
     vi.mocked(service.fetchStudentAssessment)
       .mockRejectedValueOnce(new ApiError("The server had a problem with that.", 500))
       .mockResolvedValue(assessment());
-    vi.mocked(service.fetchOwnAttempt).mockResolvedValue(null);
+    vi.mocked(service.fetchOwnAttemptReview).mockResolvedValue(null);
 
     render(<AssessmentPage />);
 
@@ -399,6 +471,7 @@ describe("submitting", () => {
     await show();
 
     vi.mocked(service.submitAssessment).mockImplementation(realService.submitAssessment);
+    reviewLandsOn();
     vi.mocked(api.post).mockResolvedValue({
       data: {
         id: 5,
@@ -442,7 +515,7 @@ describe("submitting", () => {
       expect(Object.keys(answer).sort()).toEqual(["choice_id", "question_id"]);
     }
 
-    // And what comes back is the server's score, as sent.
+    // And the page ends on the server's score, read back with the review.
     expect(await screen.findByTestId("assessment-score")).toHaveTextContent("1 / 3");
     expect(screen.getByTestId("assessment-percent")).toHaveTextContent("33.33%");
   });
@@ -469,6 +542,7 @@ describe("submitting", () => {
     await show();
 
     vi.mocked(service.submitAssessment).mockResolvedValue(result);
+    reviewLandsOn();
 
     await answerAll(user);
     await user.click(submitButton());
@@ -477,16 +551,18 @@ describe("submitting", () => {
       await screen.findByRole("region", { name: "Assessment submitted" }),
     );
 
-    expect(shown.getByTestId("assessment-score")).toHaveTextContent("8 / 10");
-    expect(shown.getByTestId("assessment-percent")).toHaveTextContent("80%");
+    expect(shown.getByTestId("assessment-score")).toHaveTextContent("1 / 3");
+    expect(shown.getByTestId("assessment-percent")).toHaveTextContent("33.33%");
     expect(toast.success).toHaveBeenCalledWith("Assessment submitted.");
 
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Submit assessment" }),
     ).not.toBeInTheDocument();
-    // Straight from the response: nothing was read back to show it.
-    expect(service.fetchOwnAttempt).toHaveBeenCalledTimes(1);
+    // The submission's own reply carries the totals and not the answers, so the
+    // attempt is read back once it exists — and that read is the whole review.
+    expect(service.fetchOwnAttemptReview).toHaveBeenCalledTimes(2);
+    expect(service.fetchOwnAttemptReview).toHaveBeenLastCalledWith(11);
   });
 
   it("keeps every answer when the server refuses the submission", async () => {
@@ -537,9 +613,9 @@ describe("submitting", () => {
       '"Networking Fundamentals" has already been submitted. Each assessment can be taken once.';
 
     vi.mocked(service.fetchStudentAssessment).mockResolvedValue(assessment());
-    vi.mocked(service.fetchOwnAttempt)
+    vi.mocked(service.fetchOwnAttemptReview)
       .mockResolvedValueOnce(null)
-      .mockResolvedValue(result);
+      .mockResolvedValue(review());
     vi.mocked(service.submitAssessment).mockRejectedValue(new ApiError(refusal, 409));
 
     render(<AssessmentPage />);
@@ -552,9 +628,11 @@ describe("submitting", () => {
       await screen.findByRole("region", { name: "Assessment submitted" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(refusal);
-    expect(screen.getByTestId("assessment-score")).toHaveTextContent("8 / 10");
+    expect(screen.getByTestId("assessment-score")).toHaveTextContent("1 / 3");
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
-    expect(service.fetchStudentAssessment).toHaveBeenCalledTimes(2);
+    // The attempt the other tab made is theirs to read, so the second read
+    // finds it and the assessment itself is not asked about again.
+    expect(service.fetchOwnAttemptReview).toHaveBeenCalledTimes(2);
   });
 
   it("reloads onto the refusal when the assessment was withdrawn meanwhile", async () => {
@@ -563,7 +641,7 @@ describe("submitting", () => {
     vi.mocked(service.fetchStudentAssessment)
       .mockResolvedValueOnce(assessment())
       .mockRejectedValue(new ApiError("Not found.", 404));
-    vi.mocked(service.fetchOwnAttempt).mockResolvedValue(null);
+    vi.mocked(service.fetchOwnAttemptReview).mockResolvedValue(null);
     vi.mocked(service.submitAssessment).mockRejectedValue(new ApiError("Not found.", 404));
 
     render(<AssessmentPage />);
@@ -579,7 +657,7 @@ describe("submitting", () => {
 
 describe("an assessment already taken", () => {
   it("opens on the result", async () => {
-    await show(assessment(), { ...result, earnedPoints: 2, totalPoints: 3, percent: 66.67 });
+    await show(assessment(), review({ earnedPoints: 2, totalPoints: 3, percent: 66.67 }));
 
     const shown = within(screen.getByRole("region", { name: "Assessment submitted" }));
 
@@ -589,7 +667,7 @@ describe("an assessment already taken", () => {
   });
 
   it("offers no form and no way to submit again", async () => {
-    await show(assessment(), result);
+    await show(assessment(), review());
 
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     expect(screen.queryByRole("form")).not.toBeInTheDocument();
@@ -598,12 +676,268 @@ describe("an assessment already taken", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows nothing about which answers were right", async () => {
-    await show(assessment(), result);
+  it("replays the questions it was taken on, with what was picked", async () => {
+    await show(assessment(), review());
 
-    expect(screen.queryByText(/correct/i)).not.toBeInTheDocument();
-    // The questions themselves are not replayed either — nothing to mark.
-    expect(screen.queryByText("What does a switch primarily do?")).not.toBeInTheDocument();
+    expect(screen.getByText("What does a switch primarily do?")).toBeInTheDocument();
+    expect(screen.getByText("Which layer routes packets?")).toBeInTheDocument();
+    expect(questionGroup(1).getByText("Your answer")).toBeInTheDocument();
+  });
+});
+
+describe("reviewing a completed attempt", () => {
+  it("puts the review up once the submission has gone through", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    vi.mocked(service.submitAssessment).mockResolvedValue(result);
+    reviewLandsOn();
+
+    // Nothing of a review while the form is up: it is a reading of an attempt,
+    // and there is no attempt until this button is pressed.
+    expect(
+      screen.queryByRole("heading", { name: "Your answers" }),
+    ).not.toBeInTheDocument();
+
+    await answerAll(user);
+    await user.click(submitButton());
+
+    expect(
+      await screen.findByRole("heading", { name: "Your answers" }),
+    ).toBeInTheDocument();
+    // No second address to discover, and no attempt id anywhere: the review is
+    // where the assessment was, under the assessment's own id.
+    expect(navigate).not.toHaveBeenCalled();
+    expect(service.fetchOwnAttemptReview).toHaveBeenLastCalledWith(11);
+  });
+
+  it("shows the score and the percentage the server worked out", async () => {
+    await show(assessment(), review());
+
+    const shown = within(screen.getByRole("region", { name: "Assessment submitted" }));
+
+    expect(shown.getByTestId("assessment-score")).toHaveTextContent("1 / 3");
+    expect(shown.getByTestId("assessment-percent")).toHaveTextContent("33.33%");
+  });
+
+  it("reviews the questions in the order the server sent them", async () => {
+    await show(
+      assessment({ questions: [routing, switching] }),
+      review({
+        questions: [
+          {
+            ...routing,
+            selectedChoiceId: 41,
+            correctChoiceId: 41,
+            isCorrect: true,
+            pointsAwarded: 1,
+          },
+          {
+            ...switching,
+            selectedChoiceId: 32,
+            correctChoiceId: 31,
+            isCorrect: false,
+            pointsAwarded: 0,
+          },
+        ],
+      }),
+    );
+
+    const groups = screen.getAllByRole("group");
+
+    expect(groups[0]).toHaveAccessibleName(/^Question 1 Which layer routes packets/);
+    expect(groups[1]).toHaveAccessibleName(/^Question 2 What does a switch/);
+  });
+
+  it("keeps each question's choices in the order they were offered", async () => {
+    await show(assessment(), review());
+
+    expect(
+      questionGroup(1)
+        .getAllByRole("listitem")
+        .map((choice) => choice.textContent),
+    ).toEqual([
+      "Connect devices within a LANCorrect answer",
+      "Assign public IP addressesYour answer",
+      "Encrypt traffic",
+      "Resolve domain names",
+    ]);
+  });
+
+  it("names the choice the student picked", async () => {
+    await show(assessment(), review());
+
+    const picked = questionGroup(1).getByText("Your answer").closest("li");
+
+    expect(
+      within(picked as HTMLElement).getByText("Assign public IP addresses"),
+    ).toBeInTheDocument();
+  });
+
+  it("names the choice that was right", async () => {
+    await show(assessment(), review());
+
+    const key = questionGroup(1).getByText("Correct answer").closest("li");
+
+    expect(
+      within(key as HTMLElement).getByText("Connect devices within a LAN"),
+    ).toBeInTheDocument();
+  });
+
+  it("says a right answer is right, in words and not only in colour", async () => {
+    await show(assessment(), review());
+
+    const right = questionGroup(2);
+
+    expect(screen.getByRole("group", { name: /Correct$/ })).toBeInTheDocument();
+
+    // One row carrying both: what they picked, and what was right.
+    const picked = right.getByText("Your answer").closest("li");
+
+    expect(within(picked as HTMLElement).getByText("Correct answer")).toBeInTheDocument();
+    expect(right.getByText("1 of 1 point awarded")).toBeInTheDocument();
+  });
+
+  it("shows a wrong answer beside the right one, and says which is which", async () => {
+    await show(assessment(), review());
+
+    const wrong = questionGroup(1);
+
+    expect(screen.getByRole("group", { name: /Incorrect$/ })).toBeInTheDocument();
+
+    // Two different rows, each named in words rather than by colour alone.
+    const picked = wrong.getByText("Your answer").closest("li");
+    const key = wrong.getByText("Correct answer").closest("li");
+
+    expect(picked).not.toBe(key);
+    expect(
+      within(picked as HTMLElement).getByText("Assign public IP addresses"),
+    ).toBeInTheDocument();
+    expect(
+      within(key as HTMLElement).getByText("Connect devices within a LAN"),
+    ).toBeInTheDocument();
+    expect(wrong.getByText("0 of 2 points awarded")).toBeInTheDocument();
+  });
+
+  it("says a question was not answered rather than inventing an answer for it", async () => {
+    await show(
+      assessment(),
+      review({
+        questions: [
+          {
+            ...switching,
+            selectedChoiceId: null,
+            correctChoiceId: 31,
+            isCorrect: false,
+            pointsAwarded: 0,
+          },
+        ],
+      }),
+    );
+
+    const unanswered = questionGroup(1);
+
+    expect(screen.getByRole("group", { name: /Not answered$/ })).toBeInTheDocument();
+    expect(unanswered.getByText("You did not answer this question.")).toBeInTheDocument();
+
+    // Nothing is claimed to have been picked, and the key is still shown.
+    expect(unanswered.queryByText("Your answer")).not.toBeInTheDocument();
+    expect(
+      within(
+        unanswered.getByText("Correct answer").closest("li") as HTMLElement,
+      ).getByText("Connect devices within a LAN"),
+    ).toBeInTheDocument();
+    expect(unanswered.getByText("0 of 2 points awarded")).toBeInTheDocument();
+  });
+
+  it("offers nothing to change and nothing to press", async () => {
+    await show(assessment(), review());
+
+    const reviewed = questionGroup(1);
+
+    // Read, not answered again: no control of any kind, and none disabled and
+    // left standing to look like one that could be used.
+    expect(reviewed.queryByRole("radio")).not.toBeInTheDocument();
+    expect(reviewed.queryByRole("button")).not.toBeInTheDocument();
+    expect(reviewed.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(reviewed.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+
+    const group = screen.getByRole("group", { name: /^Question 1/ });
+
+    expect(group.querySelector("input, button, select, textarea")).toBeNull();
+  });
+
+  it("reads the same for a post-test as for a pre-test", async () => {
+    await show(
+      assessment({ type: "post_test", title: "Check your understanding" }),
+      review(),
+    );
+
+    expect(screen.getByText("Post-test")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Your answers" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /Incorrect$/ })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /Correct$/ })).toBeInTheDocument();
+    expect(questionGroup(1).getByText("Correct answer")).toBeInTheDocument();
+    expect(screen.getByTestId("assessment-score")).toHaveTextContent("1 / 3");
+  });
+
+  it("stays readable after the assessment it was taken on is withdrawn", async () => {
+    // The server keeps a submitted attempt readable once its assessment is
+    // unpublished or its roadmap withdrawn, and the review carries the title
+    // and the topic for exactly that. The page does not ask the withdrawn
+    // assessment's permission to show what the student already did.
+    vi.mocked(service.fetchStudentAssessment).mockRejectedValue(
+      new ApiError("That is not there any more.", 404),
+    );
+    vi.mocked(service.fetchOwnAttemptReview).mockResolvedValue(review());
+
+    render(<AssessmentPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Networking Fundamentals" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Your answers" })).toBeInTheDocument();
+    expect(screen.queryByText("Assessment not found")).not.toBeInTheDocument();
+    // Back still leads to the topic the review names.
+    expect(screen.getByRole("button", { name: "Back to topic" })).toBeInTheDocument();
+  });
+
+  it("offers a retry when the review cannot be read", async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(service.fetchOwnAttemptReview)
+      .mockRejectedValueOnce(new ApiError("The server had a problem with that.", 500))
+      .mockResolvedValue(review());
+
+    render(<AssessmentPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Your answers" }),
+    ).toBeInTheDocument();
+  });
+
+  it("says the answers went in when only reading them back failed", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    vi.mocked(service.submitAssessment).mockResolvedValue(result);
+    vi.mocked(service.fetchOwnAttemptReview).mockRejectedValue(
+      new ApiError("The server had a problem with that.", 500),
+    );
+
+    await answerAll(user);
+    await user.click(submitButton());
+
+    // A student told only "something went wrong" would reasonably think their
+    // submission had not gone through, and there is no second one to make.
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Your answers were submitted. Only the review could not be loaded.",
+    );
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(service.submitAssessment).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -674,6 +1008,7 @@ describe("where the assessment leads", () => {
     await show();
 
     vi.mocked(service.submitAssessment).mockResolvedValue(result);
+    reviewLandsOn();
 
     // Nothing is asked about the topic while the form is still being answered.
     expect(progress.fetchTopicProgression).not.toHaveBeenCalled();
@@ -702,7 +1037,7 @@ describe("where the assessment leads", () => {
       }),
     );
 
-    await show(assessment(), result);
+    await show(assessment(), review());
 
     await waitFor(() => expect(progress.fetchTopicProgression).toHaveBeenCalledWith(4));
     await screen.findByRole("region", { name: "Assessment submitted" });
@@ -711,7 +1046,7 @@ describe("where the assessment leads", () => {
   });
 
   it("offers a taken pre-test's next subtopic when the result is reopened", async () => {
-    await show(assessment(), result);
+    await show(assessment(), review());
 
     expect(
       await screen.findByRole("button", { name: "Start OSI Model" }),
@@ -720,7 +1055,7 @@ describe("where the assessment leads", () => {
 
   it("sends a post-test back to its topic and offers no subtopic", async () => {
     const user = userEvent.setup();
-    await show(assessment({ type: "post_test", title: "Check your understanding" }), result);
+    await show(assessment({ type: "post_test", title: "Check your understanding" }), review());
 
     await user.click(screen.getByRole("button", { name: "Back to topic" }));
 
@@ -744,6 +1079,7 @@ describe("where focus goes after submitting", () => {
     await show();
 
     vi.mocked(service.submitAssessment).mockResolvedValue(result);
+    reviewLandsOn();
 
     await answerAll(user);
     await user.click(submitButton());
@@ -772,7 +1108,7 @@ describe("where focus goes after submitting", () => {
   });
 
   it("leaves focus alone when a result that was already there is opened", async () => {
-    await show(assessment(), result);
+    await show(assessment(), review());
 
     expect(
       screen.getByRole("heading", { name: "Assessment submitted" }),
@@ -794,7 +1130,7 @@ describe("a long title on the next step", () => {
       }),
     );
 
-    await show(assessment(), result);
+    await show(assessment(), review());
 
     const start = await screen.findByRole("button", { name: `Start ${longTitle}` });
 
