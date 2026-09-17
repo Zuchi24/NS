@@ -67,6 +67,22 @@ export interface ProgressionPostTest {
  * Only published assessments appear: a draft pre-test is not here at all, so
  * it gates nothing, and the same goes for a draft post-test.
  */
+/**
+ * A result the student holds on an assessment this topic no longer offers.
+ *
+ * Read only. Deliberately not shaped like the pre-test and post-test above:
+ * those say what may be taken and under what conditions, and this says what was
+ * already done. There is nothing here to open, so there is no `available`, no
+ * `required` and no reason it is locked — an assessment that has been withdrawn
+ * is not locked, it is simply not on offer any more.
+ */
+export interface ProgressionPastResult {
+  assessmentId: number;
+  type: "pre_test" | "post_test";
+  title: string;
+  result: ProgressionResult;
+}
+
 export interface TopicProgression {
   topicId: number;
   preTest: ProgressionPreTest | null;
@@ -78,6 +94,8 @@ export interface TopicProgression {
   totalCount: number;
   remainingCount: number;
   postTest: ProgressionPostTest | null;
+  /** The student's own results on assessments the topic no longer offers. */
+  pastResults: ProgressionPastResult[];
 }
 
 interface ApiResult {
@@ -110,6 +128,11 @@ interface ApiProgression {
     locked_reason: string | null;
     result: ApiResult | null;
   } | null;
+  past_results?: (ApiResult & {
+    assessment_id: number;
+    type: "pre_test" | "post_test";
+    title: string;
+  })[];
 }
 
 function toResult(row: ApiResult | null): ProgressionResult | null {
@@ -158,6 +181,20 @@ function toProgression(row: ApiProgression): TopicProgression {
             lockedReason: row.post_test.locked_reason,
             result: toResult(row.post_test.result),
           },
+    // The totals come back on the row itself, the way the server sends them:
+    // what it is a result of, and what it came to. Nothing per question — the
+    // review is the only reply that carries that, and it is its own request.
+    pastResults: (row.past_results ?? []).map((past) => ({
+      assessmentId: past.assessment_id,
+      type: past.type,
+      title: past.title,
+      result: {
+        earnedPoints: past.earned_points,
+        totalPoints: past.total_points,
+        percent: Number(past.percent),
+        submittedAt: past.submitted_at,
+      },
+    })),
   };
 }
 

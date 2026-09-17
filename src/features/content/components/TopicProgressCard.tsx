@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router";
-import { CheckCircle2, Lock } from "lucide-react";
+import { CheckCircle2, History, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import {
   SUBTOPIC_STATUS_STYLE,
 } from "@/features/content/subtopicStatus";
 import type {
+  ProgressionPastResult,
   ProgressionPostTest,
   ProgressionPreTest,
   ProgressionResult,
@@ -27,10 +28,15 @@ import { useAsync } from "@/services/useAsync";
  * itself. What a subtopic holds is still read on that subtopic's page: here it
  * is a title, a status and a way in.
  *
- * Nothing is drawn for a topic with nothing to pace — no published pre-test
- * and no subtopics — and the post-test is never offered on a topic with no
- * subtopics, which the server keeps shut rather than calling "all of nothing
- * completed" done.
+ * Nothing is drawn for a topic with nothing to pace and nothing already done —
+ * no published pre-test, no subtopics and no result behind the student — and
+ * the post-test is never offered on a topic with no subtopics, which the server
+ * keeps shut rather than calling "all of nothing completed" done.
+ *
+ * Results the student holds on assessments the topic no longer offers are shown
+ * apart from all of that, under their own heading. They are not steps: there is
+ * nothing to take, nothing gating anything behind them, and the only thing on
+ * offer is the review of what was already submitted.
  */
 
 export function formatResult(result: ProgressionResult): string {
@@ -65,8 +71,19 @@ export function TopicProgressCard({ topicId }: { topicId: number }) {
   if (data === null) return null;
 
   const hasSubtopics = data.totalCount > 0;
+  const hasPastResults = data.pastResults.length > 0;
 
-  if (data.preTest === null && !hasSubtopics) return null;
+  /*
+   * A post-test is offered against the subtopics it follows, so a topic with
+   * none of them does not show the step — but a student who took it before
+   * those subtopics were removed still holds the result, and that is theirs to
+   * read whatever the topic looks like now.
+   */
+  const showPostTest = data.postTest !== null && (hasSubtopics || data.postTest.submitted);
+
+  if (data.preTest === null && !hasSubtopics && !showPostTest && !hasPastResults) {
+    return null;
+  }
 
   return frame(
     <>
@@ -85,13 +102,77 @@ export function TopicProgressCard({ topicId }: { topicId: number }) {
         />
       )}
 
-      {hasSubtopics && data.postTest && (
+      {showPostTest && data.postTest && (
         <PostTestStep
           postTest={data.postTest}
           onOpen={(id) => navigate(`/assessments/${id}`)}
         />
       )}
+
+      {hasPastResults && (
+        <PastResults
+          results={data.pastResults}
+          onOpen={(id) => navigate(`/assessments/${id}`)}
+        />
+      )}
     </>,
+  );
+}
+
+const PAST_RESULT_LABEL: Record<ProgressionPastResult["type"], string> = {
+  pre_test: "Pre-test",
+  post_test: "Post-test",
+};
+
+/**
+ * What the student has already done here, on assessments no longer offered.
+ *
+ * Its own section, below the pacing and visibly not part of it: no step number,
+ * no lock, no "take" anywhere. One thing is offered against each — the review of
+ * the attempt they submitted — and the wording says so, because an assessment
+ * that is no longer on offer must not read as one that could be taken again.
+ */
+function PastResults({
+  results,
+  onOpen,
+}: {
+  results: ProgressionPastResult[];
+  onOpen: (assessmentId: number) => void;
+}) {
+  return (
+    <section aria-label="Earlier results" className="space-y-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h3 className="text-sm font-semibold text-gray-900">Earlier results</h3>
+        <span className="text-xs text-gray-500">No longer offered in this topic</span>
+      </div>
+
+      <ul className="space-y-2">
+        {results.map((past) => (
+          <li
+            key={past.assessmentId}
+            className="rounded-md border border-gray-200 p-4 space-y-2"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <StepHeading kind={PAST_RESULT_LABEL[past.type]} title={past.title} />
+
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label={`Review your ${PAST_RESULT_LABEL[past.type].toLowerCase()} result: ${past.title}`}
+                onClick={() => onOpen(past.assessmentId)}
+              >
+                Review result
+              </Button>
+            </div>
+
+            <p className="text-sm text-gray-700 flex items-start gap-2">
+              <History className="w-4 h-4 mt-0.5 shrink-0 text-gray-500" aria-hidden="true" />
+              Submitted · {formatResult(past.result)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

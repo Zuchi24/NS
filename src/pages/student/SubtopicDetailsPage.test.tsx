@@ -149,6 +149,7 @@ function progression(over: Partial<TopicProgression> = {}): TopicProgression {
     totalCount: 3,
     remainingCount: 1,
     postTest: null,
+    pastResults: [],
     ...over,
   };
 }

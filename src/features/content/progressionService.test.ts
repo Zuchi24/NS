@@ -62,6 +62,7 @@ function apiProgression(over: Record<string, unknown> = {}) {
         'Complete every subtopic of "Networking Fundamentals" before taking its post-test (2 left).',
       result: null,
     },
+    past_results: [],
     ...over,
   };
 }
@@ -99,6 +100,7 @@ const mapped: TopicProgression = {
       'Complete every subtopic of "Networking Fundamentals" before taking its post-test (2 left).',
     result: null,
   },
+  pastResults: [],
 };
 
 beforeEach(() => vi.clearAllMocks());
@@ -140,6 +142,81 @@ describe("reading a progression", () => {
       nextSubtopicId: null,
       totalCount: 0,
     });
+  });
+
+  it("carries the student's own results on assessments no longer offered", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: apiProgression({
+        pre_test: null,
+        past_results: [
+          {
+            assessment_id: 51,
+            type: "pre_test",
+            title: "Before you start",
+            earned_points: 8,
+            total_points: 10,
+            percent: "80.00",
+            submitted_at: "2026-09-15T10:00:00.000000Z",
+          },
+        ],
+      }),
+    });
+
+    const { pastResults } = await fetchTopicProgression(1);
+
+    // The same reading of a percentage the rest of the page gets: a number,
+    // whether the wire carried one or the text of one.
+    expect(pastResults).toEqual([
+      {
+        assessmentId: 51,
+        type: "pre_test",
+        title: "Before you start",
+        result: {
+          earnedPoints: 8,
+          totalPoints: 10,
+          percent: 80,
+          submittedAt: "2026-09-15T10:00:00.000000Z",
+        },
+      },
+    ]);
+  });
+
+  it("reads no earlier results as none rather than as missing", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: apiProgression({ past_results: [] }) });
+
+    expect((await fetchTopicProgression(1)).pastResults).toEqual([]);
+  });
+
+  it("drops anything else an earlier result carried", async () => {
+    // As if the server had sent the questions with it. A result says what it
+    // came to; which answers were right is the review's, on its own route.
+    vi.mocked(api.get).mockResolvedValue({
+      data: apiProgression({
+        past_results: [
+          {
+            assessment_id: 51,
+            type: "post_test",
+            title: "Check your understanding",
+            earned_points: 2,
+            total_points: 4,
+            percent: 50,
+            submitted_at: null,
+            questions: [{ id: 1, correct_choice_id: 9, is_correct: true }],
+            user_id: 7,
+          },
+        ],
+      }),
+    });
+
+    const [past] = (await fetchTopicProgression(1)).pastResults;
+
+    expect(Object.keys(past).sort()).toEqual(["assessmentId", "result", "title", "type"]);
+    expect(Object.keys(past.result).sort()).toEqual([
+      "earnedPoints",
+      "percent",
+      "submittedAt",
+      "totalPoints",
+    ]);
   });
 });
 

@@ -8,6 +8,7 @@ import { TopicDetailsPage } from "./TopicDetailsPage";
 import { ApiError } from "@/services/api";
 import type { LearningMaterial, Subtopic, Topic } from "@/features/content/types";
 import type {
+  ProgressionPastResult,
   ProgressionPostTest,
   ProgressionPreTest,
   TopicProgression,
@@ -149,6 +150,7 @@ function unpaced(): TopicProgression {
     totalCount: 0,
     remainingCount: 0,
     postTest: null,
+    pastResults: [],
   };
 }
 
@@ -166,6 +168,7 @@ function paced(over: Partial<TopicProgression> = {}): TopicProgression {
     totalCount: 2,
     remainingCount: 2,
     postTest: null,
+    pastResults: [],
     ...over,
   };
 }
@@ -568,6 +571,136 @@ describe("the student's way through the topic", () => {
     expect(gate).not.toHaveTextContent(/open this topic's subtopics/);
     expect(screen.queryByRole("region", { name: "Subtopics" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Post-test" })).not.toBeInTheDocument();
+  });
+
+  /*
+   * A result on an assessment the topic no longer offers.
+   *
+   * Nothing to take, so nothing that reads like taking: the one thing offered
+   * against it is the review of what was already submitted.
+   */
+  function pastResult(
+    over: Partial<ProgressionPastResult> = {},
+  ): ProgressionPastResult {
+    return {
+      assessmentId: 51,
+      type: "pre_test",
+      title: "Before you start",
+      result: {
+        earnedPoints: 8,
+        totalPoints: 10,
+        percent: 80,
+        submittedAt: "2026-09-15T10:00:00.000000Z",
+      },
+      ...over,
+    };
+  }
+
+  it("offers the review of a result whose assessment is no longer on offer", async () => {
+    const user = userEvent.setup();
+
+    // Withdrawn: the server sends no pre-test step for it, only the result.
+    await showWith({ ...paced(), preTest: null, pastResults: [pastResult()] });
+
+    const earlier = within(await screen.findByRole("region", { name: "Earlier results" }));
+
+    expect(earlier.getByText("Before you start")).toBeInTheDocument();
+    expect(earlier.getByText("Pre-test")).toBeInTheDocument();
+    expect(earlier.getByText(/Submitted · 8 \/ 10 \(80%\)/)).toBeInTheDocument();
+
+    await user.click(earlier.getByRole("button", { name: /Review your pre-test result/ }));
+
+    // The assessment's own address, which is where the review lives. No attempt
+    // id anywhere: whose result it is, is the server's to decide.
+    expect(navigate).toHaveBeenCalledWith("/assessments/51");
+    expect(navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not offer a withdrawn assessment as one to take", async () => {
+    await showWith({ ...paced(), preTest: null, pastResults: [pastResult()] });
+
+    await screen.findByRole("region", { name: "Earlier results" });
+
+    // It is not a step, and nothing about it invites a second attempt.
+    expect(screen.queryByRole("region", { name: "Pre-test" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /take the pre-test/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /take the post-test/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/open this topic's subtopics/)).not.toBeInTheDocument();
+  });
+
+  it("names a withdrawn post-test result as a post-test", async () => {
+    await showWith({
+      ...paced(),
+      pastResults: [
+        pastResult({ assessmentId: 52, type: "post_test", title: "Check your understanding" }),
+      ],
+    });
+
+    const earlier = within(await screen.findByRole("region", { name: "Earlier results" }));
+
+    expect(earlier.getByText("Post-test")).toBeInTheDocument();
+    expect(
+      earlier.getByRole("button", { name: /Review your post-test result/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers nothing of the kind when the student has no earlier result", async () => {
+    await showWith(paced());
+
+    await screen.findByRole("region", { name: "Your progress" });
+
+    // An assessment the student never took leaves nothing behind. No section,
+    // and above all no action that would imply a result exists.
+    expect(
+      screen.queryByRole("region", { name: "Earlier results" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /review/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("draws the card for a topic whose only content is an earlier result", async () => {
+    await showWith({ ...unpaced(), pastResults: [pastResult()] });
+
+    // Nothing left to pace — no pre-test, no subtopics — and still something to
+    // say, because the student took it before it was withdrawn.
+    const earlier = within(await screen.findByRole("region", { name: "Earlier results" }));
+
+    expect(earlier.getByRole("button", { name: /Review your pre-test result/ })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Subtopics" })).not.toBeInTheDocument();
+  });
+
+  it("keeps a submitted post-test readable after its subtopics are removed", async () => {
+    const user = userEvent.setup();
+
+    await showWith({
+      ...unpaced(),
+      postTest: postTest({
+        submitted: true,
+        available: false,
+        lockedReason: null,
+        result: {
+          earnedPoints: 6,
+          totalPoints: 10,
+          percent: 60,
+          submittedAt: "2026-09-15T10:00:00.000000Z",
+        },
+      }),
+    });
+
+    // The step is offered against subtopics that are gone, but the result the
+    // student holds is not, and this is where they read it.
+    const post = within(await screen.findByRole("region", { name: "Post-test" }));
+
+    expect(post.getByText(/Submitted · 6 \/ 10 \(60%\)/)).toBeInTheDocument();
+
+    await user.click(post.getByRole("button", { name: "View result" }));
+
+    expect(navigate).toHaveBeenCalledWith("/assessments/52");
   });
 
   it("offers a retry when the progression will not load, and keeps the topic on screen", async () => {
