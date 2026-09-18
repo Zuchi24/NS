@@ -43,5 +43,31 @@ export default defineConfig({
      */
     environment: 'node',
     setupFiles: ['./src/test/setup.ts'],
+
+    /*
+     * Half the logical CPUs, not all of them.
+     *
+     * Vitest runs one worker per logical CPU by default, and each of ours
+     * stands up a jsdom and its own copy of the module graph — so the workers
+     * compete for memory bandwidth and for cores that are hyperthread siblings
+     * rather than whole ones. Past about half, the extra workers stop adding
+     * throughput and only slow each other down: on this machine, going from
+     * eight to four cut the summed test time from 660s to 343s, the summed
+     * import time from 130s to 68s and the environment time from 162s to 103s,
+     * while the wall clock stayed where it was (158s to 152s). The same work,
+     * done at twice the speed by half as many workers, in the same elapsed
+     * time.
+     *
+     * That doubling is what made the suite flaky. Every timeout here is
+     * wall-clock — vitest's five seconds a test, Testing Library's one second a
+     * findBy — so a run that takes twice as long per test spends twice as much
+     * of those budgets, and the tests nearest their limit lost. Which ones lost
+     * moved from run to run, because which workers happened to collide did.
+     *
+     * A proportion rather than a number, so a bigger machine still uses more of
+     * itself. The cost is that a run cannot use every core; the measurements
+     * above are why there is nothing to gain by it.
+     */
+    maxWorkers: '50%',
   },
 })

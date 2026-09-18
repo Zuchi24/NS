@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter, matchRoutes } from "react-router";
 
 import { ADMIN_NAV_ITEMS } from "@/components/common/AdminSidebar";
+import { warmLazyRoutes } from "@/test/lazyRoutes";
 import type { User } from "@/features/auth/types";
 
 /**
@@ -120,6 +121,13 @@ function mountAt(path: string) {
 
   return router;
 }
+
+// The pages these tests mount, loaded before anything is timed — see
+// warmLazyRoutes. /admin/profile is where the sidebar navigation starts from.
+beforeAll(async () => {
+  expect(await warmLazyRoutes(routes, ["/admin/achievements", "/admin/profile"]))
+    .toBeGreaterThan(0);
+}, 30_000);
 
 beforeEach(() => {
   session.user = admin;

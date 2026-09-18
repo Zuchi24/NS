@@ -1,0 +1,119 @@
+{
+    "version": "1.0.0",
+    "endpoint": "GET /api/topics/{topic}/progression",
+    "generated_by": "backend tests/Feature/TopicProgressionContractTest.php",
+    "cases": {
+        "paced": {
+            "payload": {
+                "topic_id": 1,
+                "pre_test": {
+                    "id": 1,
+                    "title": "Before you start",
+                    "submitted": true,
+                    "waived": false,
+                    "required": false,
+                    "result": {
+                        "earned_points": 2,
+                        "total_points": 3,
+                        "percent": 66.67,
+                        "submitted_at": "2026-09-18T10:00:00.000000Z"
+                    }
+                },
+                "subtopics": [
+                    {
+                        "id": 2,
+                        "title": "VLANs",
+                        "order": 0,
+                        "status": "completed"
+                    },
+                    {
+                        "id": 3,
+                        "title": "Trunks",
+                        "order": 1,
+                        "status": "available"
+                    },
+                    {
+                        "id": 4,
+                        "title": "Spanning Tree",
+                        "order": 2,
+                        "status": "locked"
+                    }
+                ],
+                "next_subtopic_id": 3,
+                "completed_count": 1,
+                "total_count": 3,
+                "remaining_count": 2,
+                "past_results": [],
+                "post_test": {
+                    "id": 2,
+                    "title": "Check your understanding",
+                    "available": false,
+                    "submitted": false,
+                    "locked_reason": "Complete every subtopic of \"Switching\" before taking its post-test (2 left).",
+                    "result": null
+                }
+            }
+        },
+        "withdrawn": {
+            "payload": {
+                "topic_id": 5,
+                "pre_test": {
+                    "id": 3,
+                    "title": "Routing check-in",
+                    "submitted": true,
+                    "waived": false,
+                    "required": false,
+                    "result": {
+                        "earned_points": 2,
+                        "total_points": 2,
+                        "percent": 100,
+                        "submitted_at": "2026-09-18T10:00:00.000000Z"
+                    }
+                },
+                "subtopics": [
+                    {
+                        "id": 6,
+                        "title": "Static Routes",
+                        "order": 0,
+                        "status": "completed"
+                    },
+                    {
+                        "id": 7,
+                        "title": "OSPF",
+                        "order": 1,
+                        "status": "completed"
+                    }
+                ],
+                "next_subtopic_id": null,
+                "completed_count": 2,
+                "total_count": 2,
+                "remaining_count": 0,
+                "past_results": [
+                    {
+                        "assessment_id": 4,
+                        "type": "post_test",
+                        "title": "Routing wrap-up",
+                        "earned_points": 1,
+                        "total_points": 2,
+                        "percent": 50,
+                        "submitted_at": "2026-09-18T10:00:00.000000Z"
+                    }
+                ],
+                "post_test": null
+            }
+        },
+        "bare": {
+            "payload": {
+                "topic_id": 8,
+                "pre_test": null,
+                "subtopics": [],
+                "next_subtopic_id": null,
+                "completed_count": 0,
+                "total_count": 0,
+                "remaining_count": 0,
+                "past_results": [],
+                "post_test": null
+            }
+        }
+    }
+}

@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter, matchRoutes } from "react-router";
 
+import { warmLazyRoutes } from "@/test/lazyRoutes";
 import type { Assessment } from "@/features/assessments/adminAssessmentService";
 import type { User } from "@/features/auth/types";
 import type { Roadmap, Topic } from "@/features/content/types";
@@ -146,6 +147,15 @@ function mountAt(path: string) {
 
   return router;
 }
+
+// The pages this file mounts, loaded before anything is timed — see
+// warmLazyRoutes. The builder and the roadmap page it returns to are both
+// behind dynamic imports.
+beforeAll(async () => {
+  expect(
+    await warmLazyRoutes(routes, ["/admin/roadmap/assessments/11", "/admin/roadmap"]),
+  ).toBeGreaterThan(0);
+}, 30_000);
 
 beforeEach(() => {
   session.user = admin;

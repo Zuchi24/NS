@@ -350,12 +350,24 @@ describe("RoadmapTopicsPanel", () => {
     );
   });
 
-  it("refuses an overview past the limit, from the modal", async () => {
-    const user = userEvent.setup();
+  /*
+   * One case per length, rather than three turns of a loop inside one test.
+   *
+   * The three are independent — each opens the modal, writes an overview of its
+   * own length and expects the same refusal — so nothing was holding them
+   * together except the loop. Sharing a test meant sharing its five-second
+   * budget as well, and three modal cycles came to about two seconds of it on
+   * an idle machine; on a machine running the whole suite at once that is
+   * enough to lose. Apart, each case is a quarter of the budget rather than
+   * most of it, and a failure names the length that failed.
+   */
+  it.each([281, 350, 500])(
+    "refuses an overview of %i characters, from the modal",
+    async (length) => {
+      const user = userEvent.setup();
 
-    renderWith([]);
+      renderWith([]);
 
-    for (const length of [281, 350, 500]) {
       await user.click(screen.getByRole("button", { name: /add topic/i }));
       await user.type(screen.getByLabelText(/title/i), "Too much to say");
       await user.click(screen.getByLabelText(/overview/i));
@@ -373,12 +385,8 @@ describe("RoadmapTopicsPanel", () => {
       expect(
         screen.getByText(new RegExp(`${length - 280} over the 280 character limit`, "i")),
       ).toBeInTheDocument();
-
-      await user.click(
-        within(screen.getByRole("dialog")).getByRole("button", { name: /cancel/i }),
-      );
-    }
-  });
+    },
+  );
 
   it("holds an edit to the same boundary", async () => {
     const user = userEvent.setup();

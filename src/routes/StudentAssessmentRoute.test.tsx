@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { RouterProvider, createMemoryRouter, matchRoutes } from "react-router";
 
+import { warmLazyRoutes } from "@/test/lazyRoutes";
 import type { User } from "@/features/auth/types";
 
 /**
@@ -79,6 +80,13 @@ function mountAt(path: string) {
 
   return router;
 }
+
+// The page this file mounts, loaded before anything is timed — see
+// warmLazyRoutes. Until it is, even the guard tests below are waiting on it:
+// the router resolves the chunk before it renders the branch the guard is in.
+beforeAll(async () => {
+  expect(await warmLazyRoutes(routes, ["/assessments/11"])).toBeGreaterThan(0);
+}, 30_000);
 
 beforeEach(() => {
   session.user = student;
