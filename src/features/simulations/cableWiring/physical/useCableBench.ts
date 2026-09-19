@@ -86,7 +86,9 @@ export function benchReducer(bench: BenchState, command: BenchCommand, scenario:
       return {
         ...bench,
         handIn: { value: toRecord(bench.cable), cable: bench.cable },
-        feedback: { tone: "info", text: "Hand-in record prepared. Nothing has been submitted.", seq },
+        // What becomes of the record is the caller's business, so the sentence
+        // stops at what the model did: it made one. The panel says where it goes.
+        feedback: { tone: "info", text: "Hand-in record prepared.", seq },
       };
 
     case "reset":

@@ -130,9 +130,12 @@ export const routes: RouteObject[] = [
         lazy: async () => ({ Component: (await import("@/pages/simulations/Workspace")).Workspace }),
       },
       {
+        // Two benches behind one address: the physical one for a challenge
+        // graded on the `rj45_cable` rule, the legacy one for everything else.
+        // CableWiringRoute reads the challenge and chooses.
         path: "/challenge/cable-wiring",
         lazy: async () => ({
-          Component: (await import("@/pages/simulations/CableWiringChallenge")).CableWiringChallenge,
+          Component: (await import("@/pages/simulations/CableWiringRoute")).CableWiringRoute,
         }),
       },
       {

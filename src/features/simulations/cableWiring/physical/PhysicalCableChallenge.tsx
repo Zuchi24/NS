@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { jacketedLengthMm } from "../model";
-import type { EndId, PairId } from "../model";
+import type { CableRecord, EndId, PairId } from "../model";
 import { BenchView } from "./components/BenchView";
 import type { Marker } from "./components/EndDetail";
 import { HandInPanel } from "./components/HandInPanel";
@@ -20,6 +20,25 @@ import type { ToolId } from "./tools";
 import { useCableBench } from "./useCableBench";
 
 /**
+ * How the application takes the finished cable, when there is an application.
+ *
+ * The bench hands over the model's cable/1 record and learns nothing back but
+ * whether the handover is in flight and whether it is done. What that handover
+ * *is* — an attempt, a request, a mark — belongs to whoever passes this in, and
+ * the bench is deliberately not told. Left out entirely, as the standalone
+ * preview leaves it out, HAND IN stays what it has always been: a look at the
+ * record, sent nowhere.
+ */
+export interface HandIn {
+  /** Given the record the model made. Whatever happens next is the caller's. */
+  submit: (record: CableRecord) => void;
+  /** True while the caller's handover is in flight. */
+  submitting: boolean;
+  /** True once the work is in and may not be sent again. */
+  submitted: boolean;
+}
+
+/**
  * The physical RJ45 bench.
  *
  * The cable itself is the P1 model's state and lives in useCableBench; every
@@ -28,13 +47,24 @@ import { useCableBench } from "./useCableBench";
  * is selected, which tool is out, where the sliders sit, whether a plug is in
  * hand.
  *
- * Standalone and prop-driven — no router, no attempt, no API. It is not yet
- * reachable from the app; P2 renders it in tests and in a development preview.
+ * Standalone and prop-driven — no router, no attempt, no API. The route reaches
+ * it now, but only by handing it props: what it is given is a scenario to work
+ * and, optionally, somewhere to hand the finished record. It still renders the
+ * same in tests and in the development preview, where there is no application
+ * at all.
  *
  * Its setup is a challenge's public side only (see BenchSetup): the bench is
  * never told what the challenge is graded on. PRACTICE_BENCH is S1.
  */
-export function PhysicalCableChallenge({ scenario, title, difficulty, description, objectives, assist }: BenchSetup) {
+export function PhysicalCableChallenge({
+  scenario,
+  title,
+  difficulty,
+  description,
+  objectives,
+  assist,
+  handIn,
+}: BenchSetup & { handIn?: HandIn }) {
   const bench = useCableBench(scenario);
   const beginner = difficulty === "beginner";
   const { cable } = bench;
@@ -51,6 +81,28 @@ export function PhysicalCableChallenge({ scenario, title, difficulty, descriptio
     if (cable.tray.plugs < trayBefore.current) setControlsState((previous) => ({ ...previous, plugPicked: false }));
     trayBefore.current = cable.tray.plugs;
   }, [cable.tray.plugs]);
+
+  /*
+   * Handing the record over, when someone is listening for it.
+   *
+   * The record is the one the model already made: useCableBench keeps
+   * toRecord()'s result on bench.handIn, and this passes that same object on.
+   * Nothing is rebuilt here, so there is one record per hand-in and no second
+   * way of making one. The reading is a fresh object on every press, which is
+   * what makes this run once per press rather than on every render.
+   *
+   * The callback is read from a ref rather than depended on, so a caller that
+   * passes a new arrow each render cannot make this fire again and hand the
+   * same cable in twice.
+   */
+  const handInReading = bench.handIn;
+  const submitRef = useRef(handIn?.submit);
+  useEffect(() => {
+    submitRef.current = handIn?.submit;
+  });
+  useEffect(() => {
+    if (handInReading) submitRef.current?.(handInReading.value);
+  }, [handInReading]);
 
   const end = cable.ends[selectedEnd];
   const selectedConductor =
@@ -311,7 +363,15 @@ export function PhysicalCableChallenge({ scenario, title, difficulty, descriptio
             <TesterPanel cable={cable} scenario={scenario} beginner={beginner} reading={bench.test} onTest={bench.runTest} />
             <InspectionPanel cable={cable} />
             <MeasurementsPanel cable={cable} scenario={scenario} />
-            <HandInPanel cable={cable} scenario={scenario} reading={bench.handIn} onHandIn={bench.prepareHandIn} />
+            <HandInPanel
+              cable={cable}
+              scenario={scenario}
+              reading={bench.handIn}
+              onHandIn={bench.prepareHandIn}
+              wired={handIn !== undefined}
+              submitting={handIn?.submitting ?? false}
+              submitted={handIn?.submitted ?? false}
+            />
           </aside>
         </div>
       </div>

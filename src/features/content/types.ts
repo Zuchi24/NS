@@ -110,16 +110,54 @@ export interface Roadmap {
 export type ChallengeKind = "topology" | "assembly" | "cable_wiring";
 
 /**
- * What a bespoke simulator needs to draw itself, as the server derives it from
- * the challenge's own rules. Null for a topology challenge.
+ * What a guided simulator is given: the assembly's build order, or the legacy
+ * cable's standard and type. Told apart from the physical bench's config by
+ * having no `model`.
  */
-export interface SimulationConfig {
+export interface GuidedSimulationConfig {
   /** Assembly: the parts in play, in build order. */
   components?: string[];
-  /** Cable wiring: the standard to wire to, and the cable it makes. */
+  /** Legacy cable wiring: the standard to wire to, and the cable it makes. */
   standard?: "T568A" | "T568B";
   cable?: string;
+  /** Never set. The physical bench's config is the one that carries this. */
+  model?: undefined;
+  scenario?: undefined;
+  assist?: undefined;
 }
+
+/**
+ * What the physical cable bench is given: the cable contract's §8 public
+ * config, as the server projects it from an `rj45_cable` rule.
+ *
+ * Its body is deliberately left opaque. This is wire data, and the one thing
+ * entitled to call it well formed is parsePhysicalChallengeConfig(), which
+ * takes `unknown` and reads it field by field precisely so that a config the
+ * contract would refuse cannot reach the bench on a type's say-so. Restating
+ * the scenario's shape here would be a second description of it, free to drift
+ * from the parser that actually enforces it.
+ */
+export interface PhysicalSimulationConfig {
+  /** The contract's discriminator (§8), and the only field read outside the parser. */
+  model: "physical";
+  scenario: unknown;
+  assist: unknown;
+  /** Never set; declared so the two shapes stay one union to read a field off. */
+  components?: never;
+  standard?: never;
+  cable?: never;
+}
+
+/**
+ * What a bespoke simulator needs to draw itself, as the server derives it from
+ * the challenge's own rules. Null for a topology challenge.
+ *
+ * Two shapes share the field, and `model` is what tells them apart — the same
+ * discriminator the contract defines and isPhysicalConfig() reads. A challenge
+ * graded on `rj45_cable` gets the physical config; everything else, including
+ * the legacy `rj45_order` wiring, gets the guided one.
+ */
+export type SimulationConfig = GuidedSimulationConfig | PhysicalSimulationConfig;
 
 /** How hard a challenge is, as its author judged it. */
 export type Difficulty = "beginner" | "intermediate" | "advanced";
