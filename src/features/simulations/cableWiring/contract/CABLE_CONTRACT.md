@@ -1,6 +1,6 @@
 # NetSim physical cable contract — `cable/1`
 
-Contract version: **1.0.0** · frozen in P3.1
+Contract version: **1.1.0** · frozen in P3.1 · scenarios extended in 1.1.0
 
 This is the contract between the physical cable bench (frontend) and the
 grader (backend) for challenges whose rule is `rj45_cable`. It is kept, byte
@@ -18,6 +18,16 @@ raising the version.
 The frozen P0 Decision Freeze and P1 model are the source of every rule below.
 Nothing here changes them; where this document adds something (fixtures F36–F40,
 `assist.reference`, request fixtures), it is consistent with them.
+
+### Version history
+
+- **1.0.0** (P3.1) — the record, the rule schema, the requirement catalogue,
+  scenarios S1, S2, S4 and S5, and fixtures F01–F40.
+- **1.1.0** — scenarios only. S6–S9 are added and S4 is marked for seeding;
+  fixtures F41–F62 pin them. Nothing in §2–§10 changes: the record, the rule
+  schema, the constants, the requirement catalogue and its wording, and the
+  public/private split are exactly 1.0.0's, so every 1.0.0 record, rule and
+  fixture still means what it did.
 
 ---
 
@@ -246,7 +256,7 @@ educational guidance, not grading configuration:
   result (evaluator fixtures `INV-1`, `INV-2`);
 - it is given only where the objective already names the standard (S1's
   objective says T568B), so it reveals nothing the student was not told;
-- S2, S4 and S5 have `assist: null`.
+- S2, S4, S5, S6, S7, S8 and S9 have `assist: null`.
 
 ## 10. Requirement catalogue
 
@@ -297,10 +307,38 @@ and title, so its history stays attached (its analytics will mix legacy and
 physical attempts — accepted). Provisional titles may be edited before P3.7
 without a contract change.
 
+Added in 1.1.0, all seeded:
+
+| | S6 | S7 | S8 | S9 |
+|---|---|---|---|---|
+| Title | Match the factory end | Make a crossover cable | Make a cable to link a PC to a switch | Fix the link |
+| Difficulty | intermediate | intermediate | advanced | advanced |
+| L0 / plugs | 1000 / 3 | 1000 / 3 | 1500 / 2 | 1000 / 1 |
+| Ends | A raw; B factory **T568A** (S1's geometry) | both raw | both raw | A factory T568A; B factory T568B (a finished crossover) |
+| Endpoints | tester | tester | tester + `pc-1:eth0` (MDI, PC-1) + `sw-1:port1` (MDIX, Switch-1) | as S8 |
+| Requirements | TERM CONT PAIRS EACH_STD CABLE (straight) RELIEF UNTWIST | TERM CONT PAIRS EACH_STD CABLE (crossover) RELIEF UNTWIST | TERM CONT PAIRS EACH_STD CABLE (straight) RELIEF UNTWIST FRONT INSULATION LINK | TERM CONT PAIRS EACH_STD RELIEF UNTWIST FRONT INSULATION LINK |
+| assist | — | — | — | — |
+
+- **S6** never names the standard: the student reads it off the factory end.
+  `each-standard` + `cable: straight` accepts only the matching standard.
+- **S7** grades the pattern, not which end holds which standard, so the mirror
+  arrangement (A T568B, B T568A) passes too (F44, F45).
+- **S8** is the MDI↔MDIX counterpart of S5: only a straight-through links.
+- **S9** starts as a crossover between a PC and a switch, so the link is down.
+  One plug means exactly one end can be re-made, to match the other; either end
+  will do (F59, F60). No length objective.
+
+**S4 is seeded from 1.1.0.** Its rule is unchanged. Played on the P1 model, its
+budget already makes the repair a diagnosis: cutting behind a plug starts at
+its rear (`J + jacket_in_mm` = 21 mm) and untwisting needs `MIN_WORK` exposed,
+so the shortest re-termination leaves the end at 41 mm. One end re-made leaves
+947 mm (passes); both ends, or the same end twice, leave 918 mm, under the 920
+minimum (F56); re-making only the good end leaves the miswire in place (F55).
+
 ## 12. Fixtures (`cable-contract.v1.json`)
 
-- `rules` — the private rules for S1, S2, S4, S5, the test-only rules `STR`,
-  `XO`, `INS` (never seeded), and `LEGACY` (an `rj45_order` rule).
+- `rules` — the private rules for S1, S2, S4, S5, S6–S9, the test-only rules
+  `STR`, `XO`, `INS` (never seeded), and `LEGACY` (an `rj45_order` rule).
 - `scenarios` — seed flag, title, difficulty, requirement list (id + wording)
   and the exact expected public config.
 - `record_fixtures` — F01–F21, F23–F25, F27, F28, F30–F35 as frozen in P0,
@@ -308,6 +346,9 @@ without a contract change.
   verdict, pattern, map, opens, split pairs, inspection, graded length,
   requirement results and (where it differs) canonical stored record. F22
   (SHORT) is deferred; F29 (legacy) stays with the existing backend tests.
+  F41–F62 (1.1.0) give each of S4 and S6–S9 a pass played on the model, the
+  wrong cable or standard, a failed inspection, and — where there is a link —
+  the cable left in the tester or linked down.
 - `evaluator_fixtures` — F26/F26b (empty submission) and INV-1/INV-2 (assist
   cannot change grading).
 - `request_fixtures` — V01–V08 accepted, R01–R15 rejected with the error path

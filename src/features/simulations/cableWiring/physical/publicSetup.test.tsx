@@ -112,6 +112,36 @@ describe("S2 from its public config", () => {
   });
 });
 
+describe("the contract 1.1.0 scenarios from their public configs", () => {
+  const S6 = () => setupFor("S6", { title: "Match the factory end", difficulty: "intermediate", description: null });
+  const S8 = () => setupFor("S8", { title: "Make a cable to link a PC to a switch", difficulty: "advanced", description: null });
+  const S9 = () => setupFor("S9", { title: "Fix the link", difficulty: "advanced", description: null });
+
+  it("opens S6 as an intermediate bench: no reference card and no hint", () => {
+    render(<PhysicalCableChallenge {...S6()} />);
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Match the factory end");
+    openArrangeOnB();
+    expect(reference()).toBeNull();
+    expect(document.body.textContent).not.toMatch(/T568A|T568B/);
+  });
+
+  it.each([
+    ["S8", S8],
+    ["S9", S9],
+  ])("names %s's link objective by its devices' labels, and never the cable it takes", (_key, setup) => {
+    render(<PhysicalCableChallenge {...setup()} />);
+
+    expect(within(objectives()!).getByText("PC-1 and Switch-1 must show a link.")).toBeInTheDocument();
+    tool("Connect");
+    for (const name of ["Tester MAIN", "Tester REMOTE", "PC-1", "Switch-1"]) {
+      expect(screen.getByRole("button", { name: new RegExp(`^Plug end A into ${name}`), hidden: true })).toBeInTheDocument();
+    }
+    expect(document.body.textContent).not.toContain("sw-1:port1");
+    expect(document.body.textContent).not.toMatch(/crossover|straight-through|\bMDI-?X?\b/i);
+  });
+});
+
 describe("S5 from its public config", () => {
   it("names the link objective by the PCs' labels, and lists all four inspections", () => {
     render(<PhysicalCableChallenge {...S5()} />);

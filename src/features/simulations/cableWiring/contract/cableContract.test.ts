@@ -51,8 +51,8 @@ import docText from "./CABLE_CONTRACT.md?raw";
    ============================================================ */
 
 /** SHA-256 of each file with line endings normalised to LF. Update both repos together. */
-const CONTRACT_SHA256 = "344eb8603b062f5261f2b7e5c1d10c9a5f5dfa964ce60114f0dd42845cb90bff";
-const DOC_SHA256 = "7fe9ce0e610955891d23007037883f06b56f23570a1ef7ce0c3daaeb9198cf53";
+const CONTRACT_SHA256 = "1833a029743fa3e3bbf01cdd9eef11f11b4eb5a00ddab4ac283cd241867af9b6";
+const DOC_SHA256 = "7c7dc55bcd3239a9e2e8deee61a96103e1a11774d40d8894b860cd038113fccb";
 
 async function sha256(text: string): Promise<string> {
   const bytes = new TextEncoder().encode(text.replace(/\r\n/g, "\n"));
@@ -400,14 +400,14 @@ function keysDeep(value: unknown, into: string[] = []): string[] {
 
 describe("the pinned contract", () => {
   it("is the agreed version, and the backend holds the same bytes", async () => {
-    expect(contract.version).toBe("1.0.0");
+    expect(contract.version).toBe("1.1.0");
     expect(contract.schema).toBe("cable/1");
     expect(await sha256(contractText)).toBe(CONTRACT_SHA256);
     expect(await sha256(docText)).toBe(DOC_SHA256);
   });
 
   it("the document names the version and every requirement", () => {
-    expect(docText).toContain("Contract version: **1.0.0**");
+    expect(docText).toContain("Contract version: **1.1.0**");
     for (const id of contract.requirement_order) expect(docText).toContain(`\`${id}\``);
   });
 
@@ -421,11 +421,10 @@ describe("the pinned contract", () => {
 });
 
 describe("scenarios", () => {
-  it("seeds exactly S1, S2 and S5; defines S4 unseeded; has no S3", () => {
+  it("seeds every scenario from 1.1.0, S4 included; has no S3", () => {
     const seeded = Object.entries(contract.scenarios).filter(([, s]) => s.seed).map(([key]) => key);
 
-    expect(seeded).toEqual(["S1", "S2", "S5"]);
-    expect(contract.scenarios.S4.seed).toBe(false);
+    expect(seeded).toEqual(["S1", "S2", "S5", "S4", "S6", "S7", "S8", "S9"]);
     expect(contract.scenarios.S3).toBeUndefined();
     expect(contract.rules.S3).toBeUndefined();
   });
@@ -434,6 +433,12 @@ describe("scenarios", () => {
     expect(contract.scenarios.S1).toMatchObject({ title: "Terminate a straight-through cable", difficulty: "beginner", title_frozen: true });
     expect(contract.scenarios.S2.difficulty).toBe("intermediate");
     expect(contract.scenarios.S5.difficulty).toBe("advanced");
+    expect(contract.scenarios.S4.difficulty).toBe("intermediate");
+    expect(contract.scenarios.S6.difficulty).toBe("intermediate");
+    expect(contract.scenarios.S7.difficulty).toBe("intermediate");
+    expect(contract.scenarios.S8.difficulty).toBe("advanced");
+    expect(contract.scenarios.S9.difficulty).toBe("advanced");
+    for (const key of ["S2", "S4", "S5", "S6", "S7", "S8", "S9"]) expect(contract.scenarios[key].title_frozen).toBe(false);
   });
 
   it("describes S1 exactly as the frontend's practice S1", () => {
@@ -455,6 +460,15 @@ describe("scenarios", () => {
     expect(ids("S2")).toEqual(["TERM", "CONT", "PAIRS", "END_A", "END_B", "RELIEF", "UNTWIST", "LENGTH"]);
     expect(ids("S5")).toEqual(["TERM", "CONT", "PAIRS", "EACH_STD", "CABLE", "RELIEF", "UNTWIST", "FRONT", "INSULATION", "LINK"]);
     expect(cableRule("S5").require.cable).toBe("crossover");
+    expect(ids("S6")).toEqual(["TERM", "CONT", "PAIRS", "EACH_STD", "CABLE", "RELIEF", "UNTWIST"]);
+    expect(ids("S7")).toEqual(["TERM", "CONT", "PAIRS", "EACH_STD", "CABLE", "RELIEF", "UNTWIST"]);
+    expect(ids("S8")).toEqual(["TERM", "CONT", "PAIRS", "EACH_STD", "CABLE", "RELIEF", "UNTWIST", "FRONT", "INSULATION", "LINK"]);
+    expect(ids("S9")).toEqual(["TERM", "CONT", "PAIRS", "EACH_STD", "RELIEF", "UNTWIST", "FRONT", "INSULATION", "LINK"]);
+    expect(cableRule("S6").require.cable).toBe("straight");
+    expect(cableRule("S7").require.cable).toBe("crossover");
+    expect(cableRule("S8").require.cable).toBe("straight");
+    // S7 grades the pattern, never which end holds which standard: the mirror crossover passes too.
+    expect(cableRule("S7").require.ends).toBe("each-standard");
 
     for (const key of [...Object.keys(contract.scenarios), ...Object.keys(contract.test_rules)]) {
       const order = requirementList(key).map((r) => contract.requirement_order.indexOf(r.id));
@@ -463,7 +477,7 @@ describe("scenarios", () => {
   });
 
   it("builds every scenario's starting ends as valid model states", () => {
-    for (const key of ["S1", "S2", "S4", "S5"]) {
+    for (const key of Object.keys(contract.scenarios)) {
       const rule = cableRule(key);
       const body = { submission: { schema: "cable/1", ends: rule.initial_ends, connections: {} } };
 
@@ -473,11 +487,13 @@ describe("scenarios", () => {
 });
 
 describe("public configuration", () => {
-  it.each(["S1", "S2", "S5", "S4"])("%s projects to exactly the frozen public config", (key) => {
+  const scenarioKeys = Object.keys(contract.scenarios);
+
+  it.each(scenarioKeys)("%s projects to exactly the frozen public config", (key) => {
     expect(project(cableRule(key))).toEqual(contract.scenarios[key].public_config);
   });
 
-  it.each(["S1", "S2", "S5", "S4"])("%s's public config carries no grading configuration", (key) => {
+  it.each(scenarioKeys)("%s's public config carries no grading configuration", (key) => {
     const keys = keysDeep(contract.scenarios[key].public_config);
 
     for (const forbidden of contract.public_config_forbidden_keys) expect(keys, forbidden).not.toContain(forbidden);
@@ -485,11 +501,23 @@ describe("public configuration", () => {
 
   it("exposes assist.reference for S1 only, as a map of end to standard", () => {
     expect((contract.scenarios.S1.public_config as { assist: unknown }).assist).toEqual({ reference: { A: "T568B", B: "T568B" } });
-    for (const key of ["S2", "S5", "S4"]) expect((contract.scenarios[key].public_config as { assist: unknown }).assist).toBeNull();
+    for (const key of scenarioKeys.filter((key) => key !== "S1")) {
+      expect((contract.scenarios[key].public_config as { assist: unknown }).assist).toBeNull();
+    }
   });
 
-  it("hides S5's required cable: nothing public says crossover", () => {
-    expect(JSON.stringify(contract.scenarios.S5.public_config)).not.toMatch(/crossover|straight/);
+  // S7 is left out on purpose: its objective is to build a crossover, so saying so hides nothing.
+  it.each(["S5", "S6", "S8", "S9"])("hides %s's required cable: nothing public says crossover or straight", (key) => {
+    expect(JSON.stringify(contract.scenarios[key].public_config)).not.toMatch(/crossover|straight/);
+  });
+
+  it("gives S8 and S9 a PC on an MDI port and a switch on an MDIX port, by label", () => {
+    for (const key of ["S8", "S9"]) {
+      expect(cableRule(key).endpoints.filter((e) => e.kind === "mdi" || e.kind === "mdix")).toEqual([
+        { id: "pc-1:eth0", kind: "mdi", label: "PC-1" },
+        { id: "sw-1:port1", kind: "mdix", label: "Switch-1" },
+      ]);
+    }
   });
 });
 
@@ -502,6 +530,9 @@ describe("record fixtures", () => {
       "F01", "F02", "F03", "F04", "F05", "F06", "F07", "F08", "F09", "F10", "F11", "F12", "F13", "F14", "F15", "F16", "F17",
       "F18", "F19", "F20", "F21", "F23", "F24", "F25", "F27", "F28", "F30", "F31", "F31b", "F32", "F32b", "F33", "F33b", "F34", "F35",
       "F36", "F37", "F38", "F39", "F40",
+      // 1.1.0: S4 and S6–S9.
+      "F41", "F42", "F43", "F44", "F45", "F46", "F47", "F48", "F49", "F50", "F51",
+      "F52", "F53", "F54", "F55", "F56", "F57", "F58", "F59", "F60", "F61", "F62",
     ]) {
       expect(ids).toContain(id);
     }
@@ -633,5 +664,89 @@ describe("the bench produces contract records", () => {
     const f39 = contract.record_fixtures.find((f) => f.id === "F39")!;
 
     expect(toRecord(createInitialState(S1_PRACTICE))).toEqual(f39.record);
+  });
+});
+
+/*
+ * 1.1.0's scenarios, played through on the model.
+ *
+ * Every pass fixture added in 1.1.0 has to be reachable by the bench, not merely
+ * a record that happens to grade. So each is rebuilt here from the scenario's
+ * starting state through apply() alone — the only way the bench changes a cable —
+ * and has to come out as exactly the fixture's record.
+ */
+describe("1.1.0 scenarios are achievable on the model", () => {
+  /** Strip, untwist all four pairs, arrange into the standard, trim, seat and crimp one end. */
+  function terminate(end: EndId, standard: readonly Conductor[], opts: { cutAtMm?: number; stripMm?: number } = {}): Action[] {
+    const actions: Action[] = [];
+    if (opts.cutAtMm !== undefined) actions.push({ type: "cut", end, atMm: opts.cutAtMm });
+    actions.push({ type: "strip", end, amountMm: opts.stripMm ?? 30, slot: "correct" });
+    actions.push(...PAIR_IDS.map((pair): Action => ({ type: "untwist", end, pair })));
+
+    let row: Conductor[] = [...NATURAL_ORDER];
+    standard.forEach((conductor, index) => {
+      if (row.indexOf(conductor) === index) return;
+      actions.push({ type: "moveConductor", end, conductor, toIndex: index });
+      row = row.filter((c) => c !== conductor);
+      row.splice(index, 0, conductor);
+    });
+
+    actions.push({ type: "trim", end, leaveMm: 12 });
+    actions.push({ type: "insert", end, orientation: "contacts-up", pushMm: 10 });
+    actions.push({ type: "crimp", end, squeeze: "full" });
+
+    return actions;
+  }
+
+  function play(key: string, actions: Action[]): CableState {
+    const scenario = toScenario(cableRule(key));
+
+    return actions.reduce((state, action) => {
+      const result = apply(state, action, scenario);
+      if ("rejected" in result) throw new Error(`${key}: ${action.type} refused (${result.rejected})`);
+
+      return result.state;
+    }, createInitialState(scenario));
+  }
+
+  const plugInto = (a: string, b: string): Action[] => [
+    { type: "connect", end: "A", endpoint: a },
+    { type: "connect", end: "B", endpoint: b },
+  ];
+  const fixture = (id: string) => contract.record_fixtures.find((f) => f.id === id)!;
+  // Cutting behind a factory plug starts at its rear, J + jacket_in = 12 + 9.
+  const repair = { cutAtMm: 21, stripMm: 20 };
+
+  it.each([
+    ["F41", "S6", () => terminate("A", T568A)],
+    ["F44", "S7", () => [...terminate("A", T568A), ...terminate("B", T568B)]],
+    ["F45", "S7", () => [...terminate("A", T568B), ...terminate("B", T568A)]],
+    ["F48", "S8", () => [...terminate("A", T568B), ...terminate("B", T568B), ...plugInto("pc-1:eth0", "sw-1:port1")]],
+    ["F54", "S4", () => terminate("B", T568B, repair)],
+    ["F59", "S9", () => [...terminate("B", T568A, repair), ...plugInto("pc-1:eth0", "sw-1:port1")]],
+    ["F60", "S9", () => [...terminate("A", T568B, repair), ...plugInto("pc-1:eth0", "sw-1:port1")]],
+  ] as const)("%s (%s) is what the bench hands in, and it passes", (id, key, actions) => {
+    const record = toRecord(play(key, actions()));
+
+    expect(record).toEqual(fixture(id).record);
+    expect(checkBody(cableRule(key), { submission: record })).toEqual([]);
+    expect(fixture(id).expected.requirements.every((r) => r.passed)).toBe(true);
+  });
+
+  it("S4's budget allows re-making one end, but not both", () => {
+    expect(() => play("S4", [...terminate("A", T568B, repair), ...terminate("B", T568B, repair)])).not.toThrow();
+    expect(jacketedLengthMm(play("S4", terminate("B", T568B, repair)), toScenario(cableRule("S4")))).toBe(947);
+    expect(
+      jacketedLengthMm(play("S4", [...terminate("A", T568B, repair), ...terminate("B", T568B, repair)]), toScenario(cableRule("S4"))),
+    ).toBeLessThan(cableRule("S4").require.min_length_mm!);
+  });
+
+  it("S9's single plug allows re-making one end only", () => {
+    expect(() => play("S9", [...terminate("A", T568B, repair), ...terminate("B", T568A, repair)])).toThrow(/tray-empty/);
+  });
+
+  it("the untouched S4 and S9 benches are the failing fixtures F53 and F58", () => {
+    expect(toRecord(play("S4", []))).toEqual(fixture("F53").record);
+    expect(toRecord(play("S9", plugInto("pc-1:eth0", "sw-1:port1")))).toEqual(fixture("F58").record);
   });
 });

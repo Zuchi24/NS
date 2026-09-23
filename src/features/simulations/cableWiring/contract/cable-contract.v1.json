@@ -1,6 +1,6 @@
 {
   "contract": "netsim-physical-cable",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "schema": "cable/1",
   "frozen": "P3.1",
   "constants": {
@@ -168,6 +168,142 @@
         "min_length_mm": null,
         "inspection": ["strain_relief", "untwist", "front", "insulation"],
         "link": ["pc-1:eth0", "pc-2:eth0"]
+      }
+    },
+    "S6": {
+      "type": "rj45_cable",
+      "scenario_id": "s6-match-factory-end",
+      "start_length_mm": 1000,
+      "plugs": 3,
+      "initial_ends": {
+        "A": {
+          "jacket_edge_mm": 0,
+          "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+          "fan": null,
+          "plug": null,
+          "nicks_at_mm": []
+        },
+        "B": {
+          "jacket_edge_mm": 12,
+          "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+          "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+          "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+          "nicks_at_mm": []
+        }
+      },
+      "endpoints": [
+        { "id": "tester-main", "kind": "tester-main" },
+        { "id": "tester-remote", "kind": "tester-remote" }
+      ],
+      "require": {
+        "ends": "each-standard",
+        "cable": "straight",
+        "min_length_mm": null,
+        "inspection": ["strain_relief", "untwist"],
+        "link": null
+      }
+    },
+    "S7": {
+      "type": "rj45_cable",
+      "scenario_id": "s7-crossover",
+      "start_length_mm": 1000,
+      "plugs": 3,
+      "initial_ends": {
+        "A": {
+          "jacket_edge_mm": 0,
+          "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+          "fan": null,
+          "plug": null,
+          "nicks_at_mm": []
+        },
+        "B": {
+          "jacket_edge_mm": 0,
+          "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+          "fan": null,
+          "plug": null,
+          "nicks_at_mm": []
+        }
+      },
+      "endpoints": [
+        { "id": "tester-main", "kind": "tester-main" },
+        { "id": "tester-remote", "kind": "tester-remote" }
+      ],
+      "require": {
+        "ends": "each-standard",
+        "cable": "crossover",
+        "min_length_mm": null,
+        "inspection": ["strain_relief", "untwist"],
+        "link": null
+      }
+    },
+    "S8": {
+      "type": "rj45_cable",
+      "scenario_id": "s8-pc-to-switch",
+      "start_length_mm": 1500,
+      "plugs": 2,
+      "initial_ends": {
+        "A": {
+          "jacket_edge_mm": 0,
+          "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+          "fan": null,
+          "plug": null,
+          "nicks_at_mm": []
+        },
+        "B": {
+          "jacket_edge_mm": 0,
+          "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+          "fan": null,
+          "plug": null,
+          "nicks_at_mm": []
+        }
+      },
+      "endpoints": [
+        { "id": "tester-main", "kind": "tester-main" },
+        { "id": "tester-remote", "kind": "tester-remote" },
+        { "id": "pc-1:eth0", "kind": "mdi", "label": "PC-1" },
+        { "id": "sw-1:port1", "kind": "mdix", "label": "Switch-1" }
+      ],
+      "require": {
+        "ends": "each-standard",
+        "cable": "straight",
+        "min_length_mm": null,
+        "inspection": ["strain_relief", "untwist", "front", "insulation"],
+        "link": ["pc-1:eth0", "sw-1:port1"]
+      }
+    },
+    "S9": {
+      "type": "rj45_cable",
+      "scenario_id": "s9-fix-the-link",
+      "start_length_mm": 1000,
+      "plugs": 1,
+      "initial_ends": {
+        "A": {
+          "jacket_edge_mm": 12,
+          "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+          "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+          "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+          "nicks_at_mm": []
+        },
+        "B": {
+          "jacket_edge_mm": 12,
+          "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+          "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+          "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+          "nicks_at_mm": []
+        }
+      },
+      "endpoints": [
+        { "id": "tester-main", "kind": "tester-main" },
+        { "id": "tester-remote", "kind": "tester-remote" },
+        { "id": "pc-1:eth0", "kind": "mdi", "label": "PC-1" },
+        { "id": "sw-1:port1", "kind": "mdix", "label": "Switch-1" }
+      ],
+      "require": {
+        "ends": "each-standard",
+        "cable": null,
+        "min_length_mm": null,
+        "inspection": ["strain_relief", "untwist", "front", "insulation"],
+        "link": ["pc-1:eth0", "sw-1:port1"]
       }
     },
     "STR": {
@@ -429,7 +565,7 @@
       }
     },
     "S4": {
-      "seed": false,
+      "seed": true,
       "title": "Repair a miswired cable",
       "difficulty": "intermediate",
       "title_frozen": false,
@@ -474,6 +610,215 @@
             "min_length_mm": 920,
             "inspection": ["strain_relief", "untwist"],
             "link": null
+          }
+        },
+        "assist": null
+      }
+    },
+    "S6": {
+      "seed": true,
+      "title": "Match the factory end",
+      "difficulty": "intermediate",
+      "title_frozen": false,
+      "rule": "S6",
+      "requirement_list": [
+        { "id": "TERM", "requirement": "Terminate both ends with a fully crimped RJ45 plug" },
+        { "id": "CONT", "requirement": "Every conductor has continuity end to end" },
+        { "id": "PAIRS", "requirement": "Keep each twisted pair together" },
+        { "id": "EACH_STD", "requirement": "Each end is wired to T568A or T568B" },
+        { "id": "CABLE", "requirement": "The cable is a straight-through cable" },
+        { "id": "RELIEF", "requirement": "The jacket is clamped by the plug's strain relief" },
+        { "id": "UNTWIST", "requirement": "No more than 13 mm of any pair is untwisted" }
+      ],
+      "public_config": {
+        "model": "physical",
+        "scenario": {
+          "id": "s6-match-factory-end",
+          "start_length_mm": 1000,
+          "plugs": 3,
+          "initial_ends": {
+            "A": {
+              "jacket_edge_mm": 0,
+              "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+              "fan": null,
+              "plug": null,
+              "nicks_at_mm": []
+            },
+            "B": {
+              "jacket_edge_mm": 12,
+              "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+              "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+              "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+              "nicks_at_mm": []
+            }
+          },
+          "endpoints": [
+            { "id": "tester-main", "kind": "tester-main" },
+            { "id": "tester-remote", "kind": "tester-remote" }
+          ],
+          "objectives": {
+            "min_length_mm": null,
+            "inspection": ["strain_relief", "untwist"],
+            "link": null
+          }
+        },
+        "assist": null
+      }
+    },
+    "S7": {
+      "seed": true,
+      "title": "Make a crossover cable",
+      "difficulty": "intermediate",
+      "title_frozen": false,
+      "rule": "S7",
+      "requirement_list": [
+        { "id": "TERM", "requirement": "Terminate both ends with a fully crimped RJ45 plug" },
+        { "id": "CONT", "requirement": "Every conductor has continuity end to end" },
+        { "id": "PAIRS", "requirement": "Keep each twisted pair together" },
+        { "id": "EACH_STD", "requirement": "Each end is wired to T568A or T568B" },
+        { "id": "CABLE", "requirement": "The cable is a crossover cable" },
+        { "id": "RELIEF", "requirement": "The jacket is clamped by the plug's strain relief" },
+        { "id": "UNTWIST", "requirement": "No more than 13 mm of any pair is untwisted" }
+      ],
+      "public_config": {
+        "model": "physical",
+        "scenario": {
+          "id": "s7-crossover",
+          "start_length_mm": 1000,
+          "plugs": 3,
+          "initial_ends": {
+            "A": {
+              "jacket_edge_mm": 0,
+              "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+              "fan": null,
+              "plug": null,
+              "nicks_at_mm": []
+            },
+            "B": {
+              "jacket_edge_mm": 0,
+              "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+              "fan": null,
+              "plug": null,
+              "nicks_at_mm": []
+            }
+          },
+          "endpoints": [
+            { "id": "tester-main", "kind": "tester-main" },
+            { "id": "tester-remote", "kind": "tester-remote" }
+          ],
+          "objectives": {
+            "min_length_mm": null,
+            "inspection": ["strain_relief", "untwist"],
+            "link": null
+          }
+        },
+        "assist": null
+      }
+    },
+    "S8": {
+      "seed": true,
+      "title": "Make a cable to link a PC to a switch",
+      "difficulty": "advanced",
+      "title_frozen": false,
+      "rule": "S8",
+      "requirement_list": [
+        { "id": "TERM", "requirement": "Terminate both ends with a fully crimped RJ45 plug" },
+        { "id": "CONT", "requirement": "Every conductor has continuity end to end" },
+        { "id": "PAIRS", "requirement": "Keep each twisted pair together" },
+        { "id": "EACH_STD", "requirement": "Each end is wired to T568A or T568B" },
+        { "id": "CABLE", "requirement": "The cable is a straight-through cable" },
+        { "id": "RELIEF", "requirement": "The jacket is clamped by the plug's strain relief" },
+        { "id": "UNTWIST", "requirement": "No more than 13 mm of any pair is untwisted" },
+        { "id": "FRONT", "requirement": "Every conductor reaches the front of the plug" },
+        { "id": "INSULATION", "requirement": "No damaged insulation inside the plug" },
+        { "id": "LINK", "requirement": "PC-1 and Switch-1 show a link" }
+      ],
+      "public_config": {
+        "model": "physical",
+        "scenario": {
+          "id": "s8-pc-to-switch",
+          "start_length_mm": 1500,
+          "plugs": 2,
+          "initial_ends": {
+            "A": {
+              "jacket_edge_mm": 0,
+              "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+              "fan": null,
+              "plug": null,
+              "nicks_at_mm": []
+            },
+            "B": {
+              "jacket_edge_mm": 0,
+              "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+              "fan": null,
+              "plug": null,
+              "nicks_at_mm": []
+            }
+          },
+          "endpoints": [
+            { "id": "tester-main", "kind": "tester-main" },
+            { "id": "tester-remote", "kind": "tester-remote" },
+            { "id": "pc-1:eth0", "kind": "mdi", "label": "PC-1" },
+            { "id": "sw-1:port1", "kind": "mdix", "label": "Switch-1" }
+          ],
+          "objectives": {
+            "min_length_mm": null,
+            "inspection": ["strain_relief", "untwist", "front", "insulation"],
+            "link": ["pc-1:eth0", "sw-1:port1"]
+          }
+        },
+        "assist": null
+      }
+    },
+    "S9": {
+      "seed": true,
+      "title": "Fix the link",
+      "difficulty": "advanced",
+      "title_frozen": false,
+      "rule": "S9",
+      "requirement_list": [
+        { "id": "TERM", "requirement": "Terminate both ends with a fully crimped RJ45 plug" },
+        { "id": "CONT", "requirement": "Every conductor has continuity end to end" },
+        { "id": "PAIRS", "requirement": "Keep each twisted pair together" },
+        { "id": "EACH_STD", "requirement": "Each end is wired to T568A or T568B" },
+        { "id": "RELIEF", "requirement": "The jacket is clamped by the plug's strain relief" },
+        { "id": "UNTWIST", "requirement": "No more than 13 mm of any pair is untwisted" },
+        { "id": "FRONT", "requirement": "Every conductor reaches the front of the plug" },
+        { "id": "INSULATION", "requirement": "No damaged insulation inside the plug" },
+        { "id": "LINK", "requirement": "PC-1 and Switch-1 show a link" }
+      ],
+      "public_config": {
+        "model": "physical",
+        "scenario": {
+          "id": "s9-fix-the-link",
+          "start_length_mm": 1000,
+          "plugs": 1,
+          "initial_ends": {
+            "A": {
+              "jacket_edge_mm": 12,
+              "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+              "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+              "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+              "nicks_at_mm": []
+            },
+            "B": {
+              "jacket_edge_mm": 12,
+              "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+              "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+              "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+              "nicks_at_mm": []
+            }
+          },
+          "endpoints": [
+            { "id": "tester-main", "kind": "tester-main" },
+            { "id": "tester-remote", "kind": "tester-remote" },
+            { "id": "pc-1:eth0", "kind": "mdi", "label": "PC-1" },
+            { "id": "sw-1:port1", "kind": "mdix", "label": "Switch-1" }
+          ],
+          "objectives": {
+            "min_length_mm": null,
+            "inspection": ["strain_relief", "untwist", "front", "insulation"],
+            "link": ["pc-1:eth0", "sw-1:port1"]
           }
         },
         "assist": null
@@ -2390,6 +2735,1048 @@
           { "id": "PAIRS", "passed": true },
           { "id": "END_A", "passed": true },
           { "id": "END_B", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F41",
+      "title": "S6 pass: End A matched to the factory T568A end",
+      "rule": "S6",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": {}
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 958,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "CABLE", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F42",
+      "title": "S6 End A made to T568B against a T568A end: a crossover, not straight-through",
+      "rule": "S6",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": {}
+      },
+      "expected": {
+        "verdict": "crossover",
+        "pattern": "crossover",
+        "map": [3, 6, 1, 4, 5, 2, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 958,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "CABLE", "passed": false },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F43",
+      "title": "S6 End A matched but left 16 mm untwisted: jacket unclamped, over-untwisted",
+      "rule": "S6",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 14, "orange": 14, "white-green": 14, "green": 14, "blue": 14, "white-blue": 14, "white-brown": 14, "brown": 14 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 5, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": {}
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": false, "untwistOk": false, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 958,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "CABLE", "passed": true },
+          { "id": "RELIEF", "passed": false },
+          { "id": "UNTWIST", "passed": false }
+        ]
+      }
+    },
+    {
+      "id": "F44",
+      "title": "S7 pass: End A T568A, End B T568B",
+      "rule": "S7",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": {}
+      },
+      "expected": {
+        "verdict": "crossover",
+        "pattern": "crossover",
+        "map": [3, 6, 1, 4, 5, 2, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 940,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "CABLE", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F45",
+      "title": "S7 pass, mirrored: End A T568B, End B T568A",
+      "rule": "S7",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": {}
+      },
+      "expected": {
+        "verdict": "crossover",
+        "pattern": "crossover",
+        "map": [3, 6, 1, 4, 5, 2, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 940,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "CABLE", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F46",
+      "title": "S7 both ends T568B: straight-through, not crossover",
+      "rule": "S7",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": {}
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 940,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "CABLE", "passed": false },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F47",
+      "title": "S7 crossover with End B left 16 mm untwisted",
+      "rule": "S7",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 14, "orange": 14, "white-green": 14, "green": 14, "blue": 14, "white-blue": 14, "white-brown": 14, "brown": 14 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 5, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": {}
+      },
+      "expected": {
+        "verdict": "crossover",
+        "pattern": "crossover",
+        "map": [3, 6, 1, 4, 5, 2, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": false, "untwistOk": false, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 940,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "CABLE", "passed": true },
+          { "id": "RELIEF", "passed": false },
+          { "id": "UNTWIST", "passed": false }
+        ]
+      }
+    },
+    {
+      "id": "F48",
+      "title": "S8 pass: straight-through into PC-1 and Switch-1, link up",
+      "rule": "S8",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": { "A": "pc-1:eth0", "B": "sw-1:port1" }
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 1440,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "CABLE", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "FRONT", "passed": true },
+          { "id": "INSULATION", "passed": true },
+          { "id": "LINK", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F49",
+      "title": "S8 pass: T568A straight-through, plugged in the other way round",
+      "rule": "S8",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": { "A": "sw-1:port1", "B": "pc-1:eth0" }
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 1440,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "CABLE", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "FRONT", "passed": true },
+          { "id": "INSULATION", "passed": true },
+          { "id": "LINK", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F50",
+      "title": "S8 crossover into PC-1 and Switch-1: link down",
+      "rule": "S8",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": { "A": "pc-1:eth0", "B": "sw-1:port1" }
+      },
+      "expected": {
+        "verdict": "crossover",
+        "pattern": "crossover",
+        "map": [3, 6, 1, 4, 5, 2, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 1440,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "CABLE", "passed": false },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "FRONT", "passed": true },
+          { "id": "INSULATION", "passed": true },
+          { "id": "LINK", "passed": false }
+        ]
+      }
+    },
+    {
+      "id": "F51",
+      "title": "S8 straight-through left in the tester",
+      "rule": "S8",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": { "A": "tester-main", "B": "tester-remote" }
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 1440,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "CABLE", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "FRONT", "passed": true },
+          { "id": "INSULATION", "passed": true },
+          { "id": "LINK", "passed": false }
+        ]
+      }
+    },
+    {
+      "id": "F52",
+      "title": "S8 straight-through into both devices, End A stripped with the blade too deep",
+      "rule": "S8",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": [30]
+          },
+          "B": {
+            "jacket_edge_mm": 30,
+            "tip_mm": { "white-orange": 18, "orange": 18, "white-green": 18, "green": 18, "blue": 18, "white-blue": 18, "white-brown": 18, "brown": 18 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": { "A": "pc-1:eth0", "B": "sw-1:port1" }
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": false },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 1440,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "CABLE", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "FRONT", "passed": true },
+          { "id": "INSULATION", "passed": false },
+          { "id": "LINK", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F53",
+      "title": "S4 untouched: the miswired end is still on",
+      "rule": "S4",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-orange", "orange", "white-green", "green", "blue", "white-blue", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": {}
+      },
+      "expected": {
+        "verdict": "miswired",
+        "pattern": "miswired",
+        "map": [1, 2, 3, 5, 6, 4, 7, 8],
+        "opens": [],
+        "split_pairs": [["B", 3, 6], ["B", 4, 5]],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 976,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": false },
+          { "id": "END_A", "passed": true },
+          { "id": "END_B", "passed": false },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "LENGTH", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F54",
+      "title": "S4 pass: End B cut off and re-made to T568B",
+      "rule": "S4",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 41,
+            "tip_mm": { "white-orange": 29, "orange": 29, "white-green": 29, "green": 29, "blue": 29, "white-blue": 29, "white-brown": 29, "brown": 29 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": {}
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 947,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "END_A", "passed": true },
+          { "id": "END_B", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "LENGTH", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F55",
+      "title": "S4 the good end re-made and the miswired one left",
+      "rule": "S4",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 41,
+            "tip_mm": { "white-orange": 29, "orange": 29, "white-green": 29, "green": 29, "blue": 29, "white-blue": 29, "white-brown": 29, "brown": 29 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-orange", "orange", "white-green", "green", "blue", "white-blue", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": {}
+      },
+      "expected": {
+        "verdict": "miswired",
+        "pattern": "miswired",
+        "map": [1, 2, 3, 5, 6, 4, 7, 8],
+        "opens": [],
+        "split_pairs": [["B", 3, 6], ["B", 4, 5]],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 947,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": false },
+          { "id": "END_A", "passed": true },
+          { "id": "END_B", "passed": false },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "LENGTH", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F56",
+      "title": "S4 both ends re-made: too short",
+      "rule": "S4",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 41,
+            "tip_mm": { "white-orange": 29, "orange": 29, "white-green": 29, "green": 29, "blue": 29, "white-blue": 29, "white-brown": 29, "brown": 29 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 41,
+            "tip_mm": { "white-orange": 29, "orange": 29, "white-green": 29, "green": 29, "blue": 29, "white-blue": 29, "white-brown": 29, "brown": 29 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": {}
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 918,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "END_A", "passed": true },
+          { "id": "END_B", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "LENGTH", "passed": false }
+        ]
+      }
+    },
+    {
+      "id": "F57",
+      "title": "S4 End B re-made but left 16 mm untwisted",
+      "rule": "S4",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 41,
+            "tip_mm": { "white-orange": 25, "orange": 25, "white-green": 25, "green": 25, "blue": 25, "white-blue": 25, "white-brown": 25, "brown": 25 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 5, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": {}
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": false, "untwistOk": false, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 947,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "END_A", "passed": true },
+          { "id": "END_B", "passed": true },
+          { "id": "RELIEF", "passed": false },
+          { "id": "UNTWIST", "passed": false },
+          { "id": "LENGTH", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F58",
+      "title": "S9 untouched crossover into PC-1 and Switch-1: link down",
+      "rule": "S9",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": { "A": "pc-1:eth0", "B": "sw-1:port1" }
+      },
+      "expected": {
+        "verdict": "crossover",
+        "pattern": "crossover",
+        "map": [3, 6, 1, 4, 5, 2, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 976,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "FRONT", "passed": true },
+          { "id": "INSULATION", "passed": true },
+          { "id": "LINK", "passed": false }
+        ]
+      }
+    },
+    {
+      "id": "F59",
+      "title": "S9 pass: End B re-made to T568A, link up",
+      "rule": "S9",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 41,
+            "tip_mm": { "white-orange": 29, "orange": 29, "white-green": 29, "green": 29, "blue": 29, "white-blue": 29, "white-brown": 29, "brown": 29 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": { "A": "pc-1:eth0", "B": "sw-1:port1" }
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 947,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "FRONT", "passed": true },
+          { "id": "INSULATION", "passed": true },
+          { "id": "LINK", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F60",
+      "title": "S9 pass: End A re-made to T568B instead, link up",
+      "rule": "S9",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 41,
+            "tip_mm": { "white-orange": 29, "orange": 29, "white-green": 29, "green": 29, "blue": 29, "white-blue": 29, "white-brown": 29, "brown": 29 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-orange", "orange", "white-green", "blue", "white-blue", "green", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": { "A": "pc-1:eth0", "B": "sw-1:port1" }
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 947,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "FRONT", "passed": true },
+          { "id": "INSULATION", "passed": true },
+          { "id": "LINK", "passed": true }
+        ]
+      }
+    },
+    {
+      "id": "F61",
+      "title": "S9 repaired but left in the tester",
+      "rule": "S9",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 41,
+            "tip_mm": { "white-orange": 29, "orange": 29, "white-green": 29, "green": 29, "blue": 29, "white-blue": 29, "white-brown": 29, "brown": 29 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          }
+        },
+        "connections": { "A": "tester-main", "B": "tester-remote" }
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true }
+        },
+        "jacketed_length_mm": 947,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "FRONT", "passed": true },
+          { "id": "INSULATION", "passed": true },
+          { "id": "LINK", "passed": false }
+        ]
+      }
+    },
+    {
+      "id": "F62",
+      "title": "S9 End B re-made with the blade too deep",
+      "rule": "S9",
+      "record": {
+        "schema": "cable/1",
+        "ends": {
+          "A": {
+            "jacket_edge_mm": 12,
+            "tip_mm": { "white-orange": 0, "orange": 0, "white-green": 0, "green": 0, "blue": 0, "white-blue": 0, "white-brown": 0, "brown": 0 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": []
+          },
+          "B": {
+            "jacket_edge_mm": 41,
+            "tip_mm": { "white-orange": 29, "orange": 29, "white-green": 29, "green": 29, "blue": 29, "white-blue": 29, "white-brown": 29, "brown": 29 },
+            "fan": ["white-green", "green", "white-orange", "blue", "white-blue", "orange", "white-brown", "brown"],
+            "plug": { "orientation": "contacts-up", "jacket_in_mm": 9, "crimp": "full" },
+            "nicks_at_mm": [41]
+          }
+        },
+        "connections": { "A": "pc-1:eth0", "B": "sw-1:port1" }
+      },
+      "expected": {
+        "verdict": "straight",
+        "pattern": "straight",
+        "map": [1, 2, 3, 4, 5, 6, 7, 8],
+        "opens": [],
+        "split_pairs": [],
+        "inspection": {
+          "A": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": true },
+          "B": { "jacketClamped": true, "untwistOk": true, "conductorsAtFront": true, "insulationIntact": false }
+        },
+        "jacketed_length_mm": 947,
+        "requirements": [
+          { "id": "TERM", "passed": true },
+          { "id": "CONT", "passed": true },
+          { "id": "PAIRS", "passed": true },
+          { "id": "EACH_STD", "passed": true },
+          { "id": "RELIEF", "passed": true },
+          { "id": "UNTWIST", "passed": true },
+          { "id": "FRONT", "passed": true },
+          { "id": "INSULATION", "passed": false },
+          { "id": "LINK", "passed": true }
         ]
       }
     }

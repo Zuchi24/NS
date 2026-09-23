@@ -41,7 +41,7 @@ export const DIFFICULTY_META: Record<
   },
   intermediate: {
     label: "Intermediate",
-    blurb: "Grow one switch into a working LAN, then give it an address.",
+    blurb: "Match, cross and repair cables, then grow one switch into an addressed LAN.",
     bars: 2,
     text: "text-amber-700",
     fill: "bg-amber-500",
@@ -49,7 +49,7 @@ export const DIFFICULTY_META: Record<
   },
   advanced: {
     label: "Advanced",
-    blurb: "Link switches, span buildings, and put services on the network.",
+    blurb: "Choose the cable each link needs, fix a dead link, then link switches and add services.",
     bars: 3,
     text: "text-rose-700",
     fill: "bg-rose-500",

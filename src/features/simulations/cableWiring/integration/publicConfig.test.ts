@@ -63,6 +63,47 @@ function keysDeep(value: unknown): string[] {
   return Object.entries(value).flatMap(([key, child]) => [key, ...keysDeep(child)]);
 }
 
+describe("the scenarios contract 1.1.0 adds", () => {
+  const tester = [
+    { id: "tester-main", kind: "tester-main" },
+    { id: "tester-remote", kind: "tester-remote" },
+  ];
+  const devices = [...tester, { id: "pc-1:eth0", kind: "mdi", label: "PC-1" }, { id: "sw-1:port1", kind: "mdix", label: "Switch-1" }];
+
+  it.each([
+    ["S6", 1000, 3, tester, { minLengthMm: null, inspection: ["strain_relief", "untwist"], link: null }],
+    ["S7", 1000, 3, tester, { minLengthMm: null, inspection: ["strain_relief", "untwist"], link: null }],
+    ["S8", 1500, 2, devices, { minLengthMm: null, inspection: ["strain_relief", "untwist", "front", "insulation"], link: ["pc-1:eth0", "sw-1:port1"] }],
+    ["S9", 1000, 1, devices, { minLengthMm: null, inspection: ["strain_relief", "untwist", "front", "insulation"], link: ["pc-1:eth0", "sw-1:port1"] }],
+    ["S4", 1000, 2, tester, { minLengthMm: 920, inspection: ["strain_relief", "untwist"], link: null }],
+  ] as const)("%s parses: %i mm, %i plugs, its ports and objectives, no assist", (key, length, plugs, endpoints, objectives) => {
+    const parsedConfig = parsed(key);
+
+    expect(parsedConfig.scenario.startLengthMm).toBe(length);
+    expect(parsedConfig.scenario.plugs).toBe(plugs);
+    expect(parsedConfig.scenario.endpoints).toEqual(endpoints);
+    expect(parsedConfig.objectives).toEqual(objectives);
+    expect(parsedConfig.assist).toBeNull();
+    // The parser has already checked the starting ends against the model's invariants.
+    expect(toRecord(createInitialState(parsedConfig.scenario)).ends).toEqual(contract.rules[contract.scenarios[key].rule].initial_ends);
+  });
+
+  it("starts S6 with End A raw and End B already terminated, and says nothing of either standard", () => {
+    const { scenario } = parsed("S6");
+
+    expect(scenario.initialEnds.A).toEqual(rawEnd(0));
+    expect(scenario.initialEnds.B.plug).toEqual({ orientation: "contacts-up", jacketInMm: 9, crimp: "full" });
+    expect(JSON.stringify(config("S6"))).not.toMatch(/T568|straight|crossover/);
+  });
+
+  it("starts S9 with both ends already terminated", () => {
+    const { scenario } = parsed("S9");
+
+    expect(scenario.initialEnds.A.plug?.crimp).toBe("full");
+    expect(scenario.initialEnds.B.plug?.crimp).toBe("full");
+  });
+});
+
 describe("the frozen scenarios", () => {
   it("S1: 1000 mm, four plugs, raw A and factory B, the tester, no extra objectives, the T568B card", () => {
     const { scenario, objectives, assist } = parsed("S1");
