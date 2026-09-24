@@ -93,6 +93,7 @@ function question(over: Partial<AssessmentQuestion> = {}): AssessmentQuestion {
     id: 21,
     prompt: "Which layer routes packets?",
     points: 2,
+    timeLimitSeconds: null,
     order: 1,
     choices: [
       choice(31, "Network", 1, true),
@@ -434,6 +435,7 @@ describe("adding a question", () => {
       expect(api.post).toHaveBeenCalledWith("/admin/assessments/11/questions", {
         prompt: "Which device joins two networks?",
         points: 5,
+        time_limit_seconds: null,
         choices: [
           { label: "Router", is_correct: false },
           { label: "Switch", is_correct: false },
@@ -649,6 +651,7 @@ describe("editing a question", () => {
       expect(api.put).toHaveBeenCalledWith("/admin/questions/21", {
         prompt: "Which OSI layer routes packets?",
         points: 4,
+        time_limit_seconds: null,
         choices: [
           { label: "Network", is_correct: false },
           { label: "Transport", is_correct: true },
@@ -1564,5 +1567,123 @@ describe("deleting the assessment", () => {
 
       cleanup();
     }
+  });
+});
+
+describe("the question timer", () => {
+  it("offers no timer and each preset, and starts a new question on no timer", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    await user.click(screen.getByRole("button", { name: "Add question" }));
+    const timer = questionForm("Add question").getByLabelText("Timer");
+
+    expect(timer).toHaveDisplayValue("No timer");
+    expect(
+      within(timer).getAllByRole("option").map((option) => option.textContent),
+    ).toEqual([
+      "No timer",
+      "10 seconds",
+      "15 seconds",
+      "20 seconds",
+      "30 seconds",
+      "45 seconds",
+      "60 seconds",
+      "90 seconds",
+      "120 seconds",
+    ]);
+  });
+
+  it("sends a chosen timer as whole seconds when adding a question", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    vi.mocked(service.createQuestion).mockImplementation(realService.createQuestion);
+    vi.mocked(api.post).mockResolvedValue({
+      data: { id: 23, prompt: "Which device joins two networks?", points: 5, time_limit_seconds: 30, order: 2, choices: [] },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Add question" }));
+    await fill(user, questionForm("Add question"), { points: "5", correct: "C" });
+    await user.selectOptions(questionForm("Add question").getByLabelText("Timer"), "30 seconds");
+    await user.click(questionForm("Add question").getByRole("button", { name: "Add question" }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalled());
+    const [, payload] = vi.mocked(api.post).mock.calls[0];
+    expect(payload).toMatchObject({ time_limit_seconds: 30 });
+  });
+
+  it("opens a timed question on its timer, and clearing it sends null", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ questions: [question({ timeLimitSeconds: 30 })] }));
+
+    vi.mocked(service.updateQuestion).mockImplementation(realService.updateQuestion);
+    vi.mocked(api.put).mockResolvedValue({ data: { ...question(), choices: [] } });
+
+    await user.click(screen.getByRole("button", { name: "Edit question 1" }));
+    const form = questionForm("Edit question 1");
+
+    expect(form.getByLabelText("Timer")).toHaveDisplayValue("30 seconds");
+
+    await user.selectOptions(form.getByLabelText("Timer"), "No timer");
+    await user.click(form.getByRole("button", { name: "Save question" }));
+
+    await waitFor(() => expect(api.put).toHaveBeenCalled());
+    const [url, payload] = vi.mocked(api.put).mock.calls[0];
+    expect(url).toBe("/admin/questions/21");
+    expect(payload).toMatchObject({ time_limit_seconds: null });
+  });
+
+  it("changes one timer for another", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ questions: [question({ timeLimitSeconds: 30 })] }));
+
+    vi.mocked(service.updateQuestion).mockImplementation(realService.updateQuestion);
+    vi.mocked(api.put).mockResolvedValue({ data: { ...question(), choices: [] } });
+
+    await user.click(screen.getByRole("button", { name: "Edit question 1" }));
+    const form = questionForm("Edit question 1");
+    await user.selectOptions(form.getByLabelText("Timer"), "45 seconds");
+    await user.click(form.getByRole("button", { name: "Save question" }));
+
+    await waitFor(() => expect(api.put).toHaveBeenCalled());
+    expect(vi.mocked(api.put).mock.calls[0][1]).toMatchObject({ time_limit_seconds: 45 });
+  });
+
+  it("marks a timed question's card with its timer, and an untimed one with nothing", async () => {
+    await show(
+      assessment({
+        questions: [
+          question({ id: 21, timeLimitSeconds: 30 }),
+          question({ id: 22, order: 2, timeLimitSeconds: null }),
+        ],
+      }),
+    );
+
+    expect(screen.getByTestId("question-21-timer")).toHaveTextContent("30 s timer");
+    expect(screen.queryByTestId("question-22-timer")).toBeNull();
+    expect(within(screen.getByTestId("question-22")).queryByText(/timer/)).toBeNull();
+  });
+
+  it("puts the server's timer message under the Timer field", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    vi.mocked(service.updateQuestion).mockRejectedValue(
+      new ApiError("The given data was invalid.", 422, {
+        time_limit_seconds: ["Choose one of the timer settings, or no timer."],
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit question 1" }));
+    const form = questionForm("Edit question 1");
+    await user.click(form.getByRole("button", { name: "Save question" }));
+
+    await waitFor(() =>
+      expect(form.getByLabelText("Timer")).toHaveAccessibleDescription(
+        "Choose one of the timer settings, or no timer.",
+      ),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });

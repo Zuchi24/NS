@@ -20,6 +20,7 @@ import {
   updateQuestion,
   validateAssessmentDraft,
   validateQuestionDraft,
+  QUESTION_TIMER_PRESETS,
 } from "./adminAssessmentService";
 import type {
   Assessment,
@@ -119,6 +120,7 @@ function questionDraft(
   return {
     prompt: "Which layer routes packets?",
     points: "2",
+    timeLimitSeconds: null,
     choices: [
       { label: "Network", isCorrect: true },
       { label: "Transport", isCorrect: false },
@@ -187,6 +189,7 @@ describe("reading assessments", () => {
           id: 21,
           prompt: "Which layer routes packets?",
           points: 2,
+          timeLimitSeconds: null,
           order: 1,
           choices: [
             { id: 31, label: "Network", order: 1, isCorrect: true },
@@ -419,6 +422,8 @@ describe("writing questions", () => {
   const expectedPayload = {
     prompt: "Which layer routes packets?",
     points: 2,
+    // Always sent: null is "no timer", and on an edit it is what clears one.
+    time_limit_seconds: null,
     choices: [
       { label: "Network", is_correct: true },
       { label: "Transport", is_correct: false },
@@ -452,6 +457,7 @@ describe("writing questions", () => {
       id: 21,
       prompt: "Which layer routes packets?",
       points: 2,
+      timeLimitSeconds: null,
       order: 1,
       choices: [
         { id: 31, label: "Network", order: 1, isCorrect: true },
@@ -776,5 +782,53 @@ describe("validateQuestionDraft", () => {
       "points",
       "prompt",
     ]);
+  });
+});
+
+describe("the question timer", () => {
+  it("reads a question's time limit, and no limit as null", async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: apiQuestion({ time_limit_seconds: 30 }) });
+    expect((await createQuestion(11, questionDraft())).timeLimitSeconds).toBe(30);
+
+    vi.mocked(api.post).mockResolvedValue({ data: apiQuestion({ time_limit_seconds: null }) });
+    expect((await createQuestion(11, questionDraft())).timeLimitSeconds).toBeNull();
+
+    // A response from before the field existed reads as no timer, not undefined.
+    vi.mocked(api.post).mockResolvedValue({ data: apiQuestion() });
+    expect((await createQuestion(11, questionDraft())).timeLimitSeconds).toBeNull();
+  });
+
+  it("sends the timer as whole seconds, and no timer as null", async () => {
+    vi.mocked(api.put).mockResolvedValue({ data: apiQuestion() });
+
+    await updateQuestion(21, questionDraft({ timeLimitSeconds: 45 }));
+    await updateQuestion(21, questionDraft({ timeLimitSeconds: null }));
+
+    expect(vi.mocked(api.put).mock.calls[0][1]).toMatchObject({ time_limit_seconds: 45 });
+    expect(vi.mocked(api.put).mock.calls[1][1]).toMatchObject({ time_limit_seconds: null });
+  });
+
+  it("carries a stored question's timer into its draft", () => {
+    const question = { id: 21, prompt: "Q?", points: 1, timeLimitSeconds: 90, order: 0, choices: [] };
+
+    expect(draftOfQuestion(question).timeLimitSeconds).toBe(90);
+  });
+
+  it("offers the same presets the server accepts", () => {
+    expect([...QUESTION_TIMER_PRESETS]).toEqual([10, 15, 20, 30, 45, 60, 90, 120]);
+  });
+
+  it("accepts no timer and every preset, and refuses anything else", () => {
+    expect(validateQuestionDraft(questionDraft({ timeLimitSeconds: null })).time_limit_seconds).toBeUndefined();
+
+    for (const seconds of QUESTION_TIMER_PRESETS) {
+      expect(validateQuestionDraft(questionDraft({ timeLimitSeconds: seconds })).time_limit_seconds).toBeUndefined();
+    }
+
+    for (const seconds of [0, -10, 7, 25, 121]) {
+      expect(validateQuestionDraft(questionDraft({ timeLimitSeconds: seconds })).time_limit_seconds).toBe(
+        "Choose one of the timer settings, or no timer.",
+      );
+    }
   });
 });

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, CheckCircle2, Lock } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, Lock, Timer } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -16,14 +16,18 @@ import {
   fetchOwnAttemptReview,
   fetchStudentAssessment,
   submitAssessment,
-  unansweredQuestions,
 } from "@/features/assessments/studentAssessmentService";
 import type {
   AssessmentResult,
   AssessmentReview,
   AssessmentSelections,
   StudentAssessment,
+  StudentAssessmentQuestion,
 } from "@/features/assessments/studentAssessmentService";
+import {
+  formatCountdown,
+  useQuestionCountdown,
+} from "@/features/assessments/useQuestionCountdown";
 import { AssessmentAnswerReview } from "./AssessmentReview";
 import {
   fetchTopicProgression,
@@ -36,9 +40,9 @@ import { useAsync } from "@/services/useAsync";
 /**
  * Taking a pre-test or post-test.
  *
- * The questions, one answer each, and a single submission — after which the
- * page shows the score the server worked out, the review of what was answered,
- * and never the form again. A student who has already taken it lands on that
+ * The questions one at a time, each answered once — some against a timer — and
+ * a single submission, after which the page shows the score the server worked
+ * out, the review of what was answered, and never the questions again. A student who has already taken it lands on that
  * review directly.
  *
  * Everything that matters is the server's. Whether the assessment may be
@@ -424,13 +428,24 @@ function NextSubtopic({
   );
 }
 
-/** "1", "1 and 3", "1, 2 and 4". */
-function listNumbers(numbers: number[]): string {
-  if (numbers.length <= 1) return numbers.join("");
-
-  return `${numbers.slice(0, -1).join(", ")} and ${numbers[numbers.length - 1]}`;
-}
-
+/**
+ * Taking the assessment: a start screen, then one question at a time, then the
+ * single submission.
+ *
+ * Forward only. A question is settled exactly once — by Next with the choice
+ * picked, or, on a timed question, by its time running out with nothing sent
+ * but null — and the next question opens. There is no going back to change a
+ * settled answer, which is what makes a per-question timer mean anything.
+ *
+ * The answers stay in this component until the last question is settled, and
+ * then go in one submission through the same endpoint as always: nothing is
+ * sent per question, and no attempt exists until that submission. So reloading
+ * the page starts again from the start screen with fresh timers and nothing
+ * picked — this version keeps no progress anywhere else, on purpose.
+ *
+ * Nothing here decides what is right. The server scores the submission; a
+ * timed-out question is sent as null and the server calls it incorrect.
+ */
 function AnswerForm({
   assessment,
   onSubmitted,
@@ -447,42 +462,40 @@ function AnswerForm({
   onStale: (message: string) => void;
 }) {
   const { questions } = assessment;
+  const total = questions.length;
 
-  const [selections, setSelections] = useState<AssessmentSelections>({});
-  // Unanswered questions are pointed out only once a submit has been tried —
-  // not from the start, when every question is unanswered.
-  const [showMissing, setShowMissing] = useState(false);
+  const [started, setStarted] = useState(false);
+  // Which question is open. `total` once the last is settled: then nothing is
+  // open, so no timer can be running while the answers are sent.
+  const [index, setIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  // The question whose time just ran out, said on the question after it.
+  const [timedOut, setTimedOut] = useState<number | null>(null);
+  // What a screen reader is told: a timer nearing its end, or running out.
+  const [announcement, setAnnouncement] = useState("");
+
+  /*
+   * The settled answers, kept in a ref rather than state: settling and
+   * submitting happen in the same moment on the last question, and the answers
+   * sent have to be the ones just settled, not the ones from the last render.
+   */
+  const selections = useRef<AssessmentSelections>({});
+  const current = useRef(0);
 
   // The disabled button is what a student sees; this is what actually stops a
   // second submission going out before the next render.
   const inFlight = useRef(false);
 
-  const missing = unansweredQuestions(questions, selections);
-  const missingIds = new Set(missing.map((question) => question.id));
-  const answered = questions.length - missing.length;
-
-  const choose = (questionId: number, choiceId: number) =>
-    setSelections((current) => ({ ...current, [questionId]: choiceId }));
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-
+  const submit = async () => {
     if (inFlight.current) return;
-
-    if (missing.length > 0) {
-      setShowMissing(true);
-      setFailure(null);
-      return;
-    }
 
     inFlight.current = true;
     setSubmitting(true);
     setFailure(null);
 
     try {
-      await submitAssessment(assessment.id, answersFor(questions, selections));
+      await submitAssessment(assessment.id, answersFor(questions, selections.current));
 
       onSubmitted();
     } catch (e) {
@@ -493,7 +506,7 @@ function AnswerForm({
         return;
       }
 
-      // The answers stay exactly as they were, so nothing has to be picked again.
+      // The answers stay exactly as they were, so trying again sends the same.
       setFailure(
         e instanceof ApiError && Object.keys(e.errors).length > 0
           ? Object.values(e.errors)
@@ -510,114 +523,325 @@ function AnswerForm({
     }
   };
 
-  const missingNumbers = missing.map((question) => questions.indexOf(question) + 1);
+  /**
+   * Ends the open question, once.
+   *
+   * Next and the timer can both try to end the same question — a click landing
+   * as the time runs out — and a timer from a question already gone can fire
+   * late. Only the open question can be settled, and only the first time: the
+   * second call finds it already settled, or no longer open, and does nothing.
+   * So a question is never answered twice, never skipped, and the last one
+   * never submits twice.
+   */
+  const settle = (questionId: number, choiceId: number | null) => {
+    const at = current.current;
+
+    if (questions[at]?.id !== questionId || questionId in selections.current) return;
+
+    selections.current = { ...selections.current, [questionId]: choiceId };
+    current.current = at + 1;
+    setIndex(at + 1);
+
+    if (choiceId === null) {
+      setTimedOut(at + 1);
+      setAnnouncement(`Time's up. Question ${at + 1} was not answered.`);
+    } else {
+      setTimedOut(null);
+      setAnnouncement("");
+    }
+
+    if (at + 1 === total) void submit();
+  };
+
+  const timedCount = questions.filter((question) => question.timeLimitSeconds !== null).length;
+  const question = questions[index];
 
   return (
-    <form
-      onSubmit={submit}
-      noValidate
-      aria-label={`Answer ${assessment.title}`}
-      className="space-y-4"
-    >
-      <ol className="space-y-4">
-        {questions.map((question, index) => {
-          const number = index + 1;
-          const unanswered = showMissing && missingIds.has(question.id);
-          const hintId = `question-${question.id}-missing`;
+    <div className="space-y-4">
+      {/* The one place timing is announced: a timer nearing its end, and a
+          question left unanswered. Outside the question, so it is still there
+          to be read once the question it is about has gone. */}
+      <p role="status" aria-live="polite" className="sr-only" data-testid="assessment-announcer">
+        {announcement}
+      </p>
 
-          return (
-            <li key={question.id}>
-              <Card
-                className={`border shadow-sm ${
-                  unanswered ? "border-red-300" : "border-gray-200"
-                }`}
-              >
-                <CardContent className="p-6">
-                  <fieldset aria-describedby={unanswered ? hintId : undefined}>
-                    <legend className="w-full">
-                      <span className="block text-xs font-semibold text-gray-600">
-                        Question {number}
-                      </span>
-                      <span className="block mt-1 text-base text-gray-900 whitespace-pre-line">
-                        {question.prompt}
-                      </span>
-                    </legend>
+      {!started ? (
+        <StartScreen
+          title={assessment.title}
+          total={total}
+          timedCount={timedCount}
+          onStart={() => setStarted(true)}
+        />
+      ) : question !== undefined ? (
+        <QuestionStep
+          // One per question: a new question is a new step, with its own
+          // deadline, and nothing of the last one's timer carried over.
+          key={question.id}
+          question={question}
+          number={index + 1}
+          total={total}
+          timedOutBefore={timedOut !== null && timedOut === index ? timedOut : null}
+          onSettle={(choiceId) => settle(question.id, choiceId)}
+          onWarn={(message) => setAnnouncement(message)}
+        />
+      ) : (
+        <Card className="border border-gray-200 shadow-sm">
+          <CardContent className="p-6 space-y-3">
+            {timedOut === total && (
+              <p className="text-sm text-amber-800">
+                Time ran out on question {total}, so it was left unanswered.
+              </p>
+            )}
 
-                    <p className="mt-1 text-xs text-gray-500">
-                      {question.points === 1 ? "1 point" : `${question.points} points`}
-                    </p>
-
-                    <div className="mt-4 space-y-2">
-                      {question.choices.map((choice) => {
-                        const checked = selections[question.id] === choice.id;
-
-                        return (
-                          <label
-                            key={choice.id}
-                            className={`flex items-center gap-3 rounded-md border px-3 py-2.5 text-sm cursor-pointer ${
-                              checked
-                                ? "border-blue-600 bg-blue-50 text-gray-900"
-                                : "border-gray-200 text-gray-700 hover:bg-gray-50"
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name={`question-${question.id}`}
-                              value={choice.id}
-                              checked={checked}
-                              disabled={submitting}
-                              onChange={() => choose(question.id, choice.id)}
-                              className="h-4 w-4 shrink-0 accent-blue-600"
-                            />
-                            <span>{choice.label}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-
-                    {unanswered && (
-                      <p id={hintId} className="mt-3 text-xs text-red-600">
-                        Choose an answer to this question.
-                      </p>
-                    )}
-                  </fieldset>
-                </CardContent>
-              </Card>
-            </li>
-          );
-        })}
-      </ol>
-
-      <Card className="border border-gray-200 shadow-sm">
-        <CardContent className="p-6 space-y-3">
-          {showMissing && missing.length > 0 && (
-            <p role="alert" className="text-sm text-red-600">
-              {missing.length === 1 ? "Question" : "Questions"}{" "}
-              {listNumbers(missingNumbers)} {missing.length === 1 ? "is" : "are"}{" "}
-              unanswered. Answer every question before submitting.
-            </p>
-          )}
-
-          {failure && (
-            <p role="alert" className="text-sm text-red-600">
-              {failure}
-            </p>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-gray-600">
-              {answered} of {questions.length} answered
-            </p>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Submitting…" : "Submit assessment"}
-            </Button>
-          </div>
-
-          <p className="text-xs text-gray-500">
-            You can submit this assessment once. Check your answers first.
-          </p>
-        </CardContent>
-      </Card>
-    </form>
+            {failure ? (
+              <>
+                <p role="alert" className="text-sm text-red-600">
+                  {failure}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Your answers are still here. Nothing has been submitted yet.
+                </p>
+                <Button type="button" onClick={() => void submit()} disabled={submitting}>
+                  {submitting ? "Submitting…" : "Try submitting again"}
+                </Button>
+              </>
+            ) : (
+              <p role="status" className="text-sm text-gray-700">
+                Submitting your answers…
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
+
+/** What the assessment is and how it runs, before any clock starts. */
+function StartScreen({
+  title,
+  total,
+  timedCount,
+  onStart,
+}: {
+  title: string;
+  total: number;
+  timedCount: number;
+  onStart: () => void;
+}) {
+  return (
+    <Card className="border border-gray-200 shadow-sm">
+      <CardContent className="p-6 space-y-4">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-gray-900">{title}</p>
+          <p className="text-sm text-gray-600">
+            {total === 1 ? "1 question" : `${total} questions`}, one at a time.
+          </p>
+        </div>
+
+        <ul className="list-disc pl-5 space-y-1 text-sm text-gray-700">
+          {timedCount > 0 && (
+            <li>
+              {timedCount === total
+                ? "Every question is timed."
+                : timedCount === 1
+                  ? "One question is timed."
+                  : `${timedCount} questions are timed.`}{" "}
+              A timed question&apos;s clock starts when it appears. If it runs out,
+              the question is left unanswered and the next one opens.
+            </li>
+          )}
+          <li>Pick an answer, then choose Next. You can&apos;t go back to a question.</li>
+          <li>You can submit this assessment once.</li>
+        </ul>
+
+        <Button type="button" onClick={onStart}>
+          Start assessment
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** How far into the countdown a screen reader is told time is short. */
+const WARN_AT_MS = 10_000;
+
+/** Below this, the countdown is shown as urgent. */
+const URGENT_AT_MS = 5_000;
+
+/**
+ * The open question.
+ *
+ * Mounted once per question, so its countdown starts when it appears and ends
+ * with it. Picking a choice only picks it; Next is what settles the question.
+ */
+function QuestionStep({
+  question,
+  number,
+  total,
+  timedOutBefore,
+  onSettle,
+  onWarn,
+}: {
+  question: StudentAssessmentQuestion;
+  number: number;
+  total: number;
+  /** The previous question's number, when its time ran out. */
+  timedOutBefore: number | null;
+  onSettle: (choiceId: number | null) => void;
+  onWarn: (message: string) => void;
+}) {
+  const [picked, setPicked] = useState<number | null>(null);
+  const remaining = useQuestionCountdown(question.timeLimitSeconds, () => onSettle(null));
+
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const isLast = number === total;
+
+  // Each question takes focus as it opens: the Next or Start that had it is
+  // gone, and a screen reader reads the new question from its heading.
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
+  // Once, as the time gets short — never a second-by-second count.
+  const warned = useRef(false);
+  useEffect(() => {
+    if (
+      remaining !== null &&
+      !warned.current &&
+      question.timeLimitSeconds !== null &&
+      question.timeLimitSeconds * 1000 > WARN_AT_MS &&
+      remaining > 0 &&
+      remaining <= WARN_AT_MS
+    ) {
+      warned.current = true;
+      onWarn(`${Math.ceil(remaining / 1000)} seconds left on question ${number}.`);
+    }
+  }, [remaining, question.timeLimitSeconds, number, onWarn]);
+
+  const urgent = remaining !== null && remaining <= URGENT_AT_MS;
+  const choices = [...question.choices].sort((a, b) => a.order - b.order);
+
+  return (
+    <Card className="border border-gray-200 shadow-sm">
+      <CardContent className="p-6 space-y-5">
+        {/* Where the student is. Settled questions are not marked right or
+            wrong: nothing here knows. */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-gray-700" data-testid="question-progress">
+              Question {number} / {total}
+            </p>
+
+            {remaining !== null && (
+              <p
+                data-testid="question-timer"
+                // The time left is for the eye; a screen reader is told only
+                // as it gets short, and when it runs out.
+                aria-hidden="true"
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-sm tabular-nums ${
+                  urgent
+                    ? "border-red-300 bg-red-50 text-red-700 font-semibold"
+                    : "border-gray-200 bg-white text-gray-800"
+                }`}
+              >
+                <Timer className="h-4 w-4" aria-hidden="true" />
+                {formatCountdown(remaining)}
+              </p>
+            )}
+          </div>
+
+          <div
+            role="progressbar"
+            aria-label="Progress"
+            aria-valuemin={1}
+            aria-valuemax={total}
+            aria-valuenow={number}
+            aria-valuetext={`Question ${number} of ${total}`}
+            className="h-2 w-full overflow-hidden rounded-full bg-gray-200"
+          >
+            <div
+              className="h-full rounded-full bg-blue-600 transition-[width]"
+              style={{ width: `${(number / total) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        {timedOutBefore !== null && (
+          <p className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-sm text-amber-800">
+            Time ran out on question {timedOutBefore}, so it was left unanswered.
+          </p>
+        )}
+
+        <fieldset className="space-y-3">
+          <legend className="w-full">
+            <h2
+              ref={headingRef}
+              tabIndex={-1}
+              className="text-lg font-semibold text-gray-900 whitespace-pre-line focus:outline-none"
+            >
+              <span className="sr-only">
+                Question {number} of {total}
+                {question.timeLimitSeconds !== null &&
+                  `, ${question.timeLimitSeconds} second time limit`}
+                .{" "}
+              </span>
+              {question.prompt}
+            </h2>
+            <span className="mt-1 block text-xs text-gray-500">
+              {question.points === 1 ? "1 point" : `${question.points} points`}
+            </span>
+          </legend>
+
+          <div className="grid gap-2.5">
+            {choices.map((choice, slot) => {
+              const checked = picked === choice.id;
+
+              return (
+                <label
+                  key={choice.id}
+                  className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3.5 text-base cursor-pointer transition-colors focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 ${
+                    checked
+                      ? "border-blue-600 bg-blue-50 text-gray-900"
+                      : "border-gray-200 bg-white text-gray-800 hover:border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name={`question-${question.id}`}
+                    value={choice.id}
+                    checked={checked}
+                    onChange={() => setPicked(choice.id)}
+                    className="sr-only"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-sm font-semibold ${
+                      checked
+                        ? "border-blue-600 bg-blue-600 text-white"
+                        : "border-gray-300 bg-gray-50 text-gray-600"
+                    }`}
+                  >
+                    {checked ? <Check className="h-4 w-4" /> : CHOICE_LETTERS[slot]}
+                  </span>
+                  <span className="flex-1">{choice.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <div className="flex items-center justify-end gap-3">
+          {picked === null && (
+            <p className="text-xs text-gray-500">Pick an answer to continue.</p>
+          )}
+          <Button type="button" disabled={picked === null} onClick={() => onSettle(picked)}>
+            {isLast ? "Finish" : "Next"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+const CHOICE_LETTERS = ["A", "B", "C", "D"];

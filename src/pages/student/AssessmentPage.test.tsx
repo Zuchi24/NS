@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { AssessmentPage } from "./AssessmentPage";
@@ -19,9 +19,14 @@ import type { TopicProgression } from "@/features/content/progressionService";
  *
  * The service is stubbed, so these say what the page asks for and what it does
  * with the answer. What carries the most weight: nothing is shown of an
- * assessment the server will not open; nothing is sent until every question is
- * answered; the submission is the answers and nothing a score is made of; and
- * once a result exists — from this tab or another — the form is gone for good.
+ * assessment the server will not open; the questions come one at a time, from
+ * a start screen, forward only; nothing is sent until the last is settled; the
+ * submission is the answers and nothing a score is made of; and once a result
+ * exists — from this tab or another — the questions are gone for good.
+ *
+ * The timers are driven with fake timers and a fake clock, and only after the
+ * page has loaded: the countdown reads the clock, so moving the clock without
+ * running any ticks is how a background tab is played out.
  *
  * The payload test runs the real submitAssessment over a stubbed transport, so
  * it pins what goes on the wire rather than what the page hands the service.
@@ -79,6 +84,7 @@ const switching: StudentAssessmentQuestion = {
   id: 21,
   prompt: "What does a switch primarily do?",
   points: 2,
+  timeLimitSeconds: null,
   order: 1,
   choices: [
     { id: 31, label: "Connect devices within a LAN", order: 1 },
@@ -92,6 +98,7 @@ const routing: StudentAssessmentQuestion = {
   id: 22,
   prompt: "Which layer routes packets?",
   points: 1,
+  timeLimitSeconds: null,
   order: 2,
   choices: [
     { id: 41, label: "Network", order: 1 },
@@ -209,14 +216,21 @@ function questionGroup(number: number) {
 
 type User = ReturnType<typeof userEvent.setup>;
 
-/** Picks an answer to every question. */
-async function answerAll(user: User) {
-  await user.click(questionGroup(1).getByRole("radio", { name: "Assign public IP addresses" }));
-  await user.click(questionGroup(2).getByRole("radio", { name: "Network" }));
+/** Past the start screen, onto question 1. */
+async function begin(user: User) {
+  await user.click(screen.getByRole("button", { name: "Start assessment" }));
 }
 
-function submitButton() {
-  return screen.getByRole("button", { name: "Submit assessment" });
+/**
+ * Takes the whole assessment: Start, then a pick and Next on question 1, and a
+ * pick and Finish on question 2 — which is what submits it.
+ */
+async function answerAll(user: User) {
+  await begin(user);
+  await user.click(questionGroup(1).getByRole("radio", { name: "Assign public IP addresses" }));
+  await user.click(screen.getByRole("button", { name: "Next" }));
+  await user.click(questionGroup(2).getByRole("radio", { name: "Network" }));
+  await user.click(screen.getByRole("button", { name: "Finish" }));
 }
 
 beforeEach(() => {
@@ -277,24 +291,27 @@ describe("opening an assessment", () => {
   });
 
   it("numbers the questions in the order the server sent them", async () => {
+    const user = userEvent.setup();
     await show(assessment({ questions: [routing, switching] }));
 
-    const groups = screen.getAllByRole("group");
+    await begin(user);
+    expect(screen.getByRole("group")).toHaveAccessibleName(/^Question 1 of 2\. Which layer routes packets\?/);
 
-    expect(groups[0]).toHaveAccessibleName(/^Question 1 Which layer routes packets\?/);
-    expect(groups[1]).toHaveAccessibleName(/^Question 2 What does a switch/);
+    await user.click(screen.getByRole("radio", { name: "Network" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("group")).toHaveAccessibleName(/^Question 2 of 2\. What does a switch/);
   });
 
-  it("offers each question's four choices as one radio group", async () => {
+  it("offers the open question's four choices as one radio group", async () => {
+    const user = userEvent.setup();
     await show();
+    await begin(user);
 
-    expect(questionGroup(1).getAllByRole("radio")).toHaveLength(4);
-    expect(questionGroup(2).getAllByRole("radio").map((radio) => radio.getAttribute("name")))
-      .toEqual(["question-22", "question-22", "question-22", "question-22"]);
+    expect(questionGroup(1).getAllByRole("radio").map((radio) => radio.getAttribute("name")))
+      .toEqual(["question-21", "question-21", "question-21", "question-21"]);
     expect(
       questionGroup(1).getByRole("radio", { name: "Connect devices within a LAN" }),
     ).not.toBeChecked();
-    expect(submitButton()).toBeEnabled();
   });
 
   it("shows nothing of a draft the server says is not there", async () => {
@@ -375,6 +392,7 @@ describe("choosing answers", () => {
   it("marks the choice picked", async () => {
     const user = userEvent.setup();
     await show();
+    await begin(user);
 
     const pick = questionGroup(1).getByRole("radio", { name: "Encrypt traffic" });
     await user.click(pick);
@@ -385,6 +403,7 @@ describe("choosing answers", () => {
   it("keeps one answer per question", async () => {
     const user = userEvent.setup();
     await show();
+    await begin(user);
 
     const first = questionGroup(1).getByRole("radio", { name: "Encrypt traffic" });
     const second = questionGroup(1).getByRole("radio", { name: "Resolve domain names" });
@@ -398,53 +417,49 @@ describe("choosing answers", () => {
       .toHaveLength(1);
   });
 
-  it("keeps each question's answer while others are answered", async () => {
+  it("picking does not move on; Next does, once", async () => {
     const user = userEvent.setup();
     await show();
-
-    await answerAll(user);
-
-    expect(
-      questionGroup(1).getByRole("radio", { name: "Assign public IP addresses" }),
-    ).toBeChecked();
-    expect(questionGroup(2).getByRole("radio", { name: "Network" })).toBeChecked();
-    expect(screen.getByText("2 of 2 answered")).toBeInTheDocument();
-    // Picking is local: nothing is sent until the student submits.
-    expect(service.submitAssessment).not.toHaveBeenCalled();
-  });
-
-  it("will not submit with a question unanswered, and says which", async () => {
-    const user = userEvent.setup();
-    await show();
+    await begin(user);
 
     await user.click(questionGroup(1).getByRole("radio", { name: "Encrypt traffic" }));
-    await user.click(submitButton());
+    await user.click(questionGroup(1).getByRole("radio", { name: "Resolve domain names" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Question 2 is unanswered. Answer every question before submitting.",
-    );
-    expect(
-      screen.getByRole("group", { name: /^Question 2\b/ }),
-    ).toHaveAccessibleDescription("Choose an answer to this question.");
-    expect(
-      screen.getByRole("group", { name: /^Question 1\b/ }),
-    ).not.toHaveAccessibleDescription();
+    // Still question 1, however often it is picked.
+    expect(screen.getByTestId("question-progress")).toHaveTextContent("Question 1 / 2");
 
-    // Nothing sent, nothing lost.
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByTestId("question-progress")).toHaveTextContent("Question 2 / 2");
+    expect(screen.getAllByRole("group")).toHaveLength(1);
+    // Picking is local: nothing is sent until the last question is settled.
     expect(service.submitAssessment).not.toHaveBeenCalled();
-    expect(questionGroup(1).getByRole("radio", { name: "Encrypt traffic" })).toBeChecked();
   });
 
-  it("lists every unanswered question when there are several", async () => {
+  it("offers Next only once an answer is picked", async () => {
     const user = userEvent.setup();
     await show();
+    await begin(user);
 
-    await user.click(submitButton());
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+    expect(screen.getByText("Pick an answer to continue.")).toBeInTheDocument();
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Questions 1 and 2 are unanswered.",
-    );
-    expect(service.submitAssessment).not.toHaveBeenCalled();
+    await user.click(questionGroup(1).getByRole("radio", { name: "Encrypt traffic" }));
+
+    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+  });
+
+  it("offers no way back to a question once it is settled", async () => {
+    const user = userEvent.setup();
+    await show();
+    await begin(user);
+
+    await user.click(questionGroup(1).getByRole("radio", { name: "Encrypt traffic" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.queryByRole("button", { name: /back to question|previous/i })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Encrypt traffic" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Finish" })).toBeDisabled();
   });
 });
 
@@ -456,7 +471,6 @@ describe("submitting", () => {
     vi.mocked(service.submitAssessment).mockResolvedValue(result);
 
     await answerAll(user);
-    await user.click(submitButton());
 
     await waitFor(() =>
       expect(service.submitAssessment).toHaveBeenCalledWith(11, [
@@ -484,7 +498,6 @@ describe("submitting", () => {
     });
 
     await answerAll(user);
-    await user.click(submitButton());
 
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith("/assessments/11/attempts", {
@@ -520,20 +533,26 @@ describe("submitting", () => {
     expect(screen.getByTestId("assessment-percent")).toHaveTextContent("33.33%");
   });
 
-  it("sends one submission however often it is pressed", async () => {
+  it("sends one submission however often Finish is pressed", async () => {
     const user = userEvent.setup();
     await show();
 
     vi.mocked(service.submitAssessment).mockReturnValue(new Promise(() => {}));
 
-    await answerAll(user);
-    await user.click(submitButton());
+    await begin(user);
+    await user.click(questionGroup(1).getByRole("radio", { name: "Encrypt traffic" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(questionGroup(2).getByRole("radio", { name: "Network" }));
 
-    const pending = screen.getByRole("button", { name: "Submitting…" });
-    expect(pending).toBeDisabled();
+    const finish = screen.getByRole("button", { name: "Finish" });
+    // Twice in one go, before the page has re-rendered between them.
+    act(() => {
+      finish.click();
+      finish.click();
+    });
 
-    await user.click(pending);
-
+    expect(await screen.findByText("Submitting your answers…")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Finish" })).toBeNull();
     expect(service.submitAssessment).toHaveBeenCalledTimes(1);
   });
 
@@ -545,7 +564,6 @@ describe("submitting", () => {
     reviewLandsOn();
 
     await answerAll(user);
-    await user.click(submitButton());
 
     const shown = within(
       await screen.findByRole("region", { name: "Assessment submitted" }),
@@ -565,26 +583,31 @@ describe("submitting", () => {
     expect(service.fetchOwnAttemptReview).toHaveBeenLastCalledWith(11);
   });
 
-  it("keeps every answer when the server refuses the submission", async () => {
+  it("keeps every answer when the server refuses the submission, and sends the same on a retry", async () => {
     const user = userEvent.setup();
     await show();
 
-    vi.mocked(service.submitAssessment).mockRejectedValue(
+    vi.mocked(service.submitAssessment).mockRejectedValueOnce(
       new ApiError("The server had a problem with that.", 500),
     );
 
     await answerAll(user);
-    await user.click(submitButton());
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The server had a problem with that.",
     );
-    expect(
-      questionGroup(1).getByRole("radio", { name: "Assign public IP addresses" }),
-    ).toBeChecked();
-    expect(questionGroup(2).getByRole("radio", { name: "Network" })).toBeChecked();
-    expect(submitButton()).toBeEnabled();
+    expect(screen.getByText("Your answers are still here. Nothing has been submitted yet.")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Assessment submitted" })).not.toBeInTheDocument();
+
+    vi.mocked(service.submitAssessment).mockResolvedValue(result);
+    reviewLandsOn();
+    await user.click(screen.getByRole("button", { name: "Try submitting again" }));
+
+    expect(service.submitAssessment).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(service.submitAssessment).mock.calls[1]).toEqual(
+      vi.mocked(service.submitAssessment).mock.calls[0],
+    );
+    expect(await screen.findByRole("region", { name: "Assessment submitted" })).toBeInTheDocument();
   });
 
   it("shows the server's validation message for the answers", async () => {
@@ -598,12 +621,11 @@ describe("submitting", () => {
     );
 
     await answerAll(user);
-    await user.click(submitButton());
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Answer every question of this assessment, and only those.",
     );
-    expect(questionGroup(2).getByRole("radio", { name: "Network" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Try submitting again" })).toBeEnabled();
     expect(service.fetchStudentAssessment).toHaveBeenCalledTimes(1);
   });
 
@@ -622,7 +644,6 @@ describe("submitting", () => {
     await screen.findByRole("heading", { name: "Networking Fundamentals" });
 
     await answerAll(user);
-    await user.click(submitButton());
 
     expect(
       await screen.findByRole("region", { name: "Assessment submitted" }),
@@ -648,7 +669,6 @@ describe("submitting", () => {
     await screen.findByRole("heading", { name: "Networking Fundamentals" });
 
     await answerAll(user);
-    await user.click(submitButton());
 
     expect(await screen.findByText("Assessment not found")).toBeInTheDocument();
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
@@ -700,7 +720,6 @@ describe("reviewing a completed attempt", () => {
     ).not.toBeInTheDocument();
 
     await answerAll(user);
-    await user.click(submitButton());
 
     expect(
       await screen.findByRole("heading", { name: "Your answers" }),
@@ -929,7 +948,6 @@ describe("reviewing a completed attempt", () => {
     );
 
     await answerAll(user);
-    await user.click(submitButton());
 
     // A student told only "something went wrong" would reasonably think their
     // submission had not gone through, and there is no second one to make.
@@ -943,7 +961,9 @@ describe("reviewing a completed attempt", () => {
 
 describe("the answer key", () => {
   it("is nowhere on the page while the assessment is being answered", async () => {
+    const user = userEvent.setup();
     await show();
+    await begin(user);
 
     expect(screen.queryByText(/correct/i)).not.toBeInTheDocument();
     for (const radio of screen.getAllByRole("radio")) {
@@ -1015,7 +1035,6 @@ describe("where the assessment leads", () => {
     expect(progress.fetchTopicProgression).not.toHaveBeenCalled();
 
     await answerAll(user);
-    await user.click(submitButton());
 
     const start = await screen.findByRole("button", { name: "Start OSI Model" });
 
@@ -1083,7 +1102,6 @@ describe("where focus goes after submitting", () => {
     reviewLandsOn();
 
     await answerAll(user);
-    await user.click(submitButton());
 
     // The Submit button that had focus is gone; the student lands on the result.
     const heading = await screen.findByRole("heading", { name: "Assessment submitted" });
@@ -1100,9 +1118,8 @@ describe("where focus goes after submitting", () => {
     vi.mocked(service.submitAssessment).mockReturnValue(new Promise(() => {}));
 
     await answerAll(user);
-    await user.click(submitButton());
 
-    expect(screen.getByRole("button", { name: "Submitting…" })).toBeInTheDocument();
+    expect(screen.getByText("Submitting your answers…")).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Assessment submitted" }),
     ).not.toBeInTheDocument();
@@ -1139,5 +1156,443 @@ describe("a long title on the next step", () => {
     // a phone's width is a browser check — jsdom cannot measure overflow.
     expect(start).toHaveClass("whitespace-normal", "h-auto");
     expect(start).not.toHaveClass("whitespace-nowrap");
+  });
+});
+
+/* ============================================================
+   THE START SCREEN AND THE TIMERS
+   ============================================================ */
+
+/** A question with a time limit. */
+const timed = (question: StudentAssessmentQuestion, seconds: number): StudentAssessmentQuestion => ({
+  ...question,
+  timeLimitSeconds: seconds,
+});
+
+/**
+ * Loads the page on real timers, then hands the clock over to fake ones: from
+ * here on, time passes only when a test says so. Clicks are fireEvent, which
+ * is synchronous, so nothing waits on a clock that is not moving.
+ */
+async function showTimed(questions: StudentAssessmentQuestion[], type: StudentAssessment["type"] = "pre_test") {
+  await show(assessment({ questions, type }));
+  vi.useFakeTimers();
+}
+
+const press = (name: string) => fireEvent.click(screen.getByRole("button", { name }));
+const pickChoice = (label: string) => fireEvent.click(screen.getByRole("radio", { name: label }));
+const elapse = (ms: number) =>
+  act(() => {
+    vi.advanceTimersByTime(ms);
+  });
+const shownTime = () => screen.queryByTestId("question-timer")?.textContent ?? null;
+const progressText = () => screen.getByTestId("question-progress").textContent;
+const announced = () => screen.getByTestId("assessment-announcer").textContent;
+/** Lets a submission's promise settle while the clock is fake. */
+const settleSubmission = () => act(async () => {});
+
+describe("the start screen", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("opens on a start screen that says how the assessment runs, with no question and no clock", async () => {
+    await showTimed([switching, timed(routing, 30)]);
+
+    expect(screen.getByRole("button", { name: "Start assessment" })).toBeInTheDocument();
+    expect(screen.getByText(/2 questions, one at a time/)).toBeInTheDocument();
+    expect(screen.getByText(/One question is timed/)).toBeInTheDocument();
+    expect(screen.getByText(/You can't go back to a question/)).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(shownTime()).toBeNull();
+  });
+
+  it("says nothing about timing when no question is timed", async () => {
+    await showTimed([switching, routing]);
+
+    expect(screen.queryByText(/timed/)).toBeNull();
+  });
+
+  it("starts no clock however long the start screen is read", async () => {
+    await showTimed([timed(switching, 10), routing]);
+
+    elapse(10 * 60_000);
+
+    expect(screen.getByRole("button", { name: "Start assessment" })).toBeInTheDocument();
+    expect(service.submitAssessment).not.toHaveBeenCalled();
+
+    press("Start assessment");
+
+    // The whole ten seconds, from the moment question 1 appeared.
+    expect(shownTime()).toBe("0:10");
+  });
+
+  it("opens question 1 on Start, with its heading focused and its progress shown", async () => {
+    await showTimed([switching, routing]);
+
+    press("Start assessment");
+
+    expect(progressText()).toBe("Question 1 / 2");
+    expect(screen.getByRole("progressbar", { name: "Progress" })).toHaveAttribute("aria-valuenow", "1");
+    expect(screen.getByRole("heading", { level: 2 })).toHaveFocus();
+
+    pickChoice("Assign public IP addresses");
+    press("Next");
+
+    expect(screen.getByRole("progressbar", { name: "Progress" })).toHaveAttribute("aria-valuenow", "2");
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Which layer routes packets?");
+    expect(screen.getByRole("heading", { level: 2 })).toHaveFocus();
+  });
+});
+
+describe("a question's timer", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("counts the question's own limit down from the moment it opens", async () => {
+    await showTimed([timed(switching, 30), routing]);
+    press("Start assessment");
+
+    expect(shownTime()).toBe("0:30");
+
+    elapse(10_000);
+    expect(shownTime()).toBe("0:20");
+
+    elapse(15_000);
+    expect(shownTime()).toBe("0:05");
+    expect(screen.getByTestId("question-timer")).toHaveClass("text-red-700");
+  });
+
+  it("shows no countdown at all on an untimed question", async () => {
+    await showTimed([switching, timed(routing, 30)]);
+    press("Start assessment");
+
+    expect(screen.queryByTestId("question-timer")).toBeNull();
+    elapse(120_000);
+    expect(progressText()).toBe("Question 1 / 2");
+  });
+
+  it("gives the next question its own fresh deadline", async () => {
+    await showTimed([timed(switching, 10), timed(routing, 30)]);
+    press("Start assessment");
+
+    elapse(4_000);
+    pickChoice("Assign public IP addresses");
+    press("Next");
+
+    expect(shownTime()).toBe("0:30");
+
+    // The first question's deadline, six seconds on, means nothing here.
+    elapse(6_000);
+    expect(progressText()).toBe("Question 2 / 2");
+    expect(shownTime()).toBe("0:24");
+  });
+
+  it("works from the deadline, not from how many ticks ran", async () => {
+    await showTimed([timed(switching, 30), routing]);
+    press("Start assessment");
+
+    // The clock moves ten seconds while no interval runs — as a background tab
+    // that the browser has stopped ticking would see it.
+    vi.setSystemTime(Date.now() + 10_000);
+    elapse(250);
+
+    expect(shownTime()).toBe("0:20");
+  });
+
+  it("times out as soon as it looks, when the deadline passed while nothing ticked", async () => {
+    await showTimed([timed(switching, 30), routing]);
+    press("Start assessment");
+
+    vi.setSystemTime(Date.now() + 45_000);
+    elapse(250);
+
+    expect(progressText()).toBe("Question 2 / 2");
+  });
+
+  it("moves on by itself when the time runs out, once, leaving the question unanswered", async () => {
+    vi.mocked(service.submitAssessment).mockReturnValue(new Promise(() => {}));
+    await showTimed([timed(switching, 10), routing]);
+    press("Start assessment");
+
+    pickChoice("Encrypt traffic"); // Picked, but never confirmed with Next.
+    elapse(10_000);
+
+    expect(progressText()).toBe("Question 2 / 2");
+    expect(screen.getByText("Time ran out on question 1, so it was left unanswered.")).toBeInTheDocument();
+
+    // Long after: still question 2. The first timer does not fire again.
+    elapse(60_000);
+    expect(progressText()).toBe("Question 2 / 2");
+
+    pickChoice("Network");
+    press("Finish");
+
+    // The pick that was never confirmed is not sent: the question went unanswered.
+    expect(service.submitAssessment).toHaveBeenCalledTimes(1);
+    expect(service.submitAssessment).toHaveBeenCalledWith(11, [
+      { questionId: 21, choiceId: null },
+      { questionId: 22, choiceId: 41 },
+    ]);
+  });
+
+  it("submits when the last question's time runs out, exactly once", async () => {
+    vi.mocked(service.submitAssessment).mockReturnValue(new Promise(() => {}));
+    await showTimed([switching, timed(routing, 10)]);
+    press("Start assessment");
+
+    pickChoice("Assign public IP addresses");
+    press("Next");
+    elapse(10_000);
+
+    expect(service.submitAssessment).toHaveBeenCalledTimes(1);
+    expect(service.submitAssessment).toHaveBeenCalledWith(11, [
+      { questionId: 21, choiceId: 32 },
+      { questionId: 22, choiceId: null },
+    ]);
+    expect(screen.getByText("Time ran out on question 2, so it was left unanswered.")).toBeInTheDocument();
+    expect(screen.getByText("Submitting your answers…")).toBeInTheDocument();
+
+    elapse(60_000);
+    expect(service.submitAssessment).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends every question exactly once when all of them time out", async () => {
+    vi.mocked(service.submitAssessment).mockReturnValue(new Promise(() => {}));
+    await showTimed([timed(switching, 10), timed(routing, 15)]);
+    press("Start assessment");
+
+    elapse(10_000);
+    elapse(15_000);
+
+    expect(service.submitAssessment).toHaveBeenCalledTimes(1);
+    expect(service.submitAssessment).toHaveBeenCalledWith(11, [
+      { questionId: 21, choiceId: null },
+      { questionId: 22, choiceId: null },
+    ]);
+  });
+
+  it("works the same on a post-test", async () => {
+    vi.mocked(service.submitAssessment).mockReturnValue(new Promise(() => {}));
+    await showTimed([timed(switching, 20), routing], "post_test");
+    press("Start assessment");
+
+    expect(shownTime()).toBe("0:20");
+    elapse(20_000);
+    pickChoice("Network");
+    press("Finish");
+
+    expect(service.submitAssessment).toHaveBeenCalledWith(11, [
+      { questionId: 21, choiceId: null },
+      { questionId: 22, choiceId: 41 },
+    ]);
+  });
+});
+
+describe("Next and the timer at the same moment", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("lets Next win when it lands first, and the timer does nothing after", async () => {
+    vi.mocked(service.submitAssessment).mockReturnValue(new Promise(() => {}));
+    await showTimed([timed(switching, 10), routing]);
+    press("Start assessment");
+
+    pickChoice("Encrypt traffic");
+    elapse(9_999);
+
+    // Next and the deadline in one go, before anything re-renders.
+    act(() => {
+      screen.getByRole("button", { name: "Next" }).click();
+      vi.advanceTimersByTime(250);
+    });
+
+    // One step on, not two.
+    expect(progressText()).toBe("Question 2 / 2");
+    expect(screen.queryByText(/Time ran out/)).toBeNull();
+
+    pickChoice("Network");
+    press("Finish");
+
+    expect(service.submitAssessment).toHaveBeenCalledWith(11, [
+      { questionId: 21, choiceId: 33 },
+      { questionId: 22, choiceId: 41 },
+    ]);
+  });
+
+  it("lets the timer win when it lands first, and a late Next does nothing to the next question", async () => {
+    vi.mocked(service.submitAssessment).mockReturnValue(new Promise(() => {}));
+    await showTimed([timed(switching, 10), routing]);
+    press("Start assessment");
+
+    pickChoice("Encrypt traffic");
+    const next = screen.getByRole("button", { name: "Next" });
+
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+      next.click();
+    });
+
+    expect(progressText()).toBe("Question 2 / 2");
+    expect(screen.getByText(/Time ran out on question 1/)).toBeInTheDocument();
+    // Question 2 has nothing picked, so nothing carried it on.
+    expect(screen.getByRole("button", { name: "Finish" })).toBeDisabled();
+
+    pickChoice("Network");
+    press("Finish");
+
+    expect(service.submitAssessment).toHaveBeenCalledTimes(1);
+    expect(service.submitAssessment).toHaveBeenCalledWith(11, [
+      { questionId: 21, choiceId: null },
+      { questionId: 22, choiceId: 41 },
+    ]);
+  });
+
+  it("moves on one question for a rapid double press of Next, skipping nothing", async () => {
+    await showTimed([switching, routing, { ...switching, id: 23, prompt: "Third?" }]);
+    press("Start assessment");
+
+    pickChoice("Encrypt traffic");
+    const next = screen.getByRole("button", { name: "Next" });
+    act(() => {
+      next.click();
+      next.click();
+    });
+
+    expect(progressText()).toBe("Question 2 / 3");
+    expect(service.submitAssessment).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The intervals running right now, as window.setInterval and clearInterval
+ * see them. Counted on its own rather than with vi.getTimerCount(), which also
+ * counts the timers React and the test environment keep for themselves.
+ */
+const intervalSpies: { mockRestore: () => void }[] = [];
+
+function trackIntervals(): () => number {
+  const live = new Set<number>();
+  const set = window.setInterval.bind(window);
+  const clear = window.clearInterval.bind(window);
+
+  intervalSpies.push(
+    vi.spyOn(window, "setInterval").mockImplementation(((handler: TimerHandler, ms?: number) => {
+      const id = set(handler, ms);
+      live.add(id);
+      return id;
+    }) as typeof window.setInterval),
+    vi.spyOn(window, "clearInterval").mockImplementation((id?: number) => {
+      if (id !== undefined) live.delete(id);
+      clear(id);
+    }),
+  );
+
+  return () => live.size;
+}
+
+describe("what a timer leaves behind", () => {
+  afterEach(() => {
+    intervalSpies.splice(0).forEach((spy) => spy.mockRestore());
+    vi.useRealTimers();
+  });
+
+  it("runs one interval for a timed question, and none once it is settled", async () => {
+    await showTimed([timed(switching, 30), routing]);
+    const running = trackIntervals();
+
+    expect(running()).toBe(0);
+    press("Start assessment");
+    expect(running()).toBe(1);
+
+    pickChoice("Encrypt traffic");
+    press("Next");
+
+    // Question 2 is untimed: nothing is ticking.
+    expect(running()).toBe(0);
+  });
+
+  it("swaps the old question's interval for the new one's, never running two", async () => {
+    await showTimed([timed(switching, 30), timed(routing, 30)]);
+    const running = trackIntervals();
+
+    press("Start assessment");
+    pickChoice("Encrypt traffic");
+    press("Next");
+
+    expect(running()).toBe(1);
+    elapse(30_000);
+    expect(running()).toBe(0);
+  });
+
+  it("leaves no timer running once the assessment is submitted", async () => {
+    vi.mocked(service.submitAssessment).mockResolvedValue(result);
+    reviewLandsOn();
+    await showTimed([switching, timed(routing, 30)]);
+    const running = trackIntervals();
+
+    press("Start assessment");
+    pickChoice("Encrypt traffic");
+    press("Next");
+    expect(running()).toBe(1);
+
+    pickChoice("Network");
+    press("Finish");
+    await settleSubmission();
+
+    expect(running()).toBe(0);
+    expect(service.submitAssessment).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops the clock when the page goes away mid-question, and nothing is sent", async () => {
+    await showTimed([timed(switching, 10), routing]);
+    const running = trackIntervals();
+    press("Start assessment");
+    expect(running()).toBe(1);
+
+    cleanup();
+    expect(running()).toBe(0);
+
+    vi.advanceTimersByTime(60_000);
+    expect(service.submitAssessment).not.toHaveBeenCalled();
+  });
+});
+
+describe("what a screen reader is told about time", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("does not read the countdown out: it is hidden from assistive technology", async () => {
+    await showTimed([timed(switching, 30), routing]);
+    press("Start assessment");
+
+    expect(screen.getByTestId("question-timer")).toHaveAttribute("aria-hidden", "true");
+    // The limit is part of the question as it is read.
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("30 second time limit");
+  });
+
+  it("says once that time is short, and nothing each second", async () => {
+    await showTimed([timed(switching, 30), routing]);
+    press("Start assessment");
+
+    const said = new Set<string>();
+    for (let second = 0; second < 29; second++) {
+      elapse(1_000);
+      said.add(announced() ?? "");
+    }
+
+    expect([...said].filter(Boolean)).toEqual(["10 seconds left on question 1."]);
+  });
+
+  it("says when a question ran out, and which", async () => {
+    await showTimed([timed(switching, 10), routing]);
+    press("Start assessment");
+
+    elapse(10_000);
+
+    expect(announced()).toBe("Time's up. Question 1 was not answered.");
+  });
+
+  it("does not warn about a question that is only ten seconds long to begin with", async () => {
+    await showTimed([timed(switching, 10), routing]);
+    press("Start assessment");
+
+    elapse(5_000);
+    expect(announced()).toBe("");
   });
 });

@@ -30,6 +30,7 @@ import { useAsync } from "@/services/useAsync";
 import {
   ASSESSMENT_TYPE_LABELS,
   EMPTY_QUESTION_DRAFT,
+  QUESTION_TIMER_PRESETS,
   createQuestion,
   deleteAssessment,
   deleteQuestion,
@@ -967,7 +968,12 @@ function questionFieldOf(field: string): string {
   return field;
 }
 
-const QUESTION_FORM_FIELD = /^(prompt|points|choices|choices\.\d+\.label)$/;
+const QUESTION_FORM_FIELD = /^(prompt|points|time_limit_seconds|choices|choices\.\d+\.label)$/;
+
+/** What a timer setting is called in the editor's list. */
+function timerOptionLabel(seconds: number | null): string {
+  return seconds === null ? "No timer" : `${seconds} seconds`;
+}
 
 /** One question being written, new or existing. */
 function QuestionForm({
@@ -1097,20 +1103,54 @@ function QuestionForm({
         )}
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor={`${prefix}-points`}>Points</Label>
-        <Input
-          id={`${prefix}-points`}
-          inputMode="numeric"
-          className="w-24"
-          value={draft.points}
-          aria-invalid={errors.points ? true : undefined}
-          aria-describedby={describedBy("points")}
-          onChange={(e) => setDraft((current) => ({ ...current, points: e.target.value }))}
-        />
-        {errors.points && (
-          <FieldError id={describedBy("points")!} message={errors.points} />
-        )}
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="space-y-2">
+          <Label htmlFor={`${prefix}-points`}>Points</Label>
+          <Input
+            id={`${prefix}-points`}
+            inputMode="numeric"
+            className="w-24"
+            value={draft.points}
+            aria-invalid={errors.points ? true : undefined}
+            aria-describedby={describedBy("points")}
+            onChange={(e) => setDraft((current) => ({ ...current, points: e.target.value }))}
+          />
+          {errors.points && (
+            <FieldError id={describedBy("points")!} message={errors.points} />
+          )}
+        </div>
+
+        {/* How long a student has once the question is shown. The countdown is
+            the student's browser's; running out leaves the question unanswered. */}
+        <div className="space-y-2">
+          <Label htmlFor={`${prefix}-timer`}>Timer</Label>
+          <select
+            id={`${prefix}-timer`}
+            value={draft.timeLimitSeconds ?? ""}
+            aria-invalid={errors.time_limit_seconds ? true : undefined}
+            aria-describedby={describedBy("time_limit_seconds")}
+            onChange={(e) =>
+              setDraft((current) => ({
+                ...current,
+                timeLimitSeconds: e.target.value === "" ? null : Number(e.target.value),
+              }))
+            }
+            className="h-10 w-40 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">{timerOptionLabel(null)}</option>
+            {QUESTION_TIMER_PRESETS.map((seconds) => (
+              <option key={seconds} value={seconds}>
+                {timerOptionLabel(seconds)}
+              </option>
+            ))}
+          </select>
+          {errors.time_limit_seconds && (
+            <FieldError
+              id={describedBy("time_limit_seconds")!}
+              message={errors.time_limit_seconds}
+            />
+          )}
+        </div>
       </div>
 
       <fieldset className="space-y-2" aria-describedby={describedBy("choices")}>
@@ -1203,9 +1243,14 @@ function QuestionCard({
           </p>
         </div>
 
-        <span className="text-xs text-gray-600 whitespace-nowrap">
-          {question.points === 1 ? "1 point" : `${question.points} points`}
-        </span>
+        <div className="flex flex-col items-end gap-0.5 text-xs text-gray-600 whitespace-nowrap">
+          <span>{question.points === 1 ? "1 point" : `${question.points} points`}</span>
+          {question.timeLimitSeconds !== null && (
+            <span data-testid={`question-${question.id}-timer`}>
+              {question.timeLimitSeconds} s timer
+            </span>
+          )}
+        </div>
       </div>
 
       <ul aria-label={`Choices for question ${number}`} className="space-y-1.5">

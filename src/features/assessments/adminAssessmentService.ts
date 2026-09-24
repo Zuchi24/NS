@@ -46,6 +46,8 @@ export interface AssessmentQuestion {
   id: number;
   prompt: string;
   points: number;
+  /** Seconds a student has once the question is shown, or null for no timer. */
+  timeLimitSeconds: number | null;
   order: number;
   choices: AssessmentChoice[];
 }
@@ -118,6 +120,7 @@ interface ApiAssessmentQuestion {
   id: number;
   prompt: string;
   points: number;
+  time_limit_seconds?: number | null;
   order: number;
   choices?: ApiAssessmentChoice[];
 }
@@ -148,6 +151,7 @@ function toQuestion(row: ApiAssessmentQuestion): AssessmentQuestion {
     id: row.id,
     prompt: row.prompt,
     points: row.points,
+    timeLimitSeconds: row.time_limit_seconds ?? null,
     order: row.order,
     choices: (row.choices ?? []).map(toChoice),
   };
@@ -251,11 +255,26 @@ export interface AssessmentChoiceDraft {
  *
  * The choices are always the whole set of four: the server takes them no other
  * way, on a create or an edit.
+ *
+ * The timer is picked from QUESTION_TIMER_PRESETS, so it is never half-typed:
+ * a number of seconds, or null for no timer.
  */
 export interface AssessmentQuestionDraft {
   prompt: string;
   points: string;
+  timeLimitSeconds: number | null;
   choices: AssessmentChoiceDraft[];
+}
+
+/**
+ * The time limits an author can give a question, in seconds — the same list
+ * the server accepts (StoreAssessmentQuestionRequest::TIMER_PRESETS). No timer
+ * is null, not one of these.
+ */
+export const QUESTION_TIMER_PRESETS = [10, 15, 20, 30, 45, 60, 90, 120] as const;
+
+export function isTimerPreset(seconds: number): boolean {
+  return (QUESTION_TIMER_PRESETS as readonly number[]).includes(seconds);
 }
 
 /** How many choices a question has — exactly this many, no more and no fewer. */
@@ -268,6 +287,7 @@ export const QUESTION_CHOICE_COUNT = 4;
 export const EMPTY_QUESTION_DRAFT: AssessmentQuestionDraft = {
   prompt: "",
   points: "1",
+  timeLimitSeconds: null,
   choices: Array.from({ length: QUESTION_CHOICE_COUNT }, () => ({
     label: "",
     isCorrect: false,
@@ -280,6 +300,7 @@ export function draftOfQuestion(
   return {
     prompt: question.prompt,
     points: String(question.points),
+    timeLimitSeconds: question.timeLimitSeconds,
     choices: question.choices.map((choice) => ({
       label: choice.label,
       isCorrect: choice.isCorrect,
@@ -301,11 +322,14 @@ function detailPayload(draft: AssessmentDraft): Record<string, unknown> {
  *
  * No order and no assessment id: both are refused if sent. A new question is
  * appended, and moving one is reorderQuestions.
+ *
+ * The timer always goes, null included: on an edit, null is what clears it.
  */
 function questionPayload(draft: AssessmentQuestionDraft): Record<string, unknown> {
   return {
     prompt: draft.prompt.trim(),
     points: Number(draft.points.trim()),
+    time_limit_seconds: draft.timeLimitSeconds,
     choices: draft.choices.map((choice) => ({
       label: choice.label.trim(),
       is_correct: choice.isCorrect,
@@ -587,6 +611,7 @@ export function validateAssessmentDraft(
 export type QuestionDraftField =
   | "prompt"
   | "points"
+  | "time_limit_seconds"
   | "choices"
   | `choices.${number}.label`;
 
@@ -615,6 +640,10 @@ export function validateQuestionDraft(
     errors.points = `A question is worth at least ${QUESTION_POINTS_MIN} point.`;
   } else if (Number(points) > QUESTION_POINTS_MAX) {
     errors.points = `A question is worth at most ${QUESTION_POINTS_MAX} points.`;
+  }
+
+  if (draft.timeLimitSeconds !== null && !isTimerPreset(draft.timeLimitSeconds)) {
+    errors.time_limit_seconds = "Choose one of the timer settings, or no timer.";
   }
 
   if (draft.choices.length !== QUESTION_CHOICE_COUNT) {

@@ -172,6 +172,7 @@ describe("reading an assessment", () => {
           id: 21,
           prompt: "What does a switch primarily do?",
           points: 2,
+          timeLimitSeconds: null,
           order: 1,
           choices: [
             { id: 31, label: "Connect devices within a LAN", order: 1 },
@@ -472,6 +473,45 @@ describe("reading the student's own review", () => {
   });
 });
 
+describe("a question's timer", () => {
+  it("reads each question's time limit, and no limit as null", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        id: 11,
+        topic_id: 4,
+        type: "pre_test",
+        title: "Networking Fundamentals",
+        description: null,
+        questions: [
+          apiQuestion({ id: 21, time_limit_seconds: 30 }),
+          apiQuestion({ id: 22, time_limit_seconds: null }),
+          apiQuestion({ id: 23 }),
+        ],
+      },
+    });
+
+    const { questions } = await fetchStudentAssessment(11);
+
+    expect(questions.map((q) => q.timeLimitSeconds)).toEqual([30, null, null]);
+  });
+
+  it("sends a timed-out question with a null choice, and nothing else about it", async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: apiAttempt() });
+
+    await submitAssessment(11, [
+      { questionId: 21, choiceId: 32 },
+      { questionId: 22, choiceId: null },
+    ]);
+
+    expect(api.post).toHaveBeenCalledWith("/assessments/11/attempts", {
+      answers: [
+        { question_id: 21, choice_id: 32 },
+        { question_id: 22, choice_id: null },
+      ],
+    });
+  });
+});
+
 describe("submitting", () => {
   it("posts only the answers, each a question and a choice", async () => {
     vi.mocked(api.post).mockResolvedValue({ data: apiAttempt() });
@@ -525,6 +565,7 @@ describe("working out the answers", () => {
     id,
     prompt: `Question ${id}`,
     points: 1,
+    timeLimitSeconds: null,
     order: id,
     choices: [],
   });
@@ -536,6 +577,16 @@ describe("working out the answers", () => {
       unansweredQuestions(questions, { 22: 41 }).map((unanswered) => unanswered.id),
     ).toEqual([21, 23]);
     expect(unansweredQuestions(questions, { 21: 1, 22: 2, 23: 3 })).toEqual([]);
+  });
+
+  it("counts a timed-out question as settled, and sends it with no choice", () => {
+    // 22 timed out: settled with null, so not unanswered, and sent as null.
+    expect(unansweredQuestions(questions, { 21: 31, 22: null }).map((q) => q.id)).toEqual([23]);
+    expect(answersFor(questions, { 21: 31, 22: null, 23: 53 })).toEqual([
+      { questionId: 21, choiceId: 31 },
+      { questionId: 22, choiceId: null },
+      { questionId: 23, choiceId: 53 },
+    ]);
   });
 
   it("turns the picks into answers in question order, ignoring strays", () => {

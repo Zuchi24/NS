@@ -44,6 +44,11 @@ export interface StudentAssessmentQuestion {
   prompt: string;
   /** What the question is worth — not what anyone was awarded for it. */
   points: number;
+  /**
+   * Seconds to answer once the question is shown, or null for no timer. The
+   * countdown is this browser's; running out leaves the question unanswered.
+   */
+  timeLimitSeconds: number | null;
   order: number;
   choices: StudentAssessmentChoice[];
 }
@@ -144,14 +149,23 @@ export interface AssessmentReview {
   questions: AssessmentReviewQuestion[];
 }
 
-/** One answer: the choice picked for a question. The whole of a submission. */
+/**
+ * One answer: the choice picked for a question. The whole of a submission.
+ *
+ * `choiceId` is null only for a timed question whose time ran out with nothing
+ * picked. The server accepts that for a timed question and nothing else, and
+ * scores it as incorrect.
+ */
 export interface AssessmentAnswer {
   questionId: number;
-  choiceId: number;
+  choiceId: number | null;
 }
 
-/** The answers picked so far, by question id. */
-export type AssessmentSelections = Record<number, number>;
+/**
+ * The questions settled so far, by question id: the choice picked, or null for
+ * a timed question whose time ran out. A question not yet reached is absent.
+ */
+export type AssessmentSelections = Record<number, number | null>;
 
 interface ApiChoice {
   id: number;
@@ -163,6 +177,7 @@ interface ApiQuestion {
   id: number;
   prompt: string;
   points: number;
+  time_limit_seconds?: number | null;
   order: number;
   choices?: ApiChoice[];
 }
@@ -210,6 +225,7 @@ function toQuestion(row: ApiQuestion): StudentAssessmentQuestion {
     id: row.id,
     prompt: row.prompt,
     points: row.points,
+    timeLimitSeconds: row.time_limit_seconds ?? null,
     order: row.order,
     choices: (row.choices ?? []).map(toChoice),
   };
@@ -361,7 +377,10 @@ export async function submitAssessment(
   return toResult(data);
 }
 
-/** The questions with no answer picked yet, in the order they were asked. */
+/**
+ * The questions not settled yet, in the order they were asked. A timed-out
+ * question is settled — with no choice — and is not among them.
+ */
 export function unansweredQuestions(
   questions: StudentAssessmentQuestion[],
   selections: AssessmentSelections,
@@ -369,7 +388,10 @@ export function unansweredQuestions(
   return questions.filter((question) => selections[question.id] === undefined);
 }
 
-/** The picked answers as a submission, in the order the questions were asked. */
+/**
+ * The settled questions as a submission, in the order they were asked: the
+ * choice picked, or null for a timed question whose time ran out.
+ */
 export function answersFor(
   questions: StudentAssessmentQuestion[],
   selections: AssessmentSelections,
