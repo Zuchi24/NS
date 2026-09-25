@@ -1633,6 +1633,73 @@ describe("deleting the assessment", () => {
   });
 });
 
+describe("deleting an archived version opened from the archive", () => {
+  const archivedAt = "2026-09-20T10:00:00Z";
+  const conflict =
+    "This assessment was changed by another administrator. The Archive list has been refreshed.";
+
+  async function confirmDelete(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(release().getByRole("button", { name: "Delete" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete assessment" }),
+    );
+  }
+
+  it("deletes only if it is still archived, and returns to that archive", async () => {
+    const user = userEvent.setup();
+    search = "from=archive&type=post-test";
+    await show(assessment({ type: "post_test", archivedAt }));
+    vi.mocked(service.deleteAssessment).mockResolvedValue(undefined);
+
+    await confirmDelete(user);
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/admin/archive/tests/post-test"));
+    expect(service.deleteAssessment).toHaveBeenCalledWith(11, { expected: "archived" });
+    expect(toast.success).toHaveBeenCalledWith("Deleted “Before you start”.");
+  });
+
+  it("deletes the same archived version from the roadmap exactly as before", async () => {
+    const user = userEvent.setup();
+    search = "roadmap=3&topic=7";
+    await show(assessment({ archivedAt }));
+    vi.mocked(service.deleteAssessment).mockResolvedValue(undefined);
+
+    await confirmDelete(user);
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/admin/roadmap?roadmap=3&topic=7"));
+    expect(vi.mocked(service.deleteAssessment).mock.calls).toEqual([[11]]);
+  });
+
+  it("adds no precondition for a version that is not archived, wherever it was opened", async () => {
+    const user = userEvent.setup();
+    search = "from=archive&type=pre-test";
+    await show(assessment({ archivedAt: null }));
+    vi.mocked(service.deleteAssessment).mockResolvedValue(undefined);
+
+    await confirmDelete(user);
+
+    await waitFor(() => expect(service.deleteAssessment).toHaveBeenCalled());
+    expect(vi.mocked(service.deleteAssessment).mock.calls).toEqual([[11]]);
+  });
+
+  it.each([
+    ["restored since (409)", 409, 'Version 1 of "Before you start" is no longer archived, so it was not deleted.'],
+    ["deleted since (404)", 404, "Not found."],
+  ])("says it changed and returns to the archive when it was %s, without retrying", async (_, status, message) => {
+    const user = userEvent.setup();
+    search = "from=archive&type=pre-test";
+    await show(assessment({ archivedAt }));
+    vi.mocked(service.deleteAssessment).mockRejectedValue(new ApiError(message, status));
+
+    await confirmDelete(user);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(conflict));
+    expect(navigate).toHaveBeenCalledWith("/admin/archive/tests/pre-test");
+    expect(service.deleteAssessment).toHaveBeenCalledTimes(1);
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+});
+
 describe("the question timer", () => {
   it("offers no timer and each preset, and starts a new question on no timer", async () => {
     const user = userEvent.setup();

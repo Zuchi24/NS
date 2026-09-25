@@ -56,7 +56,7 @@ import type {
   AssessmentQuestion,
   AssessmentQuestionDraft,
 } from "@/features/assessments/adminAssessmentService";
-import { builderReturnOf } from "@/features/assessments/assessmentPaths";
+import { ARCHIVE_ADMIN_PATH, builderReturnOf } from "@/features/assessments/assessmentPaths";
 import { AssessmentResultsPanel } from "./AssessmentResultsPanel";
 
 /**
@@ -118,6 +118,10 @@ export function AssessmentBuilderPage() {
   const [searchParams] = useSearchParams();
   const back = builderReturnOf(searchParams);
 
+  // Opened from the archive — builderReturnOf only points back there for a
+  // context it recognises — which is what makes a delete here the archive's.
+  const fromArchive = back.path.startsWith(ARCHIVE_ADMIN_PATH);
+
   // An address with no usable id is not worth a request: it can only 404.
   const load = useCallback(
     () => (id === null ? Promise.resolve(null) : fetchAssessment(id)),
@@ -148,6 +152,11 @@ export function AssessmentBuilderPage() {
     setReleasing(action);
     setReleaseError(null);
 
+    // Deleting an archived version the archive opened is the archive's delete,
+    // with its precondition: only if it is still archived. Another author may
+    // have restored — even published — it since this page loaded.
+    const archiveDelete = action === "delete" && fromArchive && assessment.archivedAt !== null;
+
     try {
       if (action === "publish") {
         await publishAssessment(assessment.id);
@@ -162,13 +171,27 @@ export function AssessmentBuilderPage() {
         );
         reload();
       } else {
-        await deleteAssessment(assessment.id);
+        if (archiveDelete) {
+          await deleteAssessment(assessment.id, { expected: "archived" });
+        } else {
+          await deleteAssessment(assessment.id);
+        }
         toast.success(`Deleted “${assessment.title}”.`);
         // Back to where it was opened from: the roadmap and topic, where its
         // slot now offers to create it again, or the archive.
         navigate(back.path);
       }
     } catch (e) {
+      if (archiveDelete && e instanceof ApiError && (e.status === 409 || e.status === 404)) {
+        // Changed or gone since the archive opened it. Not retried: back to
+        // the archive, which reads its list afresh, as the archive page does.
+        toast.error(
+          "This assessment was changed by another administrator. The Archive list has been refreshed.",
+        );
+        navigate(back.path);
+        return;
+      }
+
       // The server's own words: it names what is incomplete, or that the
       // assessment has been taken, better than this page could.
       setReleaseError(
