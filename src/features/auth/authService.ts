@@ -118,6 +118,30 @@ export async function fetchSections(): Promise<YearLevelOptions[]> {
   return data;
 }
 
+export interface PasswordChange {
+  currentPassword: string;
+  password: string;
+  passwordConfirmation: string;
+}
+
+/**
+ * Changes the signed-in user's own password. Whose it is comes from the token.
+ *
+ * On success the server revokes every token the account holds — this one
+ * included — so the caller has to sign in again with the new password; the
+ * returned message says so. A wrong current password is a 422 on
+ * `current_password`, read with ApiError.fieldError().
+ */
+export async function changePassword(change: PasswordChange): Promise<string> {
+  const { message } = await api.put<{ message: string }>("/password", {
+    current_password: change.currentPassword,
+    password: change.password,
+    password_confirmation: change.passwordConfirmation,
+  });
+
+  return message;
+}
+
 export async function logout(): Promise<void> {
   try {
     await api.post("/logout");

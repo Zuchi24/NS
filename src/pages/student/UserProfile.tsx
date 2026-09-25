@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { ChangePasswordCard } from "@/features/auth/ChangePasswordCard";
 import { useAuth } from "@/features/auth/useAuth";
 import { shortDate } from "@/services/time";
 
@@ -99,7 +100,7 @@ export function UserProfile() {
               <Info className="h-5 w-5 text-gray-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-gray-900">
-                  Editing your profile is not available yet
+                  Editing these details is not available yet
                 </p>
                 <p className="text-sm text-gray-600 mt-1">
                   These details come from your account on the server. Ask your
@@ -109,6 +110,12 @@ export function UserProfile() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="flex justify-center">
+        <div className="w-full max-w-2xl">
+          <ChangePasswordCard />
+        </div>
       </div>
     </div>
   );

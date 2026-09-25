@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
   ArrowLeft,
@@ -19,7 +19,12 @@ import {
   fetchCohorts,
   fetchStudent,
   moveStudentToSection,
+  resetStudentPassword,
 } from "@/features/admin/adminService";
+import { PASSWORD_MIN_LENGTH } from "@/features/auth/ChangePasswordCard";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ApiError } from "@/services/api";
 import { standingClass } from "@/features/admin/format";
 import type { SectionSummary, Student } from "@/features/admin/types";
 import { shortDate, timeAgo } from "@/services/time";
@@ -142,6 +147,137 @@ function MoveSection({
   );
 }
 
+/**
+ * Setting a new password for a student who cannot sign in.
+ *
+ * Staff reach this page only through the admin routes, and the server refuses
+ * the reset to anyone else whatever this page shows — the button is a
+ * convenience, not the lock. No current password: the student is not the one
+ * asking. The server signs the student out everywhere, so they sign in again
+ * with the new password.
+ */
+function ResetPassword({ student }: { student: Student }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [errors, setErrors] = useState<{ password?: string; confirmation?: string }>({});
+  const [busy, setBusy] = useState(false);
+
+  // The disabled button is what an instructor sees; this stops a second
+  // request going out before the next render.
+  const inFlight = useRef(false);
+
+  const close = () => {
+    setOpen(false);
+    setPassword("");
+    setConfirmation("");
+    setErrors({});
+  };
+
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (inFlight.current) return;
+
+    const found: typeof errors = {};
+    if (!password) found.password = "Enter a new password.";
+    else if (password.length < PASSWORD_MIN_LENGTH) {
+      found.password = `Use at least ${PASSWORD_MIN_LENGTH} characters.`;
+    }
+    if (confirmation !== password) found.confirmation = "The two passwords do not match.";
+
+    setErrors(found);
+    if (Object.keys(found).length > 0) return;
+
+    inFlight.current = true;
+    setBusy(true);
+
+    try {
+      toast.success(await resetStudentPassword(student.id, password, confirmation));
+      close();
+    } catch (e) {
+      if (e instanceof ApiError && e.fieldError("password")) {
+        setErrors({ password: e.fieldError("password") });
+      } else {
+        toast.error(e instanceof Error ? e.message : "Could not reset the password.");
+      }
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <div>
+        <Button size="sm" variant="outline" className="mt-2" onClick={() => setOpen(true)}>
+          Reset password
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      aria-label={`Reset password for ${student.fullName}`}
+      className="mt-2 space-y-3"
+      onSubmit={save}
+      noValidate
+    >
+      <p className="text-xs text-gray-600">
+        {student.fullName} will be signed out everywhere and will sign in with
+        the new password. Tell them what it is.
+      </p>
+
+      <div className="space-y-1">
+        <Label htmlFor="reset-password">New password</Label>
+        <Input
+          id="reset-password"
+          type="password"
+          autoComplete="new-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          aria-invalid={errors.password ? true : undefined}
+          aria-describedby={errors.password ? "reset-password-error" : undefined}
+          disabled={busy}
+        />
+        {errors.password && (
+          <p id="reset-password-error" className="text-xs text-red-600">
+            {errors.password}
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="reset-password-confirmation">Confirm new password</Label>
+        <Input
+          id="reset-password-confirmation"
+          type="password"
+          autoComplete="new-password"
+          value={confirmation}
+          onChange={(event) => setConfirmation(event.target.value)}
+          aria-invalid={errors.confirmation ? true : undefined}
+          aria-describedby={errors.confirmation ? "reset-password-confirmation-error" : undefined}
+          disabled={busy}
+        />
+        {errors.confirmation && (
+          <p id="reset-password-confirmation-error" className="text-xs text-red-600">
+            {errors.confirmation}
+          </p>
+        )}
+      </div>
+
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={busy}>
+          {busy ? "Resetting…" : "Set new password"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={close}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 export function StudentDetail() {
   const { year, sectionId, studentId } = useParams();
   const navigate = useNavigate();
@@ -234,6 +370,12 @@ export function StudentDetail() {
                 <Clock className="w-4 h-4 text-gray-400" />
                 <p>{timeAgo(summary.lastActiveAt)}</p>
               </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600">
+                Password
+              </label>
+              <ResetPassword student={student} />
             </div>
           </CardContent>
         </Card>

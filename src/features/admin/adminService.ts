@@ -363,9 +363,9 @@ export async function deactivateSection(
 /**
  * Moves a student into another open section.
  *
- * The one thing an instructor writes about a student, and it exists because a
- * student picks their own section at sign-up and can pick wrong. Only the
- * section is sent: nothing else about an account is an instructor's to change.
+ * It exists because a student picks their own section at sign-up and can pick
+ * wrong. Only the section is sent; the only other thing an instructor sets on
+ * an account is a new password (resetStudentPassword).
  *
  * The server refuses a closed or missing section with a 422, and the message it
  * gives is the one worth showing — it says the section is not open for
@@ -386,4 +386,25 @@ export async function moveStudentToSection(
     student: toStudent(data.student),
     challenges: data.challenges.map(toStudentChallenge),
   };
+}
+
+/**
+ * Sets a new password for a student who cannot sign in.
+ *
+ * No current password: the student is not the one asking. The server revokes
+ * every token the student holds, so they are signed out everywhere and sign in
+ * again with the new password. Only students: a staff account's id is a 404.
+ * Returns the server's message, which names the student.
+ */
+export async function resetStudentPassword(
+  studentId: number,
+  password: string,
+  passwordConfirmation: string,
+): Promise<string> {
+  const { message } = await api.put<{ message: string }>(
+    `/admin/students/${studentId}/password`,
+    { password, password_confirmation: passwordConfirmation },
+  );
+
+  return message;
 }

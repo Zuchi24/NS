@@ -1,12 +1,14 @@
 import { Mail, Shield, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChangePasswordCard } from "@/features/auth/ChangePasswordCard";
 import { useAuth } from "@/features/auth/useAuth";
 
 /**
  * The signed-in instructor's own account, as the server holds it.
  *
- * Read-only. There is no endpoint for an admin to edit their profile, and a
- * form whose Save did nothing would be worse than none.
+ * The details are read-only: there is no endpoint for an admin to edit them,
+ * and a form whose Save did nothing would be worse than none. The password is
+ * the one thing that can change here, through ChangePasswordCard.
  */
 export function AdminProfile() {
   const { user } = useAuth();
@@ -72,11 +74,13 @@ export function AdminProfile() {
             own attempts, so there is nothing on these pages to change.
           </p>
           <p className="text-sm text-gray-600">
-            Changing your name, email or password is not available in the app
-            yet.
+            Changing your name or email is not available in the app yet. You
+            can change your password below.
           </p>
         </CardContent>
       </Card>
+
+      <ChangePasswordCard />
     </div>
   );
 }

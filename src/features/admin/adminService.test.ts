@@ -5,6 +5,7 @@ import {
   deactivateSection,
   fetchCohorts,
   moveStudentToSection,
+  resetStudentPassword,
 } from "./adminService";
 
 /**
@@ -191,5 +192,22 @@ describe("moving a student", () => {
     await expect(moveStudentToSection(3, 7)).rejects.toThrow(
       "That section is not open for enrolment.",
     );
+  });
+});
+
+describe("resetting a student's password", () => {
+  it("sends the new password and its confirmation, and nothing else", async () => {
+    vi.mocked(api.put).mockResolvedValue({ message: "Ana Reyes's password was reset." });
+
+    const message = await resetStudentPassword(3, "fresh-pass-123", "fresh-pass-123");
+
+    expect(api.put).toHaveBeenCalledWith("/admin/students/3/password", {
+      password: "fresh-pass-123",
+      password_confirmation: "fresh-pass-123",
+    });
+    // No current password, and nothing else about the account.
+    const [, body] = vi.mocked(api.put).mock.calls[0];
+    expect(Object.keys(body as object)).toEqual(["password", "password_confirmation"]);
+    expect(message).toBe("Ana Reyes's password was reset.");
   });
 });
