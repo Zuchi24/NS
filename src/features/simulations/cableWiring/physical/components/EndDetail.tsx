@@ -91,9 +91,55 @@ interface Props {
   plugGrip?: PlugGrip | null;
   /** True while a hand has this end's fitted plug out of its seat: the seated plug is drawn faint behind it. */
   plugLifted?: boolean;
+  /** Which pair lies in which row, top to bottom. The rows are fixed; this only says who is in them. */
+  pairOrder?: readonly PairId[];
 }
 
 const WIRE = 5.5;
+
+/*
+ * The breakout: where the conductors leave the jacket.
+ *
+ * Inside the jacket the eight lie in one round bundle, far narrower than the
+ * row they are spread into outside it. So every wire is drawn from a root
+ * squeezed into the jacket's mouth, and bends out to its own lane over a short
+ * run. Drawing only: lanes and pair rows — the very bands the gestures
+ * hit-test — are where they always were, and each wire reaches its own lane
+ * well before the hand usually takes hold of it.
+ */
+
+/** The hollow of the jacket's cut face, either side of the centre line. The jacket wall is what is left. */
+const MOUTH_HALF = JACKET_HALF - 3;
+
+/**
+ * How far a wire's root is pulled in toward the centre line at the mouth: small
+ * enough that the outermost lane and the outermost twisted pair, winding
+ * included, both come out of the hollow.
+ */
+const MOUTH_SQUEEZE = 0.45;
+
+/** The run, along the cable, over which a wire bends out of the bundle to its lane. */
+const BREAKOUT = 16;
+
+/** Where a wire drawn at height `y` outside the jacket sits as it comes out of the mouth. */
+function mouthY(y: number, cy: number): number {
+  return cy + (y - cy) * MOUTH_SQUEEZE;
+}
+
+/** The breakout's run for a wire this long: short wires still reach their own lane by the tip. */
+function breakoutRun(length: number): number {
+  return Math.min(BREAKOUT, length / 2);
+}
+
+/**
+ * A wire from the mouth to its tip: out of the bundle at `root`, bent over to
+ * its lane at y1, then straight on to (x2, y2).
+ */
+function wirePath(x1: number, x2: number, y1: number, y2: number, root: number): string {
+  const run = breakoutRun(Math.abs(x2 - x1)) * (x2 > x1 ? 1 : -1);
+
+  return `M ${x1} ${root} C ${x1 + run * 0.55} ${root} ${x1 + run * 0.45} ${y1} ${x1 + run} ${y1} L ${x2} ${y2}`;
+}
 
 /** How far off its lane a conductor in hand is drawn, however far the hand goes. */
 const HELD_REACH = 46;
@@ -116,6 +162,7 @@ export function EndDetail({
   lift,
   plugGrip,
   plugLifted = false,
+  pairOrder = PAIR_IDS,
 }: Props) {
   const J = end.jacketEdgeMm;
   const rear = plugRearMm(end);
@@ -141,7 +188,7 @@ export function EndDetail({
   // Where each twisted pair can be taken hold of — the very regions the
   // gesture hit-tests, so the band drawn round a pair is the pair a hand
   // closing there picks up.
-  const grabs = new Map(pairRegions(id, end, scale, cy).map((region) => [region.pair, region]));
+  const grabs = new Map(pairRegions(id, end, scale, cy, pairOrder).map((region) => [region.pair, region]));
   const allFlush = NATURAL_ORDER.every((c) => exposed(end, c) === 0);
 
   return (
@@ -169,7 +216,17 @@ export function EndDetail({
         />
       )}
 
-      {/* ---- Conductors, drawn first so the jacket mouth caps them ---- */}
+      {/* ---- The jacket's cut face: its wall, and the hollow the conductors
+             come out of. Drawn under them, so every wire leaves the hollow;
+             the jacket body, drawn later, covers the half of it inside. ---- */}
+      {!allFlush && (
+        <g data-testid={`mouth-${id}`} pointerEvents="none">
+          <ellipse cx={x(0)} cy={cy} rx={5} ry={JACKET_HALF} fill="#6B7580" />
+          <ellipse cx={x(0)} cy={cy} rx={3} ry={MOUTH_HALF} fill="#262C33" />
+        </g>
+      )}
+
+      {/* ---- Conductors, out of the mouth and over to their lanes ---- */}
       {end.fan
         ? end.fan.map((conductor, index) =>
             lift && lift.conductor === conductor ? null : (
@@ -186,11 +243,12 @@ export function EndDetail({
                   x2={x(exposed(end, conductor))}
                   y1={laneY(laneOf(conductor, index))}
                   y2={laneY(laneOf(conductor, index))}
+                  root={mouthY(laneY(laneOf(conductor, index)), cy)}
                 />
               </g>
             ),
           )
-        : PAIR_IDS.map((pair, index) => {
+        : pairOrder.map((pair, index) => {
             const grab = grabs.get(pair);
             const pulled = pull && pull.pair === pair ? pull : null;
             // A pair being pulled swings out of the jacket mouth: its roots
@@ -203,6 +261,7 @@ export function EndDetail({
               <g
                 key={pair}
                 data-testid={`pair-${id}-${pair}`}
+                data-row={index}
                 data-untwisted={end.untwisted[pair]}
                 data-pulled={pulled ? "true" : undefined}
                 data-open={pulled ? open.toFixed(2) : undefined}
@@ -232,6 +291,7 @@ export function EndDetail({
                       x2={x(exposed(end, conductor))}
                       y1={pairY(index) + (which ? 3.5 : -3.5)}
                       y2={pairY(index) + (which ? 3.5 : -3.5)}
+                      root={mouthY(pairY(index) + (which ? 3.5 : -3.5), cy)}
                     />
                   ) : (
                     <TwistedWire
@@ -243,6 +303,7 @@ export function EndDetail({
                       y2={pairY(index) + lift + (which ? 1 : -1) * OPEN_SPREAD * open}
                       phase={which}
                       openness={open}
+                      root={mouthY(pairY(index), cy)}
                     />
                   ),
                 )}
@@ -261,6 +322,7 @@ export function EndDetail({
           tipMm={exposed(end, lift.conductor)}
           laneY={laneY}
           dir={dir}
+          cy={cy}
         />
       )}
 
@@ -316,7 +378,8 @@ export function EndDetail({
         fill="#8C96A3"
       />
       <rect x={jacket.x} y={cy - 15} width={jacket.width} height={9} rx={4.5} fill="#B8C0CA" opacity={0.7} />
-      {!allFlush && <rect x={x(0) - 3} y={cy - 23} width={6} height={46} rx={3} fill="#6B7580" />}
+      {/* The underside in shadow, so the jacket reads as round rather than flat. */}
+      <rect x={jacket.x} y={cy + 10} width={jacket.width} height={JACKET_HALF - 10} fill="#6B7580" opacity={0.35} />
       {allFlush && (
         <g>
           <rect x={x(0) - 2} y={cy - 22} width={4} height={44} fill="#6B7580" />
@@ -402,22 +465,25 @@ function Wire({
   x2,
   y1,
   y2,
+  root,
 }: {
   conductor: Conductor;
   x1: number;
   x2: number;
   y1: number;
   y2: number;
+  /** Where it comes out of the jacket mouth. */
+  root: number;
 }) {
   const paint = CONDUCTOR_PAINT[conductor];
   if (x1 === x2) return null;
 
+  const d = wirePath(x1, x2, y1, y2, root);
+
   return (
     <g>
-      <line x1={x1} x2={x2} y1={y1} y2={y2} stroke={paint.base} strokeWidth={WIRE} strokeLinecap="butt" />
-      {paint.stripe && (
-        <line x1={x1} x2={x2} y1={y1} y2={y2} stroke={paint.stripe} strokeWidth={WIRE} strokeDasharray="4 3" />
-      )}
+      <path d={d} stroke={paint.base} strokeWidth={WIRE} strokeLinecap="butt" fill="none" />
+      {paint.stripe && <path d={d} stroke={paint.stripe} strokeWidth={WIRE} strokeDasharray="4 3" fill="none" />}
       <circle cx={x2} cy={y2} r={2} fill="#C98A3C" />
     </g>
   );
@@ -441,6 +507,7 @@ function TwistedWire({
   y2,
   phase,
   openness = 0,
+  root,
 }: {
   conductor: Conductor;
   x1: number;
@@ -449,6 +516,8 @@ function TwistedWire({
   y2: number;
   phase: number;
   openness?: number;
+  /** Where the pair's centre line comes out of the jacket mouth. */
+  root: number;
 }) {
   const paint = CONDUCTOR_PAINT[conductor];
   const length = Math.abs(x2 - x1);
@@ -458,8 +527,16 @@ function TwistedWire({
   const sign = x2 > x1 ? 1 : -1;
   const turns = Math.max(1, Math.round(length / step));
   const amp = (phase ? 3.8 : -3.8) * (1 - openness);
-  const atTurn = (turn: number) => y1 + (y2 - y1) * (turn / turns);
-  let d = `M ${x1} ${y1}`;
+  // The pair's centre line: out of the mouth at `root`, eased over to its row
+  // within the breakout, then on toward wherever its tip has been taken.
+  const run = breakoutRun(length);
+  const atTurn = (turn: number) => {
+    const along = Math.min(1, ((turn / turns) * length) / run);
+    const eased = along * along * (3 - 2 * along);
+
+    return y1 + (y2 - y1) * (turn / turns) + (root - y1) * (1 - eased);
+  };
+  let d = `M ${x1} ${root}`;
 
   for (let turn = 0; turn < turns; turn++) {
     const a = x1 + sign * (turn * length) / turns;
@@ -493,6 +570,7 @@ function HeldConductor({
   tipMm,
   laneY,
   dir,
+  cy,
 }: {
   id: EndId;
   lift: NonNullable<ConductorLift>;
@@ -501,6 +579,7 @@ function HeldConductor({
   tipMm: number;
   laneY: (index: number) => number;
   dir: 1 | -1;
+  cy: number;
 }) {
   const tone = lift.refused ? "#F43F5E" : "#38BDF8";
   const root = laneY(lift.fromIndex);
@@ -536,8 +615,15 @@ function HeldConductor({
       {/* A leader to the hand, so the wire and the hand read as one thing even
           when the hand has wandered off the row. */}
       <line x1={tip} x2={lift.at.x} y1={heldY} y2={lift.at.y} stroke={tone} strokeOpacity={0.35} strokeWidth={1.5} strokeDasharray="3 4" />
-      <line x1={x(0)} x2={tip} y1={root} y2={heldY} stroke={tone} strokeOpacity={0.5} strokeWidth={WIRE + 5} strokeLinecap="round" />
-      <Wire conductor={lift.conductor} x1={x(0)} x2={tip} y1={root} y2={heldY} />
+      <path
+        d={wirePath(x(0), tip, root, heldY, mouthY(root, cy))}
+        fill="none"
+        stroke={tone}
+        strokeOpacity={0.5}
+        strokeWidth={WIRE + 5}
+        strokeLinecap="round"
+      />
+      <Wire conductor={lift.conductor} x1={x(0)} x2={tip} y1={root} y2={heldY} root={mouthY(root, cy)} />
     </g>
   );
 }

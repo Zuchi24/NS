@@ -41,6 +41,23 @@ export function minExposed(end: CableEnd): number {
   return Math.min(...NATURAL_ORDER.map((c) => exposed(end, c)));
 }
 
+/**
+ * The row an end's conductors fall into when its last pair is untwisted: that
+ * end's own row in the scenario's fanOrder, or the one row both ends share,
+ * when it names all eight once each; otherwise NATURAL_ORDER.
+ */
+export function startingFan(scenario: Scenario, end: EndId): readonly Conductor[] {
+  const given = scenario.fanOrder;
+  const order = isRow(given) ? given : given?.[end];
+  const whole = order?.length === NATURAL_ORDER.length && NATURAL_ORDER.every((c) => order.includes(c));
+
+  return whole ? order : NATURAL_ORDER;
+}
+
+function isRow(value: Scenario["fanOrder"]): value is readonly Conductor[] {
+  return Array.isArray(value);
+}
+
 /** Graded length: jacketed cable left between the two jacket edges. */
 export function jacketedLengthMm(state: CableState, scenario: Scenario): number {
   return scenario.startLengthMm - state.ends.A.jacketEdgeMm - state.ends.B.jacketEdgeMm;

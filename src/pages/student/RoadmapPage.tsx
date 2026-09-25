@@ -116,8 +116,14 @@ export function RoadmapPage() {
       padding it cancels is a page hanging over its own edges.
     */
     <div className="-m-8">
+      {/*
+        Pinned, so every pixel of it is taken from the path for as long as the
+        page is open — on a 768px-tall laptop, under the app header, that is a
+        real share of the screen. From sm the title and the count share one line
+        rather than stacking, which keeps the bar to a single row.
+      */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:flex sm:items-baseline sm:gap-x-3 sm:flex-wrap">
           <h1 className="text-xl font-bold text-gray-900">
             Networking Roadmap
           </h1>
@@ -125,14 +131,14 @@ export function RoadmapPage() {
               standing the server sent for each of them; a topic has none to
               carry, so the line above them claims nothing about order or
               access, and the topic's own page is where the rest is shown. */}
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-sm text-gray-600 mt-1 sm:mt-0">
             {totalCount} topic{totalCount === 1 ? "" : "s"}. Open a topic to
             see your progress through it.
           </p>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 lg:py-10 space-y-16">
         {roadmaps.map((roadmap) => (
           <RoadmapPath
             key={roadmap.id}
@@ -169,10 +175,13 @@ export function RoadmapPage() {
  * controls that reveal or put away the next few, which is what makes them read
  * as more path rather than as the end of one.
  *
- * The path is a single column on a phone, with the spine down the left; from
- * `lg` it centres and the cards alternate either side of it. The DOM order is
- * the roadmap's order in both, so what is read aloud and what is tabbed
- * through is the sequence the instructor authored, whatever the layout does.
+ * The spine runs down the left until `xl`, and centres from there, with the
+ * cards alternating either side of it. Not from `lg`: the sidebar takes 256px
+ * of a laptop's width, and at 1024–1279px what is left cannot hold a card and
+ * its sections on *both* sides of a centred spine — they hung off both edges of
+ * the page, under the sidebar on one side and past the screen on the other.
+ * The DOM order is the roadmap's order in every layout, so what is read aloud
+ * and what is tabbed through is the sequence the instructor authored.
  */
 function RoadmapPath({
   roadmap,
@@ -204,7 +213,7 @@ function RoadmapPath({
 
   return (
     <section aria-labelledby={headingId}>
-      <div className="flex flex-col items-start lg:items-center gap-2 mb-8">
+      <div className="flex flex-col items-start xl:items-center gap-2 mb-6 lg:mb-8">
         <span className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-2 text-white shadow-md">
           <Route className="w-4 h-4 shrink-0" aria-hidden="true" />
           <h2
@@ -224,7 +233,7 @@ function RoadmapPath({
           unbroken run of characters.
         */}
         {roadmap.description && (
-          <p className="w-full text-sm text-gray-600 lg:text-center max-w-xl break-words">
+          <p className="w-full text-sm text-gray-600 xl:text-center max-w-xl break-words">
             {roadmap.description}
           </p>
         )}
@@ -235,10 +244,10 @@ function RoadmapPath({
             to whatever ends the path. */}
         <span
           aria-hidden="true"
-          className="absolute top-0 bottom-0 left-5 lg:left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-gradient-to-b from-blue-300 via-blue-200 to-blue-100"
+          className="absolute top-0 bottom-0 left-5 xl:left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-gradient-to-b from-blue-300 via-blue-200 to-blue-100"
         />
 
-        <ol className="space-y-6 lg:space-y-10">
+        <ol className="space-y-6 lg:space-y-8">
           {visible.map((topic, index) => (
             <TopicNode
               key={topic.id}
@@ -254,13 +263,13 @@ function RoadmapPath({
         </ol>
 
         {(remaining > 0 || canCollapse) && (
-          <div className="relative pt-8 pl-14 lg:pl-0 lg:flex lg:justify-center">
+          <div className="relative pt-8 pl-14 xl:pl-0 xl:flex xl:justify-center">
             {/* The node the path ends on. It points the way the path can still
                 go: down while there is more to reveal, back up once there is
                 not. */}
             <span
               aria-hidden="true"
-              className="absolute top-8 left-5 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border-2 border-dashed border-blue-300 bg-white lg:left-1/2"
+              className="absolute top-8 left-5 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border-2 border-dashed border-blue-300 bg-white xl:left-1/2"
             >
               {remaining > 0 ? (
                 <ChevronDown className="w-4 h-4 text-blue-500" />
@@ -269,7 +278,7 @@ function RoadmapPath({
               )}
             </span>
 
-            <div className="lg:mt-14 flex flex-col items-start lg:items-center gap-2">
+            <div className="xl:mt-14 flex flex-col items-start xl:items-center gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 {remaining > 0 && (
                   <Button
@@ -330,9 +339,13 @@ function RoadmapPath({
  * numbered node level with the card it points at however many sections hang off
  * it — the node is centred on the row, and the card is centred in the row.
  *
- * Below `lg` none of this holds: there is one column, the spine is down its
- * left, and there is no outward margin to branch into. There the sections fall
- * back under the card, which is the same tree read top to bottom.
+ * That is the layout from `xl`. Between `lg` and `xl` the spine is still down
+ * the left, so every card is on its right and there is only one outward margin:
+ * the card sits against the spine and its sections branch off beside it, to the
+ * right, exactly as a right-hand card does from `xl`.
+ *
+ * Below `lg` there is not room for even that. There is one column, and the
+ * sections fall back under the card, which is the same tree read top to bottom.
  */
 function TopicNode({
   topic,
@@ -343,7 +356,7 @@ function TopicNode({
 }: {
   topic: Topic;
   position: number;
-  /** Which side of the spine the card sits on, from `lg` up. */
+  /** Which side of the spine the card sits on, from `xl` up. */
   cardOnLeft: boolean;
   onOpen: () => void;
   onOpenSubtopic: (subtopic: Subtopic) => void;
@@ -353,8 +366,8 @@ function TopicNode({
   // The outer column, and — since the card is pinned to the spine end of it —
   // the direction everything else in the row has to grow.
   const column = cardOnLeft
-    ? "min-w-0 w-full lg:col-start-1 lg:justify-self-end"
-    : "min-w-0 w-full lg:col-start-3 lg:justify-self-start";
+    ? "min-w-0 w-full xl:col-start-1 xl:justify-self-end"
+    : "min-w-0 w-full xl:col-start-3 xl:justify-self-start";
 
   /*
    * Card and branch, side by side from `lg`.
@@ -362,31 +375,43 @@ function TopicNode({
    * The card is first in the DOM either way, because that is the order it is
    * read and tabbed in: the topic, then what the topic is made of. On the left
    * of the spine the row is reversed visually so the card still ends up nearest
-   * the line, which puts the branch out at the page's edge.
+   * the line, which puts the branch out at the page's edge — and only from
+   * `xl`, since before that no card is on the left.
    */
   const row = cardOnLeft
-    ? "lg:flex lg:flex-row-reverse lg:items-center lg:gap-6"
+    ? "lg:flex lg:items-center lg:gap-6 xl:flex-row-reverse"
     : "lg:flex lg:items-center lg:gap-6";
 
-  // Fixed from lg so every card on the path is the same width and the branches
-  // all set off from the same distance out, rather than each row finding its
-  // own shape from its own text.
-  const cardWidth = "w-full lg:w-52 xl:w-[17rem] lg:shrink-0";
+  /*
+   * The same width for every card on the path, so the branches all set off
+   * from the same distance out rather than each row finding its own shape from
+   * its own text.
+   *
+   * Between lg and xl that is a fixed width; the branch beside it takes what is
+   * left. From xl it is a share of the column rather than a length. The column
+   * is half of what is left of the page once the sidebar and the spine are
+   * taken out, and on a laptop — 1280 or 1366 wide — that is under the 536px a
+   * card and branch at their full size need; fixed widths there pushed both out
+   * past the edges of the page. As shares, card and branch always sum to the
+   * column, and the caps give them back their full size wherever it fits.
+   */
+  const cardWidth = "w-full lg:w-72 lg:shrink-0 xl:w-[52%] xl:max-w-[17rem]";
 
   return (
     <li className="relative min-w-0">
-      <div className="relative min-w-0 pl-14 lg:pl-0 lg:grid lg:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] lg:items-center">
-        {/* The arm from the spine to the card. On a phone every card is to the
-            right of the line; from lg it reaches out to whichever side the card
-            is on, and its inner end disappears under the node. */}
+      <div className="relative min-w-0 pl-14 xl:pl-0 xl:grid xl:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] xl:items-center">
+        {/* The arm from the spine to the card. Until xl every card is to the
+            right of the line; from xl it reaches out to whichever side the
+            card is on, and its inner end disappears under the node. From lg
+            the card is centred in its row, so the arm and node are too. */}
         <span
           aria-hidden="true"
-          className={`absolute top-8 left-5 h-0.5 w-7 -translate-y-1/2 bg-blue-200 lg:top-1/2 lg:w-8 ${
-            cardOnLeft ? "lg:left-auto lg:right-1/2" : "lg:left-1/2"
+          className={`absolute top-8 left-5 h-0.5 w-7 -translate-y-1/2 bg-blue-200 lg:top-1/2 xl:w-8 ${
+            cardOnLeft ? "xl:left-auto xl:right-1/2" : "xl:left-1/2"
           }`}
         />
 
-        <span className="absolute top-8 left-5 z-10 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-blue-500 bg-white text-xs font-bold text-blue-700 shadow-sm lg:top-1/2 lg:left-1/2">
+        <span className="absolute top-8 left-5 z-10 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-blue-500 bg-white text-xs font-bold text-blue-700 shadow-sm lg:top-1/2 xl:left-1/2">
           {position}
         </span>
 
@@ -486,7 +511,9 @@ function SectionStatus({ status }: { status: SubtopicStatus }) {
  * outward margin to branch into. There the whole branch falls back under the
  * card: trunk on the left, arms reaching right, entered from the top rather
  * than from the side. Every class below therefore names the stacked layout
- * first and mirrors it only from `lg`.
+ * first, moves the branch beside the card from `lg` — still on the card's
+ * right, as every card is right of the spine until `xl` — and mirrors it for a
+ * left-hand card only from `xl`.
  *
  * The cards are the topic card, stepped down: one border instead of two, no
  * shadow, a tinted ground and smaller type. Same design language, plainly
@@ -507,7 +534,7 @@ function TopicSections({
   sections: Subtopic[];
   /** The parent topic's place on the path, so cards can carry it. */
   position: number;
-  /** The parent's side, which the branch mirrors rather than recomputes. */
+  /** The parent's side from `xl`, which the branch mirrors rather than recomputes. */
   cardOnLeft: boolean;
   onOpen: (subtopic: Subtopic) => void;
 }) {
@@ -525,12 +552,15 @@ function TopicSections({
    * between rows, so there is nothing for the line to fall through.
    */
 
-  // Fixed from lg, like the card it hangs off, so every branch down a roadmap
-  // reaches the same distance out.
-  const width = "w-full lg:w-48 xl:w-[15rem] lg:shrink-0";
+  // Between lg and xl, whatever the fixed card beside it leaves, up to a
+  // readable measure. From xl, the rest of the column after the card's share
+  // and the gap between them (see the card's width in TopicNode), capped the
+  // same way — so every branch down a roadmap reaches the same distance out.
+  const width =
+    "w-full lg:flex-1 lg:min-w-0 lg:max-w-sm xl:flex-none xl:w-[calc(48%_-_1.5rem)] xl:max-w-[15rem]";
 
   const side = cardOnLeft
-    ? "ml-6 pl-5 pt-3 lg:ml-0 lg:pl-0 lg:pr-5 lg:pt-0"
+    ? "ml-6 pl-5 pt-3 lg:ml-0 lg:pt-0 xl:pl-0 xl:pr-5"
     : "ml-6 pl-5 pt-3 lg:ml-0 lg:pt-0";
 
   /*
@@ -540,25 +570,27 @@ function TopicSections({
    * trunk does this job instead.
    */
   const stem = cardOnLeft
-    ? "hidden lg:block absolute top-1/2 -right-6 h-0.5 w-6 -translate-y-1/2 bg-blue-200"
+    ? "hidden lg:block absolute top-1/2 -left-6 h-0.5 w-6 -translate-y-1/2 bg-blue-200 xl:left-auto xl:-right-6"
     : "hidden lg:block absolute top-1/2 -left-6 h-0.5 w-6 -translate-y-1/2 bg-blue-200";
 
   const trunkX = cardOnLeft
-    ? "absolute w-0.5 bg-blue-200 -left-5 lg:left-auto lg:-right-5"
+    ? "absolute w-0.5 bg-blue-200 -left-5 xl:left-auto xl:-right-5"
     : "absolute w-0.5 bg-blue-200 -left-5";
 
   const arm = cardOnLeft
-    ? "absolute top-6 -left-5 h-0.5 w-5 -translate-y-1/2 bg-blue-200 lg:top-1/2 lg:left-auto lg:-right-5"
+    ? "absolute top-6 -left-5 h-0.5 w-5 -translate-y-1/2 bg-blue-200 lg:top-1/2 xl:left-auto xl:-right-5"
     : "absolute top-6 -left-5 h-0.5 w-5 -translate-y-1/2 bg-blue-200 lg:top-1/2";
 
   // The junction, drawn on the trunk: the spine's own node, three sizes down.
   const joint = cardOnLeft
-    ? "absolute top-6 -left-5 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-blue-300 bg-white lg:top-1/2 lg:left-auto lg:-right-5"
+    ? "absolute top-6 -left-5 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-blue-300 bg-white lg:top-1/2 xl:left-auto xl:-right-5"
     : "absolute top-6 -left-5 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-blue-300 bg-white lg:top-1/2";
 
+  // Level with the section cards it heads: indented with them when stacked,
+  // flush with them once they stand beside the card.
   const caption = cardOnLeft
-    ? "ml-6 pl-5 text-xs font-medium text-gray-500 lg:ml-0 lg:pl-0 lg:pr-5 lg:text-right"
-    : "ml-6 pl-5 text-xs font-medium text-gray-500";
+    ? "ml-6 pl-5 text-xs font-medium text-gray-500 lg:ml-0 xl:pl-0 xl:pr-5 xl:text-right"
+    : "ml-6 pl-5 text-xs font-medium text-gray-500 lg:ml-0";
 
   return (
     <div className={`mt-2 lg:mt-0 ${width}`}>

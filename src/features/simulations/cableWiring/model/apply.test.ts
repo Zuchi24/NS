@@ -417,6 +417,72 @@ describe("untwist", () => {
     expect(last.state.ends.A.fan).toEqual([...NATURAL_ORDER]);
   });
 
+  describe("a scenario's starting row", () => {
+    const SHUFFLED = ["brown", "white-blue", "orange", "white-green", "green", "white-orange", "blue", "white-brown"] as const;
+    const shuffled: Scenario = { ...BENCH, fanOrder: SHUFFLED };
+    const STRIP_AND_UNTWIST: Action[] = [
+      { type: "strip", end: "A", amountMm: 30, slot: "correct" },
+      ...PAIR_IDS.map((pair): Action => ({ type: "untwist", end: "A", pair })),
+    ];
+    /** Carry each conductor to its T568B lane in turn, from whatever row the fan started in. */
+    const arrangeToT568B = (fan: readonly string[]): Action[] => {
+      const row = [...fan];
+      return T568B.flatMap((conductor, toIndex): Action[] => {
+        if (row.indexOf(conductor) === toIndex) return [];
+        row.splice(row.indexOf(conductor), 1);
+        row.splice(toIndex, 0, conductor);
+        return [{ type: "moveConductor", end: "A", conductor, toIndex }];
+      });
+    };
+    const finish: Action[] = [
+      { type: "trim", end: "A", leaveMm: 12 },
+      { type: "insert", end: "A", orientation: "contacts-up", pushMm: 99 },
+      { type: "crimp", end: "A", squeeze: "full" },
+    ];
+    const withBT568B = (scenario: Scenario): Scenario => ({
+      ...scenario,
+      initialEnds: { ...scenario.initialEnds, B: S1_PRACTICE.initialEnds.B },
+    });
+
+    it("fans into the scenario's row, the same eight conductors each once", () => {
+      const fan = chain(stateWith({}), STRIP_AND_UNTWIST, shuffled).ends.A.fan!;
+
+      expect(fan).toEqual([...SHUFFLED]);
+      expect([...fan].sort()).toEqual([...NATURAL_ORDER].sort());
+    });
+
+    it("falls back to the natural row when the scenario's row is not all eight once each", () => {
+      for (const fanOrder of [NATURAL_ORDER.slice(1), [...NATURAL_ORDER.slice(1), "brown"]] as const) {
+        const fan = chain(stateWith({}), STRIP_AND_UNTWIST, { ...BENCH, fanOrder: [...fanOrder] }).ends.A.fan;
+
+        expect(fan).toEqual([...NATURAL_ORDER]);
+      }
+    });
+
+    it("changes where the row starts, never what a finished end is graded as", () => {
+      const scenario = withBT568B(shuffled);
+      const start = createInitialState(scenario);
+      const fanned = chain(start, STRIP_AND_UNTWIST, scenario);
+      const arranged = chain(fanned, [...arrangeToT568B(fanned.ends.A.fan!), ...finish], scenario);
+
+      expect(standardOf(pinsAt(arranged.ends.A))).toBe("T568B");
+      expect(wiremap(arranged).verdict).toBe("straight");
+
+      // Left as it fell, the row is no standard, and the cable is no good.
+      const unarranged = chain(fanned, finish, scenario);
+
+      expect(standardOf(pinsAt(unarranged.ends.A))).toBeNull();
+      expect(wiremap(unarranged).verdict).not.toBe("straight");
+    });
+
+    it("is the same row every time for the same scenario", () => {
+      const once = chain(stateWith({}), STRIP_AND_UNTWIST, shuffled);
+      const again = chain(stateWith({}), STRIP_AND_UNTWIST, shuffled);
+
+      expect(again).toEqual(once);
+    });
+  });
+
   it("refuses a pair already untwisted, and any pair under a plug", () => {
     expect(refused(fannedA(), { type: "untwist", end: "A", pair: "blue" })).toBe("already-untwisted");
 
@@ -857,5 +923,101 @@ describe("M23: determinism", () => {
     expect(state.ends.A.fan).not.toBe(before.ends.A.fan);
     expect(state.ends.B).not.toBe(before.ends.B);
     expect(state.ends.B).toEqual(before.ends.B);
+  });
+});
+
+/* ============================================================
+   EACH END'S STARTING ROW
+   ============================================================ */
+
+describe("each end's own starting row", () => {
+  const ROW_A = ["white-brown", "brown", "blue", "white-blue", "white-orange", "orange", "white-green", "green"] as const;
+  const ROW_B = ["white-green", "green", "white-orange", "orange", "white-brown", "brown", "blue", "white-blue"] as const;
+  const perEnd: Scenario = { ...BENCH, fanOrder: { A: ROW_A, B: ROW_B } };
+
+  const stripAndUntwist = (end: "A" | "B"): Action[] => [
+    { type: "strip", end, amountMm: 30, slot: "correct" },
+    ...PAIR_IDS.map((pair): Action => ({ type: "untwist", end, pair })),
+  ];
+
+  it("fans each end into its own row", () => {
+    const state = chain(stateWith({}), [...stripAndUntwist("A"), ...stripAndUntwist("B")], perEnd);
+
+    expect(state.ends.A.fan).toEqual([...ROW_A]);
+    expect(state.ends.B.fan).toEqual([...ROW_B]);
+  });
+
+  it("gives an end the scenario doesn't name the natural row, and one row still serves both", () => {
+    const onlyA: Scenario = { ...BENCH, fanOrder: { A: ROW_A } };
+    const partial = chain(stateWith({}), [...stripAndUntwist("A"), ...stripAndUntwist("B")], onlyA);
+
+    expect(partial.ends.A.fan).toEqual([...ROW_A]);
+    expect(partial.ends.B.fan).toEqual([...NATURAL_ORDER]);
+
+    const shared: Scenario = { ...BENCH, fanOrder: ROW_B };
+    const both = chain(stateWith({}), [...stripAndUntwist("A"), ...stripAndUntwist("B")], shared);
+
+    expect(both.ends.A.fan).toEqual([...ROW_B]);
+    expect(both.ends.B.fan).toEqual([...ROW_B]);
+  });
+
+  it("leaves every accepted cut flush — no conductor out, no fan, every pair twisted — whatever was there", () => {
+    // What the bench relies on: an accepted cut is always a fresh section.
+    const worked = [
+      chain(stateWith({}), [{ type: "strip", end: "A", amountMm: 30, slot: "correct" }], perEnd),
+      chain(stateWith({}), stripAndUntwist("A"), perEnd),
+      chain(stateWith({}), [...stripAndUntwist("A"), { type: "trim", end: "A", leaveMm: 12 }], perEnd),
+      chain(
+        stateWith({}),
+        [...stripAndUntwist("A"), { type: "trim", end: "A", leaveMm: 12 }, { type: "insert", end: "A", orientation: "contacts-up", pushMm: 99 }],
+        perEnd,
+      ),
+      stateWith({}),
+    ];
+
+    for (const before of worked) {
+      for (const behind of [0, 5, 40]) {
+        const result = apply(before, { type: "cut", end: "A", atMm: before.ends.A.jacketEdgeMm + behind }, perEnd);
+        if ("rejected" in result) continue;
+
+        const end = result.state.ends.A;
+        expect(NATURAL_ORDER.every((c) => exposed(end, c) === 0)).toBe(true);
+        expect(end.fan).toBeNull();
+        expect(PAIR_IDS.every((pair) => !end.untwisted[pair])).toBe(true);
+      }
+    }
+  });
+
+  it("grades a cable arranged from each end's own row exactly as before", () => {
+    const toT568B = (end: "A" | "B", fan: readonly string[]): Action[] => {
+      const row = [...fan];
+      return T568B.flatMap((conductor, toIndex): Action[] => {
+        if (row.indexOf(conductor) === toIndex) return [];
+        row.splice(row.indexOf(conductor), 1);
+        row.splice(toIndex, 0, conductor);
+        return [{ type: "moveConductor", end, conductor, toIndex }];
+      });
+    };
+    const finish = (end: "A" | "B"): Action[] => [
+      { type: "trim", end, leaveMm: 12 },
+      { type: "insert", end, orientation: "contacts-up", pushMm: 99 },
+      { type: "crimp", end, squeeze: "full" },
+    ];
+
+    const fanned = chain(stateWith({}), [...stripAndUntwist("A"), ...stripAndUntwist("B")], perEnd);
+    const done = chain(
+      fanned,
+      [...toT568B("A", ROW_A), ...finish("A"), ...toT568B("B", ROW_B), ...finish("B")],
+      perEnd,
+    );
+
+    expect(standardOf(pinsAt(done.ends.A))).toBe("T568B");
+    expect(standardOf(pinsAt(done.ends.B))).toBe("T568B");
+    expect(wiremap(done).verdict).toBe("straight");
+
+    // Left as they fell, neither end is a standard and the cable is no good.
+    const lazy = chain(fanned, [...finish("A"), ...finish("B")], perEnd);
+    expect(standardOf(pinsAt(lazy.ends.A))).toBeNull();
+    expect(wiremap(lazy).verdict).not.toBe("straight");
   });
 });

@@ -69,9 +69,11 @@ interface Options {
    * is out. Without it, a tap does nothing.
    */
   onTap?: (end: EndId, pair: PairId) => void;
+  /** Which pair lies in which row on each end, top to bottom — the order the bench draws them in. */
+  pairOrders?: Partial<Record<EndId, readonly PairId[]>>;
 }
 
-export function useUntwistGesture({ cable, scale, surface, blocked = false, onCommit, onTap }: Options) {
+export function useUntwistGesture({ cable, scale, surface, blocked = false, onCommit, onTap, pairOrders }: Options) {
   const [drag, setDrag] = useState<UntwistDrag | null>(null);
   // The drag is kept in a ref as well, so the pointer handlers can read it
   // without a state updater having to do anything but update state.
@@ -118,7 +120,7 @@ export function useUntwistGesture({ cable, scale, surface, blocked = false, onCo
       if (blocked || held.current !== null) return;
 
       const at = pointIn(event);
-      const region: PairRegion | null = pairUnder(at.x, at.y, cable, scale);
+      const region: PairRegion | null = pairUnder(at.x, at.y, cable, scale, undefined, pairOrders);
       if (region === null) return;
 
       // No preventDefault: nothing needs preventing — the drawing already
@@ -147,7 +149,7 @@ export function useUntwistGesture({ cable, scale, surface, blocked = false, onCo
         openness: 0,
       });
     },
-    [blocked, cable, pointIn, put, scale, surface],
+    [blocked, cable, pairOrders, pointIn, put, scale, surface],
   );
 
   const onPointerMove = useCallback(

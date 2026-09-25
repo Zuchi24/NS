@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { RouterProvider, createMemoryRouter, matchRoutes } from "react-router";
 
 import contractText from "@/features/simulations/cableWiring/contract/cable-contract.v1.json?raw";
@@ -161,6 +161,18 @@ describe("the cable wiring route", () => {
     // rather than a default one being drawn.
     expect(screen.getByText("Make a working cable.")).toBeInTheDocument();
     expect(screen.getByText(/1000 mm/)).toBeInTheDocument();
+  });
+
+  it("offers the way back to Challenges from the physical bench, as every simulator page does", async () => {
+    answerWith(PHYSICAL_CONFIG);
+
+    const router = mountAt("/challenge/cable-wiring?attempt=11");
+
+    await screen.findByRole("heading", PHYSICAL);
+    fireEvent.click(screen.getByRole("button", { name: /Back to Challenges/i }));
+
+    // Challenges is a lazy route, so the move lands once it has loaded.
+    await waitFor(() => expect(router.state.location.pathname).toBe("/challenges"));
   });
 
   it("opens the legacy page for a challenge graded on the legacy order rule", async () => {

@@ -34,6 +34,19 @@ export const ASSESSMENT_TYPE_LABELS: Record<AssessmentType, string> = {
   post_test: "Post-test",
 };
 
+/**
+ * Where each one sits in the topic, in the words an author would use.
+ *
+ * Beside the labels rather than in the panel that first needed it: two screens
+ * now offer these slots — the topic's own assessments panel, and the Add Topic
+ * dialog while the topic is still being written — and describing them
+ * differently in the two would be two answers to one question.
+ */
+export const ASSESSMENT_SLOT_CAPTIONS: Record<AssessmentType, string> = {
+  pre_test: "Taken before the subtopics, as a diagnostic.",
+  post_test: "Taken after the subtopics.",
+};
+
 export interface AssessmentChoice {
   id: number;
   label: string;

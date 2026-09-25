@@ -755,6 +755,9 @@ describe("on the whole bench", () => {
     expect(screen.getByTestId("lead-A").getAttribute("data-endpoint")).toBe("tester-main");
     expect(screen.getByTestId("plug-lead-A").getAttribute("data-plugged-in")).toBe("true");
     expect(screen.getByRole("button", { name: "End A", hidden: true })).toHaveAttribute("aria-pressed", "true");
+    // The lead is drawn near a conductor's weight (5.5), and is only a picture: nothing takes hold of it.
+    expect(screen.getByTestId("lead-A").getAttribute("stroke-width")).toBe("4");
+    expect(screen.getByTestId("lead-A").getAttribute("pointer-events")).toBe("none");
   });
 
   it("S5: plugs both ends into the two PCs, each by its own port, and the link is the model's to report", () => {

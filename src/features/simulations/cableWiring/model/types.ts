@@ -75,6 +75,15 @@ export interface Scenario {
   plugs: number;
   initialEnds: Record<EndId, CableEnd>;
   endpoints: Endpoint[];
+  /**
+   * The row the conductors fall into when an end's last pair is untwisted. Not
+   * authored and not graded: the bench picks one for each end, afresh whenever
+   * that end is a newly exposed section of cable, so the starting row is not
+   * always the same. One row serves both ends; a record gives each end its
+   * own. Absent, or not all eight each once, it is NATURAL_ORDER. Read through
+   * startingFan().
+   */
+  fanOrder?: readonly Conductor[] | Partial<Record<EndId, readonly Conductor[]>>;
 }
 
 export type InspectionCheck = "strain_relief" | "untwist" | "front" | "insulation";

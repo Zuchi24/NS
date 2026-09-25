@@ -64,9 +64,44 @@ vi.mock("./TopicAssessmentsPanel", () => ({
   ),
 }));
 
+// The Add Topic dialog can open a topic's tests once the topic exists. Only
+// the write is stubbed; the type labels and captions stay real, so the boxes
+// are found by the words an author actually reads.
+vi.mock("@/features/assessments/adminAssessmentService", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/features/assessments/adminAssessmentService")
+  >();
+
+  return { ...actual, createAssessment: vi.fn() };
+});
+
+// Staged materials are held in the browser and sent by a later phase. Stubbed
+// so these can say that nothing reaches the network yet.
+vi.mock("@/features/content/materialService", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/features/content/materialService")
+  >();
+
+  return { ...actual, createMaterial: vi.fn() };
+});
+
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const service = await import("@/features/content/topicService");
+const assessments = await import("@/features/assessments/adminAssessmentService");
+const materials = await import("@/features/content/materialService");
+const { toast } = await import("sonner");
+
+/**
+ * The materials group inside a create dialog.
+ *
+ * Scoped, and it has to be: the material's own Title box carries the same label
+ * as the topic's, which is right on screen and ambiguous only to a query that
+ * ignores where it is looking.
+ */
+function materialsGroup() {
+  return screen.getByRole("group", { name: /learning materials/i });
+}
 
 function topic(over: Partial<Topic> = {}): Topic {
   return {
@@ -490,6 +525,498 @@ describe("RoadmapTopicsPanel", () => {
     // The page reloads from the server rather than this panel patching a local
     // copy, so what is on screen is what was actually stored.
     expect(onChanged).toHaveBeenCalled();
+  });
+
+  /*
+   * The tests a topic is opened with
+   *
+   * Both are drafts and neither carries a field an author fills in here, so the
+   * dialog asks the only question it can: whether to make them. They are made
+   * after the topic, because the id they hang off is the one the server hands
+   * back — which is what these pin down.
+   */
+
+  it("opens no assessment when neither box is ticked", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+
+    renderWith([]);
+
+    await user.click(screen.getByRole("button", { name: /add topic/i }));
+    await user.type(screen.getByLabelText(/title/i), "Subnetting");
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() => expect(service.createTopic).toHaveBeenCalled());
+    expect(assessments.createAssessment).not.toHaveBeenCalled();
+  });
+
+  it("opens the tests that were ticked, against the topic just created", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+
+    renderWith([]);
+
+    await user.click(screen.getByRole("button", { name: /add topic/i }));
+    await user.type(screen.getByLabelText(/title/i), "Subnetting");
+    await user.click(screen.getByLabelText(/pre-test/i));
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() =>
+      expect(assessments.createAssessment).toHaveBeenCalledTimes(1),
+    );
+
+    // The id the server gave back, not one this panel guessed at, and a draft
+    // named after what it is — the questions are written in the builder.
+    expect(assessments.createAssessment).toHaveBeenCalledWith(first.id, {
+      type: "pre_test",
+      title: "Pre-test",
+      description: "",
+    });
+  });
+
+  it("opens both tests when both are ticked", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+
+    renderWith([]);
+
+    await user.click(screen.getByRole("button", { name: /add topic/i }));
+    await user.type(screen.getByLabelText(/title/i), "Subnetting");
+    await user.click(screen.getByLabelText(/pre-test/i));
+    await user.click(screen.getByLabelText(/post-test/i));
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() =>
+      expect(assessments.createAssessment).toHaveBeenCalledTimes(2),
+    );
+    expect(
+      vi.mocked(assessments.createAssessment).mock.calls.map(([, draft]) => draft.type),
+    ).toEqual(["pre_test", "post_test"]);
+  });
+
+  it("opens no test when the topic itself was refused", async () => {
+    const user = userEvent.setup();
+
+    renderWith([]);
+
+    await user.click(screen.getByRole("button", { name: /add topic/i }));
+    // No title, so the draft never reaches the network.
+    await user.click(screen.getByLabelText(/pre-test/i));
+    await user.click(submitButton(/add topic/i));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/title/i);
+    expect(service.createTopic).not.toHaveBeenCalled();
+    // Nothing to hang a test on, so none is attempted.
+    expect(assessments.createAssessment).not.toHaveBeenCalled();
+  });
+
+  it("forgets the boxes once the topic is stored", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+
+    renderWith([]);
+
+    await user.click(screen.getByRole("button", { name: /add topic/i }));
+    await user.type(screen.getByLabelText(/title/i), "Subnetting");
+    await user.click(screen.getByLabelText(/pre-test/i));
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() => expect(assessments.createAssessment).toHaveBeenCalled());
+
+    // The dialog stays mounted between openings; the next topic starts on
+    // empty boxes rather than on the last one's answers.
+    await user.click(screen.getByRole("button", { name: /add topic/i }));
+    expect(screen.getByLabelText(/pre-test/i)).not.toBeChecked();
+  });
+
+  /*
+   * Materials written beside the topic
+   *
+   * They are staged, not sent: the endpoint takes the owner's id in its path
+   * and there is no id until the topic exists. So these say what the list does
+   * while it is being written, and that nothing leaves the browser yet.
+   */
+
+  async function openAddTopic(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: /add topic/i }));
+  }
+
+  async function stageMaterial(
+    user: ReturnType<typeof userEvent.setup>,
+    { title, url }: { title: string; url: string },
+  ) {
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /add material/i }),
+    );
+    await user.type(within(materialsGroup()).getByLabelText(/^title$/i), title);
+    await user.type(within(materialsGroup()).getByLabelText(/web address/i), url);
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /add to list/i }),
+    );
+  }
+
+  it("offers the materials group with nothing staged in it", async () => {
+    const user = userEvent.setup();
+
+    renderWith([]);
+    await openAddTopic(user);
+
+    expect(materialsGroup()).toBeInTheDocument();
+    // No boxes until the author asks for them, which is what keeps the topic's
+    // own Title unambiguous on open.
+    expect(
+      within(materialsGroup()).queryByLabelText(/^title$/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("topic-add-material-list")).not.toBeInTheDocument();
+  });
+
+  it("stages a material into the list without sending it", async () => {
+    const user = userEvent.setup();
+
+    renderWith([]);
+    await openAddTopic(user);
+    await stageMaterial(user, { title: "OSI Model", url: "https://example.com/osi" });
+
+    const list = screen.getByTestId("topic-add-material-list");
+
+    expect(within(list).getByText(/1\. OSI Model/)).toBeInTheDocument();
+    expect(within(list).getByText(/example\.com\/osi/)).toBeInTheDocument();
+    // Staging is a browser-side list; nothing is stored until a later phase
+    // attaches it to the topic that gets created.
+    expect(materials.createMaterial).not.toHaveBeenCalled();
+  });
+
+  it("stages several, in the order they were written", async () => {
+    const user = userEvent.setup();
+
+    renderWith([]);
+    await openAddTopic(user);
+    await stageMaterial(user, { title: "First", url: "https://example.com/1" });
+    await stageMaterial(user, { title: "Second", url: "https://example.com/2" });
+
+    const rows = within(screen.getByTestId("topic-add-material-list")).getAllByRole(
+      "listitem",
+    );
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("1. First");
+    expect(rows[1]).toHaveTextContent("2. Second");
+  });
+
+  it("keeps a material with no title out of the list", async () => {
+    const user = userEvent.setup();
+
+    renderWith([]);
+    await openAddTopic(user);
+
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /add material/i }),
+    );
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /add to list/i }),
+    );
+
+    // An empty link fails two rules at once, and both are said: the title it
+    // has no title, and the address it has no address.
+    const complaints = (await within(materialsGroup()).findAllByRole("alert")).map(
+      (alert) => alert.textContent,
+    );
+
+    expect(complaints).toEqual([
+      "Give the material a title.",
+      "Add the web address.",
+    ]);
+    expect(screen.queryByTestId("topic-add-material-list")).not.toBeInTheDocument();
+  });
+
+  it("edits a staged material in place", async () => {
+    const user = userEvent.setup();
+
+    renderWith([]);
+    await openAddTopic(user);
+    await stageMaterial(user, { title: "Typo", url: "https://example.com/a" });
+
+    await user.click(screen.getByRole("button", { name: /edit Typo/i }));
+
+    const title = within(materialsGroup()).getByLabelText(/^title$/i);
+    await user.clear(title);
+    await user.type(title, "Fixed");
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /save material/i }),
+    );
+
+    const list = screen.getByTestId("topic-add-material-list");
+
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(list).getByText(/1\. Fixed/)).toBeInTheDocument();
+  });
+
+  it("removes a staged material", async () => {
+    const user = userEvent.setup();
+
+    renderWith([]);
+    await openAddTopic(user);
+    await stageMaterial(user, { title: "Keep", url: "https://example.com/1" });
+    await stageMaterial(user, { title: "Drop", url: "https://example.com/2" });
+
+    await user.click(screen.getByRole("button", { name: /remove Drop/i }));
+
+    const rows = within(screen.getByTestId("topic-add-material-list")).getAllByRole(
+      "listitem",
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("1. Keep");
+  });
+
+  it("forgets what was staged when the dialog is cancelled", async () => {
+    const user = userEvent.setup();
+
+    renderWith([]);
+    await openAddTopic(user);
+    await stageMaterial(user, { title: "Abandoned", url: "https://example.com/x" });
+
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: /cancel/i }),
+    );
+    await openAddTopic(user);
+
+    // Neither the list nor a half-written material comes back with the next one.
+    expect(screen.queryByTestId("topic-add-material-list")).not.toBeInTheDocument();
+    expect(
+      within(materialsGroup()).queryByLabelText(/^title$/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("forgets what was staged once the topic is stored", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await stageMaterial(user, { title: "Handout", url: "https://example.com/h" });
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() => expect(service.createTopic).toHaveBeenCalled());
+
+    await openAddTopic(user);
+    expect(screen.queryByTestId("topic-add-material-list")).not.toBeInTheDocument();
+  });
+
+  /*
+   * Staged materials, once the topic exists
+   *
+   * The endpoint takes the owner's id in its path, so these can only go after
+   * the topic has been stored — and they go one at a time, because the server
+   * appends each to the end of the list and a batch would land in whatever
+   * order the requests finished in.
+   */
+
+  it("attaches the staged materials to the topic that was just created", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+    vi.mocked(materials.createMaterial).mockResolvedValue(
+      {} as Awaited<ReturnType<typeof materials.createMaterial>>,
+    );
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await stageMaterial(user, { title: "First", url: "https://example.com/1" });
+    await stageMaterial(user, { title: "Second", url: "https://example.com/2" });
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() =>
+      expect(materials.createMaterial).toHaveBeenCalledTimes(2),
+    );
+
+    // The id the server gave back, and the order the author wrote them in.
+    const calls = vi.mocked(materials.createMaterial).mock.calls;
+
+    expect(calls.map(([topicId]) => topicId)).toEqual([first.id, first.id]);
+    expect(calls.map(([, draft]) => draft.title)).toEqual(["First", "Second"]);
+  });
+
+  it("sends nothing when no material was staged", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() => expect(service.createTopic).toHaveBeenCalled());
+    expect(materials.createMaterial).not.toHaveBeenCalled();
+  });
+
+  it("keeps the topic, and says which material would not go", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+    vi.mocked(materials.createMaterial)
+      .mockResolvedValueOnce(
+        {} as Awaited<ReturnType<typeof materials.createMaterial>>,
+      )
+      .mockRejectedValueOnce(new Error("Storage is full"));
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await stageMaterial(user, { title: "Stored", url: "https://example.com/1" });
+    await stageMaterial(user, { title: "Refused", url: "https://example.com/2" });
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() =>
+      expect(materials.createMaterial).toHaveBeenCalledTimes(2),
+    );
+
+    // The topic is real and so is the material that did go, so this is not
+    // reported as a failed create — it names what is left to do.
+    const complaints = vi.mocked(toast.error).mock.calls;
+    const complaint = complaints[complaints.length - 1][0];
+
+    expect(complaint).toMatch(/topic was created/i);
+    expect(complaint).toMatch(/Refused/);
+    expect(complaint).not.toMatch(/Stored/);
+
+    // And the dialog still closes onto the topic, which exists either way.
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("says why the server would not take a material", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+    vi.mocked(materials.createMaterial).mockRejectedValueOnce(
+      new ApiError("The given data was invalid.", 422, {
+        file: ["The file must be a file of type: pdf, docx, pptx."],
+      }),
+    );
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await stageMaterial(user, { title: "Slides", url: "https://example.com/1" });
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() =>
+      expect(materials.createMaterial).toHaveBeenCalledTimes(1),
+    );
+
+    // Everything an author could have been told beforehand was asked while they
+    // were typing, so a material that gets this far was refused for something
+    // only the server knows. Saying only that it would not go leaves them to
+    // guess, so its own words are carried through.
+    const complaints = vi.mocked(toast.error).mock.calls;
+    const complaint = complaints[complaints.length - 1][0];
+
+    expect(complaint).toMatch(/"Slides"/);
+    expect(complaint).toMatch(/file of type: pdf, docx, pptx/);
+  });
+
+  it("names the refused material by its number when two share a title", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+    vi.mocked(materials.createMaterial)
+      .mockResolvedValueOnce(
+        {} as Awaited<ReturnType<typeof materials.createMaterial>>,
+      )
+      .mockRejectedValueOnce(new ApiError("That file is too large.", 413));
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await stageMaterial(user, { title: "Diagram", url: "https://example.com/1" });
+    await stageMaterial(user, { title: "Diagram", url: "https://example.com/2" });
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() =>
+      expect(materials.createMaterial).toHaveBeenCalledTimes(2),
+    );
+
+    // Nothing stops an author titling two materials alike, and the list numbers
+    // them rather than naming them — so the number goes with the name, and it
+    // is the number of the row they can see.
+    const complaints = vi.mocked(toast.error).mock.calls;
+    const complaint = complaints[complaints.length - 1][0];
+
+    expect(complaint).toMatch(/2\. "Diagram" — That file is too large/);
+  });
+
+  it("goes on to the later materials after one is refused", async () => {
+    const user = userEvent.setup();
+    const stored = {} as Awaited<ReturnType<typeof materials.createMaterial>>;
+
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+    vi.mocked(materials.createMaterial)
+      .mockResolvedValueOnce(stored)
+      .mockRejectedValueOnce(new ApiError("That file is too large.", 413))
+      .mockResolvedValueOnce(stored)
+      .mockResolvedValueOnce(stored);
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await stageMaterial(user, { title: "One", url: "https://example.com/1" });
+    await stageMaterial(user, { title: "Two", url: "https://example.com/2" });
+    await stageMaterial(user, { title: "Three", url: "https://example.com/3" });
+    await stageMaterial(user, { title: "Four", url: "https://example.com/4" });
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() =>
+      expect(materials.createMaterial).toHaveBeenCalledTimes(4),
+    );
+
+    // A refusal is one material's answer, not the end of the list: the three
+    // that were going to store still do, and the one that did not is not sent
+    // again. Four calls, once each, in the order they were written.
+    const calls = vi.mocked(materials.createMaterial).mock.calls;
+
+    expect(calls.map(([, draft]) => draft.title)).toEqual([
+      "One",
+      "Two",
+      "Three",
+      "Four",
+    ]);
+    expect(calls.map(([topicId]) => topicId)).toEqual([
+      first.id,
+      first.id,
+      first.id,
+      first.id,
+    ]);
+
+    // Only the one that was refused is named; the three that stored are not
+    // reported as lost, and nothing is undone.
+    const complaints = vi.mocked(toast.error).mock.calls;
+    const complaint = complaints[complaints.length - 1][0];
+
+    expect(complaint).toMatch(/one material could not be stored/i);
+    expect(complaint).toMatch(/"Two"/);
+    expect(complaint).not.toMatch(/"One"|"Three"|"Four"/);
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("sends no material when the topic itself was refused", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockRejectedValueOnce(
+      new ApiError("The given data was invalid.", 422, {
+        title: ["A topic with that title is already in this roadmap."],
+      }),
+    );
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await stageMaterial(user, { title: "Handout", url: "https://example.com/1" });
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() => expect(service.createTopic).toHaveBeenCalled());
+
+    // There is no id to hang them on, so nothing is attempted — a material
+    // creation here would be against whatever topic that path guessed at.
+    expect(materials.createMaterial).not.toHaveBeenCalled();
+    // And the modal stays open, still holding what was staged.
+    expect(screen.getByTestId("topic-add-material-list")).toBeInTheDocument();
   });
 
   it("does not send a topic with no title", async () => {

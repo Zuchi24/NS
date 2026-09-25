@@ -132,7 +132,7 @@ export function PortLayer({
             y2={slot.mouthY + SEATED_HEIGHT}
             stroke="#9CC3E6"
             strokeOpacity={0.7}
-            strokeWidth={2}
+            strokeWidth={4}
             pointerEvents="none"
           />
         );

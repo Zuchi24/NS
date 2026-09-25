@@ -491,7 +491,7 @@ describe("the sections branching off a topic", () => {
   function columnOf(start: HTMLElement): HTMLElement {
     let node: HTMLElement | null = start;
 
-    while (node && !/lg:col-start-\d/.test(node.className)) {
+    while (node && !/xl:col-start-\d/.test(node.className)) {
       node = node.parentElement;
     }
 
@@ -565,11 +565,11 @@ describe("the sections branching off a topic", () => {
     await renderWith([bothSides()]);
 
     // The first topic takes the left column, so its branch takes it too: the
-    // same `lg:col-start-1` the card uses, never the right-hand column.
+    // same `xl:col-start-1` the card uses, never the right-hand column.
     const column = columnOf(branchOf("Topic 1"));
 
-    expect(column.className).toContain("lg:col-start-1");
-    expect(column.className).not.toContain("lg:col-start-3");
+    expect(column.className).toContain("xl:col-start-1");
+    expect(column.className).not.toContain("xl:col-start-3");
   });
 
   it("branches a right-hand topic to the right of the spine", async () => {
@@ -577,8 +577,8 @@ describe("the sections branching off a topic", () => {
 
     const column = columnOf(branchOf("Topic 2"));
 
-    expect(column.className).toContain("lg:col-start-3");
-    expect(column.className).not.toContain("lg:col-start-1");
+    expect(column.className).toContain("xl:col-start-3");
+    expect(column.className).not.toContain("xl:col-start-1");
   });
 
   it("sets the sections beside their card rather than under it", async () => {
@@ -605,8 +605,8 @@ describe("the sections branching off a topic", () => {
     const left = branchOf("Topic 1").parentElement as HTMLElement;
     const right = branchOf("Topic 2").parentElement as HTMLElement;
 
-    expect(left.className).toContain("lg:flex-row-reverse");
-    expect(right.className).not.toContain("lg:flex-row-reverse");
+    expect(left.className).toContain("xl:flex-row-reverse");
+    expect(right.className).not.toContain("xl:flex-row-reverse");
   });
 
   it("mirrors the branch rail so both sides grow away from the spine", async () => {
@@ -616,21 +616,22 @@ describe("the sections branching off a topic", () => {
     const right = within(branchOf("Topic 2")).getByRole("list");
 
     // The list makes room on the side its trunk runs down...
-    expect(left.className).toContain("lg:pr-5");
-    expect(right.className).not.toContain("lg:pr-5");
+    expect(left.className).toContain("xl:pr-5");
+    expect(right.className).not.toContain("xl:pr-5");
     expect(right.className).toContain("pl-5");
 
     // ...and the trunk itself moves to that side. On the left of the spine it
     // sits on the right of its column so the arms reach outward; on the right
-    // it stays put and they reach outward the other way. Below lg there is one
-    // column and both use the left trunk, which is why each keeps `-left-5`.
+    // it stays put and they reach outward the other way. Below xl every card is
+    // right of the spine and both use the left trunk, which is why each keeps
+    // `-left-5`.
     const trunk = (list: HTMLElement) =>
       (list.querySelector("li > span") as HTMLElement).className;
 
-    expect(trunk(left)).toContain("lg:-right-5");
-    expect(trunk(left)).toContain("lg:left-auto");
+    expect(trunk(left)).toContain("xl:-right-5");
+    expect(trunk(left)).toContain("xl:left-auto");
     expect(trunk(left)).toContain("-left-5");
-    expect(trunk(right)).not.toContain("lg:-right-5");
+    expect(trunk(right)).not.toContain("xl:-right-5");
     expect(trunk(right)).toContain("-left-5");
   });
 
@@ -839,12 +840,44 @@ describe("the sections branching off a topic", () => {
     expect(navigate).toHaveBeenCalledWith("/topic/1001");
   });
 
+  /*
+   * Laptop widths. With the 256px sidebar beside it, a 1024–1279px screen
+   * leaves too little for a card and its branch on both sides of a centred
+   * spine, and at 1280–1440 a fixed-width card and branch were wider than
+   * their column. Both hung off the edges of the page: under the sidebar on
+   * the left, past the screen on the right.
+   */
+  it("keeps every card right of a left-hand spine until xl", async () => {
+    const { container } = await renderWith([bothSides()]);
+
+    // Nothing moves a card to the left, or centres the spine, before xl.
+    const early = [...container.querySelectorAll("*")].flatMap((el) =>
+      el.getAttribute("class")?.match(/\blg:(col-start-\d|grid|flex-row-reverse|left-1\/2)\b/g) ?? [],
+    );
+    expect(early).toEqual([]);
+  });
+
+  it("sizes card and branch as shares of their column from xl, so together they cannot outgrow it", async () => {
+    await renderWith([bothSides()]);
+
+    for (const title of ["Topic 1", "Topic 2"]) {
+      const card = cardOf(title).parentElement as HTMLElement;
+      const cardShare = Number(card.className.match(/\bxl:w-\[(\d+)%\]/)?.[1]);
+      const branchShare = Number(branchOf(title).className.match(/\bxl:w-\[calc\((\d+)%/)?.[1]);
+
+      expect(cardShare).toBeGreaterThan(0);
+      expect(branchShare).toBeGreaterThan(0);
+      // The branch's share is also less the gap between the two.
+      expect(cardShare + branchShare).toBeLessThanOrEqual(100);
+    }
+  });
+
   it("leaves the spine and the alternation alone", async () => {
     await renderWith([bothSides()]);
 
     // The card rows still alternate: first left, second right. The branch
     // reads its side from this rather than deciding one of its own.
-    expect(columnOf(cardOf("Topic 1")).className).toContain("lg:col-start-1");
-    expect(columnOf(cardOf("Topic 2")).className).toContain("lg:col-start-3");
+    expect(columnOf(cardOf("Topic 1")).className).toContain("xl:col-start-1");
+    expect(columnOf(cardOf("Topic 2")).className).toContain("xl:col-start-3");
   });
 });

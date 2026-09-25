@@ -1,7 +1,7 @@
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
-import { FRONT_STOP, MIN_WORK, PAIR_IDS, jacketedLengthMm, maxExposed } from "../../model";
+import { FRONT_STOP, MIN_WORK, PAIR_IDS, jacketedLengthMm, maxExposed, startingFan } from "../../model";
 import type { CableEnd, CableState, Conductor, EndId, EndpointId, Orientation, PairId, Scenario, StripSlot } from "../../model";
 import { CY, HEIGHT, INWARD_PX, LAYOUT, OUTWARD_PX, SHELF_TOP, WIDTH, benchScale } from "../benchGeometry";
 import { crimpDieXAt } from "../crimperGeometry";
@@ -21,6 +21,7 @@ import { cutXAt } from "../jacketCutGeometry";
 import { panelClaims, resolveMarkers } from "../markers";
 import type { MarkerClaim } from "../markers";
 import { CONDUCTOR_LABEL, PAIR_LABEL, jacketWords } from "../messages";
+import { pairOrderOf } from "../pairGeometry";
 import { PLUG_GRIP, PLUG_HALF, plugFrontXAt, plugGrip, plugRearXAt } from "../plugGeometry";
 import { CableCutterShelfTool, CableCutters } from "./CableCutterTool";
 import { Crimper, CrimperShelfTool } from "./CrimperTool";
@@ -166,11 +167,19 @@ export function BenchView({
   const length = jacketedLengthMm(cable, scenario);
   const { scale } = benchScale(cable);
   const surface = useRef<SVGSVGElement | null>(null);
+  // Each end's starting arrangement: which pair lies in which row. Drawn and
+  // hit-tested from these orders, read out of the scenario's fanOrder as the
+  // model reads it, so the pair under the hand is the pair on screen.
+  const pairOrders = useMemo(
+    () => ({ A: pairOrderOf(startingFan(scenario, "A")), B: pairOrderOf(startingFan(scenario, "B")) }),
+    [scenario],
+  );
 
   const { drag, takeTool, surfaceHandlers } = useStripGesture({ scale, surface, onCommit: onStrip });
   const untwist = useUntwistGesture({
     cable,
     scale,
+    pairOrders,
     surface,
     blocked: drag !== null,
     onCommit: onUntwist,
@@ -554,6 +563,7 @@ export function BenchView({
             <EndDetail
               id={id}
               end={cable.ends[id]}
+              pairOrder={pairOrders[id]}
               dir={layout.dir}
               x0={layout.x0}
               outwardPx={OUTWARD_PX}

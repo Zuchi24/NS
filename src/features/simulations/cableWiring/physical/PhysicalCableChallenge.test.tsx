@@ -23,6 +23,14 @@ import { WITHDRAW_PULL_MM, plugGrip } from "./plugGeometry";
 import { PORT_REACH, leadHandle, portSlots } from "./portGeometry";
 import { PRACTICE_BENCH } from "./setup";
 
+// These drive the bench through fixed moves written against the natural row, so
+// the per-attempt starting row is pinned to it here. fanOrder.test.ts covers the draw.
+vi.mock("./fanOrder", async () => {
+  const { NATURAL_ORDER } = await import("../model");
+
+  return { startingFanOrder: () => [...NATURAL_ORDER] };
+});
+
 /**
  * The physical bench, driven the way a student drives it.
  *

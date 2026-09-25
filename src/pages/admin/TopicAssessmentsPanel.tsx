@@ -10,6 +10,7 @@ import { ApiError } from "@/services/api";
 import { useAsync } from "@/services/useAsync";
 import {
   ASSESSMENT_TYPES,
+  ASSESSMENT_SLOT_CAPTIONS,
   ASSESSMENT_TYPE_LABELS,
   EMPTY_ASSESSMENT_DRAFT,
   createAssessment,
@@ -44,12 +45,6 @@ import { assessmentBuilderPath } from "@/features/assessments/assessmentPaths";
 const CREATE_LABEL: Record<AssessmentType, string> = {
   pre_test: "Create pre-test",
   post_test: "Create post-test",
-};
-
-/** Where each one sits in the topic, in the words an author would use. */
-const SLOT_CAPTION: Record<AssessmentType, string> = {
-  pre_test: "Taken before the subtopics, as a diagnostic.",
-  post_test: "Taken after the subtopics.",
 };
 
 /** A refusal about the fields of a create, held against the slot it came from. */
@@ -254,7 +249,9 @@ function AssessmentSlot({
           ) : (
             <>
               <p className="text-sm text-gray-500">Not created yet</p>
-              <p className="text-xs text-gray-500">{SLOT_CAPTION[type]}</p>
+              <p className="text-xs text-gray-500">
+                {ASSESSMENT_SLOT_CAPTIONS[type]}
+              </p>
             </>
           )}
         </div>

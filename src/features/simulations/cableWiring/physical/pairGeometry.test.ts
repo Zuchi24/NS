@@ -164,6 +164,36 @@ describe("the pair under a hand", () => {
     }
   });
 
+  it("reads each end's rows in that end's own order, from the same boxes", () => {
+    // Both ends showing pairs; each end with its own arrangement.
+    const both = after([
+      { type: "strip", end: "A", amountMm: 30, slot: "correct" },
+      { type: "cut", end: "B", atMm: 25 },
+      { type: "strip", end: "B", amountMm: 25, slot: "correct" },
+    ]);
+    const { scale: s } = benchScale(both);
+    const orders: Record<EndId, PairId[]> = { A: ["blue", "brown", "orange", "green"], B: ["green", "orange", "brown", "blue"] };
+
+    for (const end of ["A", "B"] as const) {
+      const plain = pairRegions(end, both.ends[end], s);
+      const ordered = pairRegions(end, both.ends[end], s, CY, orders[end]);
+
+      // Same boxes, row for row; only who lies in each changes.
+      expect(ordered.map(({ x, y, width, height, index }) => ({ x, y, width, height, index }))).toEqual(
+        plain.map(({ x, y, width, height, index }) => ({ x, y, width, height, index })),
+      );
+
+      orders[end].forEach((pair, row) => {
+        const point = middleOf(plain[row]);
+        const found = pairUnder(point.x, point.y, both, s, CY, orders);
+
+        expect(found?.end).toBe(end);
+        expect(found?.pair).toBe(pair);
+        expect(found?.index).toBe(row);
+      });
+    }
+  });
+
   it("names the end the hand is on, not whichever end is selected", () => {
     // The R1 lesson, carried over: the drawing decides the target.
     const both = strippedB();

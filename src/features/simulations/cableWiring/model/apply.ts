@@ -6,6 +6,7 @@ import {
   normalizeNicks,
   otherEnd,
   plugRearMm,
+  startingFan,
   uniformTips,
   untwistedAll,
 } from "./geometry";
@@ -50,7 +51,7 @@ export function apply(state: CableState, action: Action, scenario: Scenario): Ap
     case "strip":
       return strip(state, action, scenario);
     case "untwist":
-      return untwist(state, action);
+      return untwist(state, action, scenario);
     case "moveConductor":
       return moveConductor(state, action);
     case "trim":
@@ -148,7 +149,7 @@ function strip(state: CableState, action: Of<"strip">, scenario: Scenario): Appl
   return accept(next, [{ type: "stripped", end: action.end, amountMm: S, nicked }]);
 }
 
-function untwist(state: CableState, action: Of<"untwist">): ApplyResult {
+function untwist(state: CableState, action: Of<"untwist">, scenario: Scenario): ApplyResult {
   const end = state.ends[action.end];
 
   if (end.plug !== null) return refuse("plug-present");
@@ -166,7 +167,7 @@ function untwist(state: CableState, action: Of<"untwist">): ApplyResult {
   target.untwisted[action.pair] = true;
 
   if (PAIR_IDS.every((pair) => target.untwisted[pair])) {
-    target.fan = [...NATURAL_ORDER];
+    target.fan = [...startingFan(scenario, action.end)];
     events.push({ type: "fanned", end: action.end });
   }
 

@@ -1,8 +1,10 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import { ArrowLeft } from "lucide-react";
 
 import { EmptyState, LoadingState } from "@/components/common/AsyncStates";
 import { SubmissionResultsDialog } from "@/components/common/SubmissionResultsDialog";
+import { Button } from "@/components/ui/button";
 import { useChallengeAttempt } from "@/features/content/useChallengeAttempt";
 import {
   isPhysicalConfig,
@@ -98,6 +100,24 @@ export function CableWiringRoute() {
          * the cable/1 record, which is why nothing about grading passes here.
          */
         <>
+          {/*
+            * The way back out, as every other simulator page has it. Here and
+            * not in the bench: the bench knows nothing of the app's routes.
+            */}
+          <div className="bg-slate-100">
+            <div className="mx-auto max-w-[1500px] px-4 pt-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/challenges")}
+                className="text-gray-600 hover:text-gray-900"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Challenges
+              </Button>
+            </div>
+          </div>
+
           {/*
             * Keyed by the attempt, so a retry opens a new attempt on a new
             * cable rather than on the one that was just marked — the same

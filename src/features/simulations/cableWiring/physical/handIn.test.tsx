@@ -9,6 +9,14 @@ import { PhysicalCableChallenge } from "./PhysicalCableChallenge";
 import type { HandIn } from "./PhysicalCableChallenge";
 import { PRACTICE_BENCH } from "./setup";
 
+// These drive the bench through fixed moves written against the natural row, so
+// the per-attempt starting row is pinned to it here. fanOrder.test.ts covers the draw.
+vi.mock("./fanOrder", async () => {
+  const { NATURAL_ORDER } = await import("../model");
+
+  return { startingFanOrder: () => [...NATURAL_ORDER] };
+});
+
 /**
  * Handing the cable in — the bench's half of it.
  *

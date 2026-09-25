@@ -47,7 +47,18 @@ import type {
   SubtopicDraft,
   TopicDraft,
 } from "@/features/content/topicService";
+import { createMaterial } from "@/features/content/materialService";
+import type { MaterialDraft } from "@/features/content/materialService";
 import type { Subtopic, Topic } from "@/features/content/types";
+import {
+  ASSESSMENT_SLOT_CAPTIONS,
+  ASSESSMENT_TYPES,
+  ASSESSMENT_TYPE_LABELS,
+  EMPTY_ASSESSMENT_DRAFT,
+  createAssessment,
+} from "@/features/assessments/adminAssessmentService";
+import type { AssessmentType } from "@/features/assessments/adminAssessmentService";
+import { StagedMaterials } from "./StagedMaterials";
 import { TopicMaterialsPanel } from "./TopicMaterialsPanel";
 import { TopicAssessmentsPanel } from "./TopicAssessmentsPanel";
 
@@ -857,6 +868,27 @@ function AddTopicDialog({
   const [saving, setSaving] = useState(false);
 
   /**
+   * Which tests to open alongside the topic, as empty drafts.
+   *
+   * Only ever a pair of booleans: a pre-test and a post-test are one each per
+   * topic, the server refuses a second, and neither carries a field an author
+   * fills in here — createAssessment names it after what it is and the
+   * questions are written in the builder afterwards. So this asks the only
+   * question the dialog can answer, which is whether to make them at all.
+   */
+  const [tests, setTests] = useState<Record<AssessmentType, boolean>>({
+    pre_test: false,
+    post_test: false,
+  });
+
+  /**
+   * The materials written alongside the topic, held until there is a topic to
+   * attach them to. Owned here rather than inside the list so that close()
+   * blanks them with everything else.
+   */
+  const [materials, setMaterials] = useState<MaterialDraft[]>([]);
+
+  /**
    * Shuts the modal on an empty draft.
    *
    * The dialog stays mounted between openings, so what was abandoned last time
@@ -866,6 +898,8 @@ function AddTopicDialog({
   const close = () => {
     setDraft(EMPTY_TOPIC_DRAFT);
     setErrors({});
+    setTests({ pre_test: false, post_test: false });
+    setMaterials([]);
     onClose();
   };
 
@@ -880,6 +914,45 @@ function AddTopicDialog({
       createTopic(roadmapId, next),
     );
 
+    /*
+     * The tests, once there is a topic to hang them on.
+     *
+     * After the topic and never with it: an assessment is its own row behind
+     * its own endpoint, and the id it needs is the one the server just gave
+     * back. Each is reported on its own — a test that could not be opened is
+     * said out loud and leaves the topic, and any test that did open, exactly
+     * where they are. The author finishes them in the builder either way, so a
+     * refusal here costs a click rather than the work.
+     */
+    if (result.saved) {
+      const topic = result.saved;
+
+      // The materials first, in the order the group shows them and before the
+      // tests, so the list a student reads is the list the author wrote.
+      reportRefusedMaterials(
+        await sendStagedMaterials(topic.id, materials),
+        "topic",
+      );
+
+      for (const type of ASSESSMENT_TYPES) {
+        if (!tests[type]) continue;
+
+        try {
+          await createAssessment(topic.id, {
+            ...EMPTY_ASSESSMENT_DRAFT,
+            type,
+            title: ASSESSMENT_TYPE_LABELS[type],
+          });
+        } catch (e) {
+          toast.error(
+            e instanceof Error
+              ? e.message
+              : `Could not open a ${ASSESSMENT_TYPE_LABELS[type].toLowerCase()} for this topic.`,
+          );
+        }
+      }
+    }
+
     setSaving(false);
     setErrors(result.errors);
 
@@ -890,6 +963,8 @@ function AddTopicDialog({
       toast.success("Topic added.");
       setDraft(EMPTY_TOPIC_DRAFT);
       setErrors({});
+      setTests({ pre_test: false, post_test: false });
+      setMaterials([]);
       onCreated(result.saved);
     }
   };
@@ -913,14 +988,90 @@ function AddTopicDialog({
         </DialogHeader>
 
         <form onSubmit={submit} aria-label="Add topic" className="space-y-4">
-          <TopicFields
-            idPrefix="topic-add"
-            draft={draft}
-            errors={errors}
-            onChange={(field, value) =>
-              setDraft((current) => ({ ...current, [field]: value }))
-            }
-          />
+          {/*
+            * The boxes scroll, the buttons do not.
+            *
+            * DialogContent is fixed and centred with no height of its own, so a
+            * form taller than the window is clipped at both ends and neither
+            * end can be reached — including the one with Cancel on it. Holding
+            * the scroll here rather than on the dialog keeps the heading and
+            * the footer where they are, and is where this app already puts it:
+            * SubmissionResultsDialog scrolls its own list the same way.
+            */}
+          <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+            <TopicFields
+              idPrefix="topic-add"
+              draft={draft}
+              errors={errors}
+              onChange={(field, value) =>
+                setDraft((current) => ({ ...current, [field]: value }))
+              }
+            />
+
+            {/*
+              * Its materials, written now and attached once the topic exists.
+              *
+              * Staged rather than sent: the API takes the owner's id in the
+              * path, and there is no id until the topic has been created. The
+              * list is remounted whenever the dialog opens so an abandoned
+              * half-written material does not come back with the next topic.
+              */}
+            <StagedMaterials
+              key={open ? "open" : "shut"}
+              idPrefix="topic-add-material"
+              materials={materials}
+              onChange={setMaterials}
+              caption="Added to the topic once it is created. Students see them in this order."
+            />
+
+            {/*
+              * Its tests, offered here and made afterwards.
+              *
+              * Both open as drafts, which is the only thing they could be: the
+              * questions are written in the builder, and nothing a student can
+              * see changes until somebody publishes one. That is what makes
+              * this safe to offer beside the title — ticking it costs a draft,
+              * not a test anyone sits.
+              *
+              * Sections are not offered them. A subtopic cannot own an
+              * assessment and the server refuses one, so AddSubtopicDialog has
+              * no group like this.
+              */}
+            <fieldset className="space-y-2 border-t border-gray-200 pt-4">
+              <legend className="text-sm font-medium text-gray-900">
+                Assessments (optional)
+              </legend>
+              <p className="text-xs text-gray-600">
+                Opened as drafts, ready for their questions. Students see
+                neither until it is published.
+              </p>
+
+              {ASSESSMENT_TYPES.map((type) => (
+                <label
+                  key={type}
+                  className="flex items-start gap-2 text-sm text-gray-700"
+                >
+                  <input
+                    type="checkbox"
+                    checked={tests[type]}
+                    onChange={(e) =>
+                      setTests((current) => ({
+                        ...current,
+                        [type]: e.target.checked,
+                      }))
+                    }
+                    className="mt-1 rounded border-gray-300"
+                  />
+                  <span>
+                    {ASSESSMENT_TYPE_LABELS[type]}
+                    <span className="block text-xs text-gray-600">
+                      {ASSESSMENT_SLOT_CAPTIONS[type]}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          </div>
 
           <DialogFooter className="mt-6 gap-2">
             <Button type="submit" disabled={saving} className="flex-1">
@@ -1390,6 +1541,125 @@ async function saveSubtopicDraft<T>(
   }
 }
 
+/**
+ * Attaches what was staged to the row that now exists.
+ *
+ * One at a time, in the order they were written. The server appends each
+ * material to the end of its owner's list, so sending them together would
+ * store them in whatever order the requests happened to land — which is not
+ * the order the author put them in.
+ *
+ * Nothing is rolled back and nothing is retried. The row is already stored and
+ * a material that would not go is the author's to add again from the panel that
+ * has always done it; undoing a topic because its third handout was refused
+ * would throw away the part that worked. So each failure is collected and named
+ * rather than thrown, and the ones that did store stay where they are.
+ *
+ * @returns what could not be stored, in the order they were staged.
+ */
+async function sendStagedMaterials(
+  topicId: number,
+  materials: MaterialDraft[],
+): Promise<RefusedMaterial[]> {
+  const refused: RefusedMaterial[] = [];
+
+  // Which titles are worn by more than one of these, worked out before any of
+  // them goes: it is the whole staged list that makes a title ambiguous, not
+  // the handful that happen to be refused.
+  const titles = materials.map((material) => material.title);
+  const duplicated = new Set(
+    titles.filter((title, at) => titles.indexOf(title) !== at),
+  );
+
+  for (const [index, material] of materials.entries()) {
+    try {
+      await createMaterial(topicId, material);
+    } catch (e) {
+      refused.push({
+        title: material.title,
+        position: duplicated.has(material.title) ? index + 1 : null,
+        reason: refusalReason(e),
+      });
+    }
+  }
+
+  return refused;
+}
+
+/** A staged material the server would not take, and what it said about it. */
+interface RefusedMaterial {
+  title: string;
+  /**
+   * Its number in the staged list, or null when the title says which it is.
+   *
+   * Two materials may be written under one title — nothing forbids it, and the
+   * list numbers them rather than naming them — so "could not be stored:
+   * Diagram" identifies nothing when there are two of those. The number is the
+   * one shown against the row, so it points at a line the author can see.
+   */
+  position: number | null;
+  reason: string;
+}
+
+/** What to say when the refusal carried nothing a person can act on. */
+const UNEXPLAINED_REFUSAL = "Unable to store this material";
+
+/**
+ * The server's own words for why it refused a material, or a safe fallback.
+ *
+ * Read in the order MaterialForm reads them: Laravel names the field it
+ * rejected, so a 422's field message is the most specific thing there is, and
+ * ApiError's own message — the API's `message`, or one written for the status
+ * when the body was not the API's JSON at all — is the next best. Neither is
+ * ever a stack trace or an error page: api.ts builds both.
+ *
+ * Anything that is not an ApiError did not come back from the API, so none of
+ * it is repeated to the author; it is a fault in this app, and its message is
+ * written for whoever is fixing that rather than for whoever is adding a PDF.
+ */
+function refusalReason(error: unknown): string {
+  if (!(error instanceof ApiError)) return UNEXPLAINED_REFUSAL;
+
+  const field = Object.values(error.errors)[0]?.[0];
+  // Trimmed of its full stop: it is quoted inside a sentence that brings one.
+  const said = (field ?? error.message).trim().replace(/[.;,]+$/, "");
+
+  return said === "" ? UNEXPLAINED_REFUSAL : said;
+}
+
+/**
+ * Says what would not go, and why, once the row itself is safely stored.
+ *
+ * Deliberately not phrased as a failure: the topic or section exists, and so
+ * does everything else that went with it. What is left is a short list and
+ * where to finish it.
+ *
+ * The reason is carried because by this point it is the only thing that can be
+ * acted on. Everything an author can be told before sending has already been
+ * asked by validateDraft, so a material that reaches here was refused for
+ * something only the server knows — the type of the file, a limit lower than
+ * this build expects, a disk that would not take it — and "could not be
+ * stored" alone leaves them to guess which.
+ */
+function reportRefusedMaterials(
+  refused: RefusedMaterial[],
+  owner: string,
+): void {
+  if (refused.length === 0) return;
+
+  const named = refused
+    .map(
+      ({ title, position, reason }) =>
+        `${position === null ? "" : `${position}. `}"${title}" — ${reason}`,
+    )
+    .join("; ");
+
+  toast.error(
+    `The ${owner} was created, but ${refused.length === 1 ? "one material could" : `${refused.length} materials could`} not be stored: ` +
+      `${named}. Add ${refused.length === 1 ? "it" : "them"} from the ${owner}'s learning materials.`,
+  );
+}
+
 /** Rewriting a section, in the row that section already occupies. */
 function SubtopicEditForm({
   subtopic,
@@ -1482,9 +1752,13 @@ function AddSubtopicDialog({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
+  /** The section's own materials, held until the section exists to hold them. */
+  const [materials, setMaterials] = useState<MaterialDraft[]>([]);
+
   const close = () => {
     setDraft(EMPTY_SUBTOPIC_DRAFT);
     setErrors({});
+    setMaterials([]);
     onClose();
   };
 
@@ -1499,6 +1773,15 @@ function AddSubtopicDialog({
       createSubtopic(parent.id, next),
     );
 
+    // A section owns its materials exactly as a topic does — same endpoint,
+    // same ordering — so the same sequencing serves both.
+    if (result.saved) {
+      reportRefusedMaterials(
+        await sendStagedMaterials(result.value.id, materials),
+        "subtopic",
+      );
+    }
+
     setSaving(false);
     setErrors(result.errors);
 
@@ -1506,6 +1789,7 @@ function AddSubtopicDialog({
       toast.success("Subtopic added.");
       setDraft(EMPTY_SUBTOPIC_DRAFT);
       setErrors({});
+      setMaterials([]);
       onCreated(result.value);
     }
   };
@@ -1528,14 +1812,29 @@ function AddSubtopicDialog({
         </DialogHeader>
 
         <form onSubmit={submit} aria-label="Add subtopic" className="space-y-4">
-          <SubtopicFields
-            idPrefix="subtopic-add"
-            draft={draft}
-            errors={errors}
-            onChange={(field, value) =>
-              setDraft((current) => ({ ...current, [field]: value }))
-            }
-          />
+          {/* Scrolled here rather than on the dialog, for the reason given in
+              AddTopicDialog: the footer has to stay reachable. */}
+          <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+            <SubtopicFields
+              idPrefix="subtopic-add"
+              draft={draft}
+              errors={errors}
+              onChange={(field, value) =>
+                setDraft((current) => ({ ...current, [field]: value }))
+              }
+            />
+
+            {/* A section owns its materials the same way a topic does — the
+                endpoint takes either — so the same staging serves both. It is
+                remounted per opening, keyed on the parent this dialog is for. */}
+            <StagedMaterials
+              key={parent ? `open-${parent.id}` : "shut"}
+              idPrefix="subtopic-add-material"
+              materials={materials}
+              onChange={setMaterials}
+              caption="Added to the section once it is created. Students see them in this order."
+            />
+          </div>
 
           <DialogFooter className="mt-6 gap-2">
             <Button type="submit" disabled={saving} className="flex-1">

@@ -1,5 +1,5 @@
 import { END_IDS, PAIR_IDS, PAIRS, clamp, exposed } from "../model";
-import type { CableEnd, CableState, EndId, PairId } from "../model";
+import type { CableEnd, CableState, Conductor, EndId, PairId } from "../model";
 import { CY, LAYOUT } from "./benchGeometry";
 
 /**
@@ -47,6 +47,23 @@ export function pairRowY(index: number, cy: number = CY): number {
   return cy + (index - 1.5) * PAIR_GAP;
 }
 
+/**
+ * Which pair lies in which row, top to bottom: the order the pairs first
+ * appear in the row the conductors will fan into. One source of truth for the
+ * attempt's starting arrangement — the bundle leaves the jacket in the same
+ * order its conductors fan out in. With no row to read, the pairs lie as
+ * PAIR_IDS lists them.
+ */
+export function pairOrderOf(fanOrder?: readonly Conductor[]): PairId[] {
+  if (!fanOrder) return [...PAIR_IDS];
+
+  const pairOf = (conductor: Conductor) =>
+    PAIR_IDS.find((pair) => (PAIRS[pair] as readonly Conductor[]).includes(conductor))!;
+  const order = [...new Set(fanOrder.map(pairOf))];
+
+  return order.length === PAIR_IDS.length ? order : [...PAIR_IDS];
+}
+
 /** One pair, as it can be taken hold of: which pair, and the box it fills. */
 export interface PairRegion {
   end: EndId;
@@ -74,12 +91,14 @@ export function pairRegions(
   end: CableEnd,
   scale: number,
   cy: number = CY,
+  order: readonly PairId[] = PAIR_IDS,
 ): PairRegion[] {
   if (end.fan !== null) return [];
 
   const { x0, dir } = LAYOUT[id];
 
-  return PAIR_IDS.flatMap((pair, index) => {
+  // The rows are fixed; `order` only says which pair lies in each.
+  return order.flatMap((pair, index) => {
     if (end.untwisted[pair]) return [];
 
     const reachMm = Math.max(...PAIRS[pair].map((conductor) => exposed(end, conductor)));
@@ -119,9 +138,11 @@ export function pairUnder(
   cable: CableState,
   scale: number,
   cy: number = CY,
+  orders: Partial<Record<EndId, readonly PairId[]>> = {},
 ): PairRegion | null {
   for (const id of END_IDS) {
-    for (const region of pairRegions(id, cable.ends[id], scale, cy)) {
+    // Each end's pairs lie in that end's own order.
+    for (const region of pairRegions(id, cable.ends[id], scale, cy, orders[id])) {
       if (x >= region.x && x <= region.x + region.width && y >= region.y && y <= region.y + region.height) {
         return region;
       }

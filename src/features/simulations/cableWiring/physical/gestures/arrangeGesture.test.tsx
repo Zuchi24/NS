@@ -10,6 +10,14 @@ import { CY, HEIGHT, LAYOUT, SHELF_TOP, WIDTH, benchScale } from "../benchGeomet
 import { LANE_COUNT, conductorRegions, laneY, liftedRow, rowBounds } from "../conductorGeometry";
 import { PRACTICE_BENCH } from "../setup";
 
+// These drive the bench through fixed moves written against the natural row, so
+// the per-attempt starting row is pinned to it here. fanOrder.test.ts covers the draw.
+vi.mock("../fanOrder", async () => {
+  const { NATURAL_ORDER } = await import("../../model");
+
+  return { startingFanOrder: () => [...NATURAL_ORDER] };
+});
+
 /**
  * R3: arranging by taking a conductor out of the row and putting it somewhere
  * else in it.

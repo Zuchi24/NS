@@ -11,6 +11,14 @@ import { BenchView } from "../components/BenchView";
 import { PAIR_RELEASE, pairRegions } from "../pairGeometry";
 import { PRACTICE_BENCH } from "../setup";
 
+// These drive the bench through fixed moves written against the natural row, so
+// the per-attempt starting row is pinned to it here. fanOrder.test.ts covers the draw.
+vi.mock("../fanOrder", async () => {
+  const { NATURAL_ORDER } = await import("../../model");
+
+  return { startingFanOrder: () => [...NATURAL_ORDER] };
+});
+
 /**
  * R2: untwisting by taking hold of a pair and pulling it away from the cable.
  *

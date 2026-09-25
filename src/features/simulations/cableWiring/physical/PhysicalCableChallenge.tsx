@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { jacketedLengthMm } from "../model";
-import type { CableRecord, EndId, PairId } from "../model";
+import type { Action, CableRecord, Conductor, EndId, PairId } from "../model";
 import { BenchView } from "./components/BenchView";
 import type { Marker } from "./components/EndDetail";
 import { HandInPanel } from "./components/HandInPanel";
@@ -12,6 +12,8 @@ import { StageRail } from "./components/StageRail";
 import { DEFAULT_CONTROLS, ToolControls } from "./components/ToolControls";
 import type { Controls } from "./components/ToolControls";
 import { TesterPanel } from "./components/TesterPanel";
+import { dryRun } from "./dryRun";
+import { startingFanOrder } from "./fanOrder";
 import { beginnerHint } from "./hints";
 import { objectiveLines } from "./messages";
 import type { BenchSetup } from "./setup";
@@ -57,7 +59,7 @@ export interface HandIn {
  * never told what the challenge is graded on. PRACTICE_BENCH is S1.
  */
 export function PhysicalCableChallenge({
-  scenario,
+  scenario: setupScenario,
   title,
   difficulty,
   description,
@@ -65,9 +67,33 @@ export function PhysicalCableChallenge({
   assist,
   handIn,
 }: BenchSetup & { handIn?: HandIn }) {
+  /*
+   * Each end's starting arrangement, the scenario's fanOrder. Drawn for both
+   * ends when the bench mounts (the route remounts it per attempt) and again on
+   * RESET; drawn for one end when a cut leaves that end a fresh section of
+   * cable. Never on a render, so a row cannot shift in hand.
+   */
+  const [fanOrder, setFanOrder] = useState(freshOrders);
+  const scenario = useMemo(() => ({ ...setupScenario, fanOrder }), [setupScenario, fanOrder]);
   const bench = useCableBench(scenario);
   const beginner = difficulty === "beginner";
   const { cable } = bench;
+
+  /*
+   * Every action reaches the model through here. A cut the model accepts
+   * always leaves that end flush — nothing of the old section is left out of
+   * the jacket — so that end, and only that end, is a new section with a new
+   * arrangement. Whether the cut is accepted is the model's answer (dryRun is
+   * apply() itself); a refused cut changes nothing, arrangement included.
+   */
+  const act = (action: Action) => {
+    if (action.type === "cut" && dryRun(cable, action, scenario).ok) {
+      // Drawn here, not in the updater, which React may run twice.
+      const fresh = startingFanOrder();
+      setFanOrder((orders) => ({ ...orders, [action.end]: fresh }));
+    }
+    bench.act(action);
+  };
 
   const [selectedEnd, setSelectedEnd] = useState<EndId>("A");
   const [tool, setTool] = useState<ToolId>("strip");
@@ -153,6 +179,8 @@ export function PhysicalCableChallenge({
                 <button
                   type="button"
                   onClick={() => {
+                    // A fresh bench is fresh cable at both ends.
+                    setFanOrder(freshOrders());
                     bench.reset();
                     setControlsState(DEFAULT_CONTROLS);
                     setConfirmingReset(false);
@@ -220,7 +248,7 @@ export function PhysicalCableChallenge({
                 }}
                 onCut={(end, atMm) => {
                   selectEnd(end);
-                  bench.act({ type: "cut", end, atMm });
+                  act({ type: "cut", end, atMm });
                 }}
                 onInsert={(end, orientation, pushMm) => {
                   selectEnd(end);
@@ -312,7 +340,7 @@ export function PhysicalCableChallenge({
                     beginner={beginner}
                     controls={{ ...controls, selectedConductor }}
                     setControls={setControls}
-                    act={bench.act}
+                    act={act}
                   />
                 </div>
                 <div className="w-full sm:w-56 sm:shrink-0">
@@ -377,4 +405,9 @@ export function PhysicalCableChallenge({
       </div>
     </div>
   );
+}
+
+/** A new starting arrangement for each end, drawn independently: they may happen to match. */
+function freshOrders(): Record<EndId, Conductor[]> {
+  return { A: startingFanOrder(), B: startingFanOrder() };
 }

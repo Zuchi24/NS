@@ -13,13 +13,10 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ErrorState, LoadingState } from "@/components/common/AsyncStates";
 import { ApiError } from "@/services/api";
 import { useAsync } from "@/services/useAsync";
 import {
-  MAX_UPLOAD_MEGABYTES,
   createMaterial,
   deleteMaterial,
   fetchTopicMaterials,
@@ -29,8 +26,8 @@ import {
   validateDraft,
 } from "@/features/content/materialService";
 import type { MaterialDraft } from "@/features/content/materialService";
-import { MATERIAL_KINDS } from "@/features/content/types";
 import type { LearningMaterial, MaterialKind } from "@/features/content/types";
+import { EMPTY_MATERIAL_DRAFT, MaterialFields } from "./MaterialFields";
 
 /**
  * Authoring one topic's materials.
@@ -46,21 +43,6 @@ const KIND_ICON: Record<MaterialKind, typeof FileText> = {
   video: PlayCircle,
   link: Link2,
   file: FileText,
-};
-
-const KIND_LABEL: Record<MaterialKind, string> = {
-  video: "Video",
-  link: "Link",
-  file: "File",
-};
-
-const EMPTY_DRAFT: MaterialDraft = {
-  title: "",
-  description: "",
-  kind: "link",
-  url: "",
-  file: null,
-  isPublished: true,
 };
 
 /** Which material the form is editing, or that it is adding a new one. */
@@ -323,7 +305,7 @@ function MaterialRow({
 }
 
 function draftOf(editing: Editing): MaterialDraft {
-  if (editing.mode === "new") return EMPTY_DRAFT;
+  if (editing.mode === "new") return EMPTY_MATERIAL_DRAFT;
 
   const { material } = editing;
 
@@ -415,98 +397,13 @@ function MaterialForm({
       aria-label={isNew ? "Add material" : "Edit material"}
       className="rounded-md border border-blue-200 bg-blue-50/40 p-4 space-y-4"
     >
-      <div className="space-y-2">
-        <Label htmlFor="material-title">Title</Label>
-        <Input
-          id="material-title"
-          value={draft.title}
-          onChange={(e) => set("title", e.target.value)}
-        />
-        {errors.title && <FieldError message={errors.title} />}
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="material-kind">Type</Label>
-        <select
-          id="material-kind"
-          value={draft.kind}
-          onChange={(e) => set("kind", e.target.value as MaterialKind)}
-          className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        >
-          {/* Exactly the kinds the API accepts; there is no "other". */}
-          {MATERIAL_KINDS.map((kind) => (
-            <option key={kind} value={kind}>
-              {KIND_LABEL[kind]}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Keyed so React remounts the field rather than reconciling the URL box
-          into the file picker — the two differ in whether they are controlled,
-          and reusing the node flips one into the other and strands its value. */}
-      {draft.kind === "file" ? (
-        <div key="file-field" className="space-y-2">
-          <Label htmlFor="material-file">File</Label>
-          <Input
-            id="material-file"
-            type="file"
-            onChange={(e) => set("file", e.target.files?.[0] ?? null)}
-          />
-          <p className="text-xs text-gray-600">
-            PDF, Office documents (including PPT and PPTX), images, text or zip.
-            Up to {MAX_UPLOAD_MEGABYTES} MB. Files are stored privately and only
-            released to students who can open this topic. Video belongs under the
-            video kind, as a link.
-          </p>
-          {existingFile && !draft.file && (
-            <p className="text-xs text-gray-600">
-              Currently {existingFile}. Choose a file to replace it.
-            </p>
-          )}
-          {errors.file && <FieldError message={errors.file} />}
-        </div>
-      ) : (
-        <div key="url-field" className="space-y-2">
-          <Label htmlFor="material-url">
-            {draft.kind === "video" ? "Video address" : "Web address"}
-          </Label>
-          <Input
-            id="material-url"
-            value={draft.url}
-            placeholder="https://"
-            onChange={(e) => set("url", e.target.value)}
-          />
-          {draft.kind === "video" && (
-            <p className="text-xs text-gray-600">
-              A YouTube link, a Google Drive share link, or any other https
-              address the video plays at. NetSim points at video rather than
-              hosting it; upload PDFs and slide decks as a file instead.
-            </p>
-          )}
-          {errors.url && <FieldError message={errors.url} />}
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <Label htmlFor="material-description">Description (optional)</Label>
-        <Input
-          id="material-description"
-          value={draft.description}
-          onChange={(e) => set("description", e.target.value)}
-        />
-        {errors.description && <FieldError message={errors.description} />}
-      </div>
-
-      <label className="flex items-center gap-2 text-sm text-gray-700">
-        <input
-          type="checkbox"
-          checked={draft.isPublished}
-          onChange={(e) => set("isPublished", e.target.checked)}
-          className="rounded border-gray-300"
-        />
-        Visible to students
-      </label>
+      <MaterialFields
+        idPrefix="material"
+        draft={draft}
+        errors={errors}
+        existingFile={existingFile}
+        onChange={set}
+      />
 
       <div className="flex items-center gap-2">
         <Button type="submit" size="sm" disabled={saving}>
@@ -517,13 +414,5 @@ function MaterialForm({
         </Button>
       </div>
     </form>
-  );
-}
-
-function FieldError({ message }: { message: string }) {
-  return (
-    <p role="alert" className="text-xs text-red-600">
-      {message}
-    </p>
   );
 }

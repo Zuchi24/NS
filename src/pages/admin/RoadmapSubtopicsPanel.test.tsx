@@ -5,6 +5,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 
 import { RoadmapTopicsPanel } from "./RoadmapTopicsPanel";
+import { ApiError } from "@/services/api";
 import type {
   LearningMaterial,
   Subtopic,
@@ -56,9 +57,18 @@ vi.mock("./TopicAssessmentsPanel", () => ({
   ),
 }));
 
+vi.mock("@/features/content/materialService", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/features/content/materialService")
+  >();
+
+  return { ...actual, createMaterial: vi.fn() };
+});
+
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const service = await import("@/features/content/topicService");
+const materials = await import("@/features/content/materialService");
 
 function subtopic(over: Partial<Subtopic> = {}): Subtopic {
   return {
@@ -240,6 +250,126 @@ describe("adding a subtopic", () => {
     expect(within(form).queryByLabelText(/video/i)).not.toBeInTheDocument();
     expect(within(form).getByLabelText(/title/i)).toBeInTheDocument();
     expect(within(form).getByLabelText(/overview/i)).toBeInTheDocument();
+  });
+
+  it("stages a section's own materials beside its title", async () => {
+    const user = userEvent.setup();
+
+    renderWith([withSections]);
+
+    await user.click(
+      screen.getByRole("button", { name: /add subtopic to Networking/i }),
+    );
+
+    const group = screen.getByRole("group", { name: /learning materials/i });
+
+    await user.click(within(group).getByRole("button", { name: /add material/i }));
+    await user.type(within(group).getByLabelText(/^title$/i), "Cat6 guide");
+    await user.type(
+      within(group).getByLabelText(/web address/i),
+      "https://example.com/cat6",
+    );
+    await user.click(within(group).getByRole("button", { name: /add to list/i }));
+
+    // A section owns materials exactly as a topic does, so the same staging
+    // serves both. Nothing is sent from here — the section has no id yet.
+    const list = screen.getByTestId("subtopic-add-material-list");
+
+    expect(within(list).getByText(/1\. Cat6 guide/)).toBeInTheDocument();
+    expect(service.createSubtopic).not.toHaveBeenCalled();
+    // Staged only: nothing goes until there is a section to attach it to.
+    expect(materials.createMaterial).not.toHaveBeenCalled();
+  });
+
+  it("attaches the staged materials to the section that was just created", async () => {
+    const user = userEvent.setup();
+    const created = { ...withSections, id: 99, parentId: withSections.id };
+
+    vi.mocked(service.createSubtopic).mockResolvedValue(created);
+    vi.mocked(materials.createMaterial).mockResolvedValue(
+      {} as Awaited<ReturnType<typeof materials.createMaterial>>,
+    );
+
+    renderWith([withSections]);
+
+    await user.click(
+      screen.getByRole("button", { name: /add subtopic to Networking/i }),
+    );
+
+    const form = screen.getByRole("form", { name: /add subtopic/i });
+    const group = screen.getByRole("group", { name: /learning materials/i });
+
+    await user.type(within(form).getByLabelText(/^title$/i), "Cabling");
+    await user.click(within(group).getByRole("button", { name: /add material/i }));
+    await user.type(within(group).getByLabelText(/^title$/i), "Cat6 guide");
+    await user.type(
+      within(group).getByLabelText(/web address/i),
+      "https://example.com/cat6",
+    );
+    await user.click(within(group).getByRole("button", { name: /add to list/i }));
+    await user.click(within(form).getByRole("button", { name: /add subtopic/i }));
+
+    await waitFor(() =>
+      expect(materials.createMaterial).toHaveBeenCalledTimes(1),
+    );
+
+    // Against the section's own id, not its parent's — a section owns its
+    // materials, and the endpoint takes whichever topic row is handed to it.
+    expect(vi.mocked(materials.createMaterial).mock.calls[0][0]).toBe(created.id);
+  });
+
+  it("sends no material when the section itself was refused", async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(service.createSubtopic).mockRejectedValueOnce(
+      new ApiError("The given data was invalid.", 422, {
+        title: ["A section with that title is already in this topic."],
+      }),
+    );
+
+    renderWith([withSections]);
+
+    await user.click(
+      screen.getByRole("button", { name: /add subtopic to Networking/i }),
+    );
+
+    const form = screen.getByRole("form", { name: /add subtopic/i });
+    const group = screen.getByRole("group", { name: /learning materials/i });
+
+    await user.type(within(form).getByLabelText(/^title$/i), "Cabling");
+    await user.click(within(group).getByRole("button", { name: /add material/i }));
+    await user.type(within(group).getByLabelText(/^title$/i), "Cat6 guide");
+    await user.type(
+      within(group).getByLabelText(/web address/i),
+      "https://example.com/cat6",
+    );
+    await user.click(within(group).getByRole("button", { name: /add to list/i }));
+    await user.click(within(form).getByRole("button", { name: /add subtopic/i }));
+
+    await waitFor(() => expect(service.createSubtopic).toHaveBeenCalled());
+
+    // No section, so no id to attach anything to — and a material sent anyway
+    // would land on whichever topic that path fell back to, which is the parent.
+    expect(materials.createMaterial).not.toHaveBeenCalled();
+    // The dialog stays open on the refusal, still holding what was staged.
+    expect(screen.getByTestId("subtopic-add-material-list")).toBeInTheDocument();
+  });
+
+  it("offers no assessments on a section", async () => {
+    const user = userEvent.setup();
+
+    renderWith([withSections]);
+
+    await user.click(
+      screen.getByRole("button", { name: /add subtopic to Networking/i }),
+    );
+
+    const form = screen.getByRole("form", { name: /add subtopic/i });
+
+    // A section cannot own an assessment — the server refuses one — so the
+    // dialog that writes a section does not offer the pair the topic's does.
+    expect(within(form).queryByLabelText(/pre-test/i)).not.toBeInTheDocument();
+    expect(within(form).queryByLabelText(/post-test/i)).not.toBeInTheDocument();
   });
 
   it("keeps a titleless draft off the network", async () => {
