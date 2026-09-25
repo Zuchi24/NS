@@ -31,6 +31,9 @@ vi.mock("@/features/assessments/adminAssessmentService", async (importOriginal) 
     fetchTopicAssessments: vi.fn(),
     createAssessment: vi.fn(),
     publishAssessment: vi.fn(),
+    createAssessmentVersion: vi.fn(),
+    archiveAssessment: vi.fn(),
+    restoreAssessment: vi.fn(),
   };
 });
 
@@ -45,9 +48,13 @@ function listed(over: Partial<Assessment> = {}): Assessment {
     id: 11,
     topicId: 7,
     type: "pre_test",
+    version: 1,
     title: "Before you start",
     description: null,
     isPublished: false,
+    archivedAt: null,
+    createdAt: null,
+    updatedAt: null,
     attemptsCount: 0,
     questionsCount: 0,
     questions: null,
@@ -92,7 +99,7 @@ describe("discovering a topic's assessments", () => {
     renderPanel();
 
     expect(screen.getByText("Loading assessments…")).toBeInTheDocument();
-    expect(service.fetchTopicAssessments).toHaveBeenCalledWith(7);
+    expect(service.fetchTopicAssessments).toHaveBeenCalledWith(7, { includeArchived: true });
   });
 
   it("shows the server's message when the listing fails, and retries", async () => {
@@ -415,5 +422,127 @@ describe("creating a draft", () => {
         "/admin/roadmap/assessments/44?roadmap=3&topic=7",
       ),
     );
+  });
+});
+
+describe("versions of a slot", () => {
+  const v1 = listed({ id: 11, version: 1, attemptsCount: 4, questionsCount: 2 });
+  const v2 = listed({ id: 18, version: 2, isPublished: true, questionsCount: 2 });
+  const v3 = listed({ id: 19, version: 3, title: "Before you start, revised" });
+  const archived = listed({ id: 9, version: 0, archivedAt: "2026-09-01T10:00:00Z" });
+
+  /** The row of one version, by the label it is named with. */
+  function row(label: string) {
+    const name = slot("Pre-test").getByText(label);
+
+    return within(name.closest("div.rounded") as HTMLElement);
+  }
+
+  it("lists every version in use, naming the active one, and marks taken ones read-only", async () => {
+    await show([v1, v2, v3]);
+
+    expect(slot("Pre-test").getByText("V1")).toBeInTheDocument();
+    expect(slot("Pre-test").getByText("V2")).toBeInTheDocument();
+    expect(slot("Pre-test").getByText("(Active)")).toBeInTheDocument();
+    expect(row("V2").getByText("Published")).toBeInTheDocument();
+    expect(row("V1").getByText("Read-only")).toBeInTheDocument();
+    expect(row("V3").queryByText("Read-only")).not.toBeInTheDocument();
+    expect(row("V3").getByText("Draft")).toBeInTheDocument();
+  });
+
+  it("offers publish and archive only on unpublished versions in use", async () => {
+    await show([v1, v2]);
+
+    expect(row("V2").queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
+    expect(row("V2").queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
+    expect(row("V1").getByRole("button", { name: "Publish" })).toBeInTheDocument();
+    expect(row("V1").getByRole("button", { name: "Archive" })).toBeInTheDocument();
+  });
+
+  it("folds archived versions away, and offers to restore them", async () => {
+    const user = userEvent.setup();
+    await show([archived, v2]);
+
+    expect(slot("Pre-test").queryByText("V0")).not.toBeInTheDocument();
+
+    await user.click(slot("Pre-test").getByRole("button", { name: "Show 1 archived version" }));
+
+    expect(row("V0").getByText("Archived")).toBeInTheDocument();
+    expect(row("V0").getByText("Read-only")).toBeInTheDocument();
+    expect(row("V0").queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
+    expect(row("V0").getByRole("button", { name: "Restore" })).toBeInTheDocument();
+  });
+
+  it("creates a new version from the active one and opens it in the builder", async () => {
+    const user = userEvent.setup();
+    await show([v1, v2]);
+    vi.mocked(service.createAssessmentVersion).mockResolvedValue(
+      listed({ id: 30, version: 3 }),
+    );
+
+    await user.click(slot("Pre-test").getByRole("button", { name: "New version" }));
+
+    expect(service.createAssessmentVersion).toHaveBeenCalledWith(18);
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith("/admin/roadmap/assessments/30?roadmap=3&topic=7"),
+    );
+    expect(toast.success).toHaveBeenCalledWith(
+      "V3 of the pre-test created as a draft, copied from V2.",
+    );
+  });
+
+  it("copies the newest version in use when none is active", async () => {
+    const user = userEvent.setup();
+    await show([v1, v3]);
+    vi.mocked(service.createAssessmentVersion).mockResolvedValue(listed({ id: 31, version: 4 }));
+
+    await user.click(slot("Pre-test").getByRole("button", { name: "New version" }));
+
+    expect(service.createAssessmentVersion).toHaveBeenCalledWith(19);
+  });
+
+  it("publishes a version and reads the list again, since another was retired", async () => {
+    const user = userEvent.setup();
+    await show([v1, v2]);
+    vi.mocked(service.publishAssessment).mockResolvedValue({ ...v1, isPublished: true });
+
+    await user.click(row("V1").getByRole("button", { name: "Publish" }));
+
+    expect(service.publishAssessment).toHaveBeenCalledWith(11);
+    await waitFor(() => expect(service.fetchTopicAssessments).toHaveBeenCalledTimes(2));
+    expect(toast.success).toHaveBeenCalledWith("V1 is now the version students take.");
+  });
+
+  it("archives and restores, reading the list again after each", async () => {
+    const user = userEvent.setup();
+    await show([v1, v2, archived]);
+    vi.mocked(service.archiveAssessment).mockResolvedValue({ ...v1, archivedAt: "now" });
+    vi.mocked(service.restoreAssessment).mockResolvedValue({ ...archived, archivedAt: null });
+
+    await user.click(row("V1").getByRole("button", { name: "Archive" }));
+    expect(service.archiveAssessment).toHaveBeenCalledWith(11);
+    await waitFor(() => expect(service.fetchTopicAssessments).toHaveBeenCalledTimes(2));
+
+    await user.click(await slot("Pre-test").findByRole("button", { name: "Show 1 archived version" }));
+    await user.click(row("V0").getByRole("button", { name: "Restore" }));
+    expect(service.restoreAssessment).toHaveBeenCalledWith(9);
+    await waitFor(() => expect(service.fetchTopicAssessments).toHaveBeenCalledTimes(3));
+  });
+
+  it("shows a conflict in the server's words and reads the list again", async () => {
+    const user = userEvent.setup();
+    await show([v1, v2]);
+    vi.mocked(service.archiveAssessment).mockRejectedValue(
+      new ApiError('Version 1 of "Before you start" is the one students are taking, so it cannot be archived.', 409),
+    );
+
+    await user.click(row("V1").getByRole("button", { name: "Archive" }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Version 1 of "Before you start" is the one students are taking, so it cannot be archived.',
+      ),
+    );
+    await waitFor(() => expect(service.fetchTopicAssessments).toHaveBeenCalledTimes(2));
   });
 });

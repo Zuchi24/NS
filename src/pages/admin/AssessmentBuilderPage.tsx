@@ -34,6 +34,7 @@ import {
   createQuestion,
   deleteAssessment,
   deleteQuestion,
+  detailsEditable,
   draftOfAssessment,
   draftOfQuestion,
   fetchAssessment,
@@ -45,6 +46,7 @@ import {
   updateQuestion,
   validateAssessmentDraft,
   validateQuestionDraft,
+  versionLabel,
 } from "@/features/assessments/adminAssessmentService";
 import type {
   Assessment,
@@ -67,11 +69,13 @@ import { AssessmentResultsPanel } from "./AssessmentResultsPanel";
  * list of questions, each with four choices, and that does not fit inside a
  * topic's card without crowding out the topic.
  *
- * Title and description stay editable for the assessment's whole life. The
- * questions are authored here too — written, rewritten, deleted and put in
- * order — but only while nothing has settled them: a published assessment's
- * questions are locked until it is unpublished, and a taken one's are locked
- * for good. Both locks are the server's. The page reads them to decide what to
+ * It builds one version of the topic's pre-test or post-test. Title,
+ * description and questions — written, rewritten, deleted and put in order —
+ * are authored here while nothing has settled them: a published version's
+ * questions are locked until it is unpublished, an archived one is read-only
+ * until it is restored, and a taken one is locked for good, details included —
+ * a new version, made from the topic's assessments, is how it changes. The
+ * locks are the server's. The page reads them to decide what to
  * offer, and when a write is refused anyway — another author published it, a
  * student submitted it — it shows the server's reason and reloads, so what is
  * on screen is the lock as it now stands rather than as it was.
@@ -150,7 +154,9 @@ export function AssessmentBuilderPage() {
     try {
       if (action === "publish") {
         await publishAssessment(assessment.id);
-        toast.success(`“${assessment.title}” is published. Students can open it.`);
+        toast.success(
+          `“${assessment.title}” ${versionLabel(assessment)} is published. Students can open it.`,
+        );
         reload();
       } else if (action === "unpublish") {
         await unpublishAssessment(assessment.id);
@@ -247,16 +253,20 @@ export function AssessmentBuilderPage() {
   );
 }
 
-function PublicationBadge({ isPublished }: { isPublished: boolean }) {
+function PublicationBadge({
+  assessment,
+}: {
+  assessment: Pick<Assessment, "isPublished" | "archivedAt">;
+}) {
+  const [label, tone] = assessment.isPublished
+    ? ["Published", "text-emerald-700 bg-emerald-50 border-emerald-200"]
+    : assessment.archivedAt
+      ? ["Archived", "text-gray-600 bg-gray-50 border-gray-200"]
+      : ["Draft", "text-amber-700 bg-amber-50 border-amber-200"];
+
   return (
-    <span
-      className={`text-xs font-medium rounded px-1.5 py-0.5 border ${
-        isPublished
-          ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-          : "text-amber-700 bg-amber-50 border-amber-200"
-      }`}
-    >
-      {isPublished ? "Published" : "Draft"}
+    <span className={`text-xs font-medium rounded px-1.5 py-0.5 border ${tone}`}>
+      {label}
     </span>
   );
 }
@@ -285,7 +295,10 @@ function AssessmentHeader({
             <span className="text-xs font-medium rounded px-1.5 py-0.5 border text-blue-700 bg-blue-50 border-blue-200">
               {ASSESSMENT_TYPE_LABELS[assessment.type]}
             </span>
-            <PublicationBadge isPublished={assessment.isPublished} />
+            <span className="text-xs font-semibold rounded px-1.5 py-0.5 border text-gray-700 bg-white border-gray-200">
+              {versionLabel(assessment)}
+            </span>
+            <PublicationBadge assessment={assessment} />
           </div>
 
           <CardTitle className="text-lg flex items-center gap-2">
@@ -302,12 +315,15 @@ function AssessmentHeader({
           )}
         </div>
 
-        {/* Never locked: title and description do not change what a student's
-            result was measured against. */}
-        <Button size="sm" variant="outline" onClick={onEdit} disabled={editing}>
-          <Pencil className="w-4 h-4 mr-2" />
-          Edit details
-        </Button>
+        {/* Part of what a student took, so settled with the rest once this
+            version has been taken, and read-only while archived. Hidden rather
+            than disabled: the lock notice below says why. */}
+        {detailsEditable(assessment) && (
+          <Button size="sm" variant="outline" onClick={onEdit} disabled={editing}>
+            <Pencil className="w-4 h-4 mr-2" />
+            Edit details
+          </Button>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-4">
@@ -326,7 +342,7 @@ function AssessmentHeader({
           </div>
         </dl>
 
-        {editing && (
+        {editing && detailsEditable(assessment) && (
           <DetailsForm
             key={assessment.id}
             assessment={assessment}
@@ -352,9 +368,13 @@ function releaseStatus(assessment: Assessment): string {
       : "Published. Students can open it.";
   }
 
+  if (assessment.archivedAt) {
+    return "Archived. Students cannot open it, and any results on it are kept. Restore it from the topic's assessments to use it again.";
+  }
+
   return taken
     ? "Draft. It has been withdrawn from students, and the results of those who took it are kept."
-    : "Draft. Students cannot see it until it is published.";
+    : "Draft. Students cannot see it until it is published. Publishing it replaces the version students are offered now, if there is one.";
 }
 
 /**
@@ -439,7 +459,7 @@ function ReleaseCard({
               <EyeOff className="w-4 h-4 mr-2" />
               {releasing === "unpublish" ? "Unpublishing…" : "Unpublish assessment"}
             </Button>
-          ) : (
+          ) : assessment.archivedAt ? null : (
             <Button
               size="sm"
               disabled={busy}
@@ -469,8 +489,9 @@ function ReleaseCard({
         {taken && (
           <p className="text-xs text-gray-600 flex items-center gap-1.5">
             <Lock className="w-3 h-3 shrink-0" aria-hidden="true" />
-            This assessment cannot be deleted because students have attempted
-            it. Unpublish it to withdraw it instead.
+            This version cannot be deleted because students have attempted it.
+            Unpublish or archive it to withdraw it, or create a new version to
+            change it.
           </p>
         )}
 
@@ -526,9 +547,11 @@ const LOCK_COPY: Record<Exclude<AssessmentLockState, "editable">, string> = {
   published:
     "This assessment is published, so its questions and choices cannot be changed. Unpublishing it lifts the lock. Its title and description can still be edited.",
   taken:
-    "Students have already taken this assessment, so its questions and choices can no longer be changed — their results were scored against them. Its title and description can still be edited.",
+    "Students have already taken this version, so it can no longer be changed — their results were scored against it. Create a new version from the topic's assessments to change it.",
   published_and_taken:
-    "This assessment is published and students have already taken it, so its questions and choices can no longer be changed, even if it is unpublished. Its title and description can still be edited.",
+    "This version is published and students have already taken it, so it can no longer be changed, even if it is unpublished. Create a new version from the topic's assessments to change it.",
+  archived:
+    "This version is archived, so it is read-only. Restore it from the topic's assessments to edit it again.",
 };
 
 function LockNotice({ state }: { state: AssessmentLockState }) {

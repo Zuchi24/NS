@@ -10,9 +10,15 @@ import {
   draftOfAssessment,
   draftOfQuestion,
   fetchAssessment,
+  archiveAssessment,
+  createAssessmentVersion,
+  detailsEditable,
   fetchAssessmentResults,
+  fetchAssessmentVersions,
   fetchTopicAssessments,
   lockStateOf,
+  restoreAssessment,
+  versionLabel,
   publishAssessment,
   reorderQuestions,
   unpublishAssessment,
@@ -152,9 +158,13 @@ describe("reading assessments", () => {
       id: 11,
       topicId: 4,
       type: "pre_test",
+      version: 1,
       title: "Before you start",
       description: null,
       isPublished: true,
+      archivedAt: null,
+      createdAt: null,
+      updatedAt: null,
       attemptsCount: 3,
       questionsCount: 5,
       // Not loaded — which is not the same as having none.
@@ -179,9 +189,13 @@ describe("reading assessments", () => {
       id: 11,
       topicId: 4,
       type: "pre_test",
+      version: 1,
       title: "Before you start",
       description: "Answer what you can.",
       isPublished: false,
+      archivedAt: null,
+      createdAt: null,
+      updatedAt: null,
       attemptsCount: 0,
       questionsCount: null,
       questions: [
@@ -830,5 +844,89 @@ describe("the question timer", () => {
         "Choose one of the timer settings, or no timer.",
       );
     }
+  });
+});
+
+describe("versions", () => {
+  it("leaves archived versions out of the topic listing unless asked for", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [] });
+
+    await fetchTopicAssessments(4);
+    await fetchTopicAssessments(4, { includeArchived: true });
+
+    expect(api.get).toHaveBeenNthCalledWith(1, "/admin/topics/4/assessments");
+    expect(api.get).toHaveBeenNthCalledWith(2, "/admin/topics/4/assessments?include_archived=1");
+  });
+
+  it("maps a version's number, archive date and timestamps", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: [
+        apiListed({
+          version: 3,
+          archived_at: "2026-09-20T10:00:00.000000Z",
+          created_at: "2026-09-01T10:00:00.000000Z",
+          updated_at: "2026-09-02T10:00:00.000000Z",
+        }),
+      ],
+    });
+
+    const [version] = await fetchAssessmentVersions(11);
+
+    expect(api.get).toHaveBeenCalledWith("/admin/assessments/11/versions");
+    expect(version).toMatchObject({
+      version: 3,
+      archivedAt: "2026-09-20T10:00:00.000000Z",
+      createdAt: "2026-09-01T10:00:00.000000Z",
+      updatedAt: "2026-09-02T10:00:00.000000Z",
+    });
+  });
+
+  it("creates a new version from an existing one, sending nothing else", async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: apiAssessment({ id: 18, version: 2 }) });
+
+    const created = await createAssessmentVersion(11);
+
+    expect(api.post).toHaveBeenCalledWith("/admin/assessments/11/versions");
+    expect(created).toMatchObject({ id: 18, version: 2, isPublished: false });
+  });
+
+  it("archives and restores through their own routes", async () => {
+    vi.mocked(api.post)
+      .mockResolvedValueOnce({ data: apiAssessment({ archived_at: "2026-09-20T10:00:00Z" }) })
+      .mockResolvedValueOnce({ data: apiAssessment({ archived_at: null }) });
+
+    expect((await archiveAssessment(11)).archivedAt).toBe("2026-09-20T10:00:00Z");
+    expect((await restoreAssessment(11)).archivedAt).toBeNull();
+
+    expect(api.post).toHaveBeenNthCalledWith(1, "/admin/assessments/11/archive");
+    expect(api.post).toHaveBeenNthCalledWith(2, "/admin/assessments/11/restore");
+  });
+
+  it("passes a conflict through as the server's refusal", async () => {
+    const { ApiError } = await import("@/services/api");
+    vi.mocked(api.post).mockRejectedValue(
+      new ApiError("Version 1 of \"Before you start\" is the one students are taking, so it cannot be archived.", 409),
+    );
+
+    await expect(archiveAssessment(11)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("reads an archived, untaken version as archived, and a taken one as taken", () => {
+    expect(lockStateOf({ isPublished: false, attemptsCount: 0, archivedAt: "2026-09-20" })).toBe(
+      "archived",
+    );
+    expect(lockStateOf({ isPublished: false, attemptsCount: 2, archivedAt: "2026-09-20" })).toBe(
+      "taken",
+    );
+  });
+
+  it("settles title and description once taken or archived, not when only published", () => {
+    expect(detailsEditable({ attemptsCount: 0, archivedAt: null })).toBe(true);
+    expect(detailsEditable({ attemptsCount: 1, archivedAt: null })).toBe(false);
+    expect(detailsEditable({ attemptsCount: 0, archivedAt: "2026-09-20" })).toBe(false);
+  });
+
+  it("names a version by its number", () => {
+    expect(versionLabel({ version: 2 })).toBe("V2");
   });
 });

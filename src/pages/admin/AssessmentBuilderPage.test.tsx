@@ -123,9 +123,13 @@ function assessment(over: Partial<Assessment> = {}): Assessment {
     id: 11,
     topicId: 4,
     type: "pre_test",
+    version: 1,
     title: "Before you start",
     description: "Answer what you can.",
     isPublished: false,
+    archivedAt: null,
+    createdAt: null,
+    updatedAt: null,
     attemptsCount: 0,
     questionsCount: null,
     questions: [question()],
@@ -373,8 +377,9 @@ describe("showing the questions", () => {
   it.each(LOCKED)("offers no question write when it is %s", async (_, lock) => {
     await show(assessment({ ...lock, questions: [question(), second] }));
 
-    // Title and description stay editable, and the release controls are their
-    // own section; nothing that touches a question is offered.
+    // Nothing that touches a question is offered, and the release controls are
+    // their own section. Title and description stay editable only while nobody
+    // has taken it: a taken version is settled, details included.
     const release = screen.getByRole("region", { name: "Release" });
 
     expect(questionWriteButtons()).toEqual([]);
@@ -383,7 +388,11 @@ describe("showing the questions", () => {
         .getAllByRole("button")
         .filter((button) => !release.contains(button))
         .map((button) => button.textContent),
-    ).toEqual(["Back to roadmap", "Edit details"]);
+    ).toEqual(
+      (lock.attemptsCount ?? 0) > 0
+        ? ["Back to roadmap"]
+        : ["Back to roadmap", "Edit details"],
+    );
     expect(screen.getAllByRole("article")).toHaveLength(2);
   });
 });
@@ -1096,10 +1105,40 @@ describe("the lock notice", () => {
     );
   });
 
-  it("still lets the title and description be edited while locked", async () => {
-    await show(assessment({ isPublished: true, attemptsCount: 5 }));
+  it("still lets the title and description be edited while only published", async () => {
+    await show(assessment({ isPublished: true, attemptsCount: 0 }));
 
     expect(screen.getByRole("button", { name: "Edit details" })).toBeEnabled();
+  });
+
+  it.each([
+    ["taken", { attemptsCount: 5 }],
+    ["published and taken", { isPublished: true, attemptsCount: 5 }],
+    ["archived", { archivedAt: "2026-09-20T10:00:00Z" }],
+  ] as [string, Partial<Assessment>][])(
+    "offers no edit of the title and description once %s",
+    async (_, lock) => {
+      await show(assessment(lock));
+
+      expect(screen.queryByRole("button", { name: "Edit details" })).not.toBeInTheDocument();
+    },
+  );
+
+  it("says an archived version is read-only until restored, and offers no publish", async () => {
+    await show(assessment({ archivedAt: "2026-09-20T10:00:00Z" }));
+
+    expect(screen.getByRole("note")).toHaveTextContent(/archived, so it is read-only/);
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+    expect(questionWriteButtons()).toEqual([]);
+    expect(
+      release().queryByRole("button", { name: "Publish assessment" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("names the version it is building", async () => {
+    await show(assessment({ version: 3 }));
+
+    expect(screen.getByText("V3")).toBeInTheDocument();
   });
 });
 
@@ -1285,7 +1324,7 @@ describe("publishing", () => {
 
     await waitFor(() => expect(service.fetchAssessment).toHaveBeenCalledTimes(2));
     expect(toast.success).toHaveBeenCalledWith(
-      "“Before you start” is published. Students can open it.",
+      "“Before you start” V1 is published. Students can open it.",
     );
 
     // What the server stored, not what the click assumed.

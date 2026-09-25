@@ -13,12 +13,19 @@ import { api } from "@/services/api";
  * - An assessment is written as a draft and published afterwards. There is no
  *   publish flag on the create or the edit; publishing is its own call, and the
  *   server refuses it until every question is complete.
- * - What an assessment is — its topic and its type — is fixed when it is
- *   created. Its title and description stay editable for its whole life.
- * - Its questions are editable only while it is unpublished and untaken. A
- *   published one is refused with 422 and unpublishing lifts it; a taken one is
- *   refused with 409 and nothing lifts it. lockStateOf() is how a page tells the
- *   two apart before asking.
+ * - A topic's pre-test (and its post-test) is a slot of versions, each an
+ *   assessment with its own id. At most one version is published; publishing
+ *   another retires it. A new version is a copy of an existing one, and is how
+ *   a taken assessment changes. Archiving puts an unpublished version out of
+ *   use without deleting anything; restoring brings it back unpublished.
+ * - What a version is — its topic, its type and its number — is fixed when it
+ *   is created. Its questions are editable only while it is unpublished,
+ *   untaken and unarchived: a published one is refused with 422 and
+ *   unpublishing lifts it; a taken one is refused with 409 and nothing lifts
+ *   it; an archived one is refused with 409 until it is restored. Its title and
+ *   description follow the same rule, except that publishing does not lock
+ *   them. lockStateOf() and detailsEditable() are how a page tells these apart
+ *   before asking.
  */
 
 export type AssessmentType = "pre_test" | "post_test";
@@ -78,9 +85,16 @@ export interface Assessment {
   id: number;
   topicId: number;
   type: AssessmentType;
+  /** Its number within the slot, from 1. */
+  version: number;
   title: string;
   description: string | null;
+  /** The version students are offered. At most one per slot. */
   isPublished: boolean;
+  /** When it was archived, or null while it is in use. */
+  archivedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
   attemptsCount: number | null;
   questionsCount: number | null;
   questions: AssessmentQuestion[] | null;
@@ -142,9 +156,13 @@ interface ApiAssessment {
   id: number;
   topic_id: number;
   type: AssessmentType;
+  version?: number;
   title: string;
   description: string | null;
   is_published?: boolean;
+  archived_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   attempts_count?: number;
   questions_count?: number;
   questions?: ApiAssessmentQuestion[];
@@ -175,9 +193,13 @@ function toAssessment(row: ApiAssessment): Assessment {
     id: row.id,
     topicId: row.topic_id,
     type: row.type,
+    version: row.version ?? 1,
     title: row.title,
     description: row.description,
     isPublished: row.is_published === true,
+    archivedAt: row.archived_at ?? null,
+    createdAt: row.created_at ?? null,
+    updatedAt: row.updated_at ?? null,
     attemptsCount: row.attempts_count ?? null,
     questionsCount: row.questions_count ?? null,
     questions: row.questions ? row.questions.map(toQuestion) : null,
@@ -193,17 +215,21 @@ function toAssessment(row: ApiAssessment): Assessment {
  * - `taken`: unpublished, but a student has submitted it, so its questions are
  *   refused (409) for good — the attempts were scored against them.
  * - `published_and_taken`: both. Unpublishing it would not help.
+ * - `archived`: out of use and read-only (409). Restoring it lifts the lock —
+ *   unless it was also taken, which is reported as `taken`, the lock that
+ *   never lifts.
  *
- * Title and description are editable in every one of these.
+ * Title and description have a rule of their own: see detailsEditable().
  */
 export type AssessmentLockState =
   | "editable"
   | "published"
   | "taken"
-  | "published_and_taken";
+  | "published_and_taken"
+  | "archived";
 
 /**
- * Which of the four an assessment is in.
+ * Which of these a version is in.
  *
  * An uncounted attempt total is read as untaken. Every response for a single
  * assessment and the listing both count attempts, so that only arises for an
@@ -211,7 +237,8 @@ export type AssessmentLockState =
  * write, so the worst case is a refusal it explains.
  */
 export function lockStateOf(
-  assessment: Pick<Assessment, "isPublished" | "attemptsCount">,
+  assessment: Pick<Assessment, "isPublished" | "attemptsCount"> &
+    Partial<Pick<Assessment, "archivedAt">>,
 ): AssessmentLockState {
   const taken = (assessment.attemptsCount ?? 0) > 0;
 
@@ -219,7 +246,24 @@ export function lockStateOf(
     return taken ? "published_and_taken" : "published";
   }
 
-  return taken ? "taken" : "editable";
+  if (taken) return "taken";
+
+  return assessment.archivedAt ? "archived" : "editable";
+}
+
+/**
+ * Whether a version's title and description can still be changed: nobody has
+ * taken it and it is not archived. Publishing alone does not settle them.
+ */
+export function detailsEditable(
+  assessment: Pick<Assessment, "attemptsCount"> & Partial<Pick<Assessment, "archivedAt">>,
+): boolean {
+  return (assessment.attemptsCount ?? 0) === 0 && !assessment.archivedAt;
+}
+
+/** "V2" — how a version is named wherever versions sit side by side. */
+export function versionLabel(assessment: Pick<Assessment, "version">): string {
+  return `V${assessment.version}`;
 }
 
 /*
@@ -357,19 +401,70 @@ function questionPayload(draft: AssessmentQuestionDraft): Record<string, unknown
 */
 
 /**
- * A topic's pre-test and post-test, drafts included, pre-test first.
+ * A topic's pre-test and post-test versions, drafts included — pre-tests
+ * first, each slot in version order. Archived versions only when asked for.
  *
  * Counts rather than content: the questions come from fetchAssessment for the
  * one being edited. Refused with 422 for a subtopic, which cannot own one.
  */
 export async function fetchTopicAssessments(
   topicId: number,
+  { includeArchived = false }: { includeArchived?: boolean } = {},
 ): Promise<Assessment[]> {
   const { data } = await api.get<{ data: ApiAssessment[] }>(
-    `/admin/topics/${topicId}/assessments`,
+    `/admin/topics/${topicId}/assessments${includeArchived ? "?include_archived=1" : ""}`,
   );
 
   return data.map(toAssessment);
+}
+
+/** Every version of this one's slot, archived ones included, oldest first. */
+export async function fetchAssessmentVersions(
+  assessmentId: number,
+): Promise<Assessment[]> {
+  const { data } = await api.get<{ data: ApiAssessment[] }>(
+    `/admin/assessments/${assessmentId}/versions`,
+  );
+
+  return data.map(toAssessment);
+}
+
+/**
+ * A new draft version of the slot, copied from this one — its title,
+ * description, questions, timers and choices, and none of its attempts.
+ * Numbered after the highest version the slot has. 409 if another author
+ * created one at the same moment.
+ */
+export async function createAssessmentVersion(
+  assessmentId: number,
+): Promise<Assessment> {
+  const { data } = await api.post<{ data: ApiAssessment }>(
+    `/admin/assessments/${assessmentId}/versions`,
+  );
+
+  return toAssessment(data);
+}
+
+/**
+ * Puts an unpublished version out of use. Nothing is deleted: its questions and
+ * every result on it stay, and students' reviews still open. Refused with 409
+ * for the published version.
+ */
+export async function archiveAssessment(assessmentId: number): Promise<Assessment> {
+  const { data } = await api.post<{ data: ApiAssessment }>(
+    `/admin/assessments/${assessmentId}/archive`,
+  );
+
+  return toAssessment(data);
+}
+
+/** Brings an archived version back — unpublished. Publishing it is its own step. */
+export async function restoreAssessment(assessmentId: number): Promise<Assessment> {
+  const { data } = await api.post<{ data: ApiAssessment }>(
+    `/admin/assessments/${assessmentId}/restore`,
+  );
+
+  return toAssessment(data);
 }
 
 /** The whole assessment, its questions and answer key included. */
@@ -419,8 +514,9 @@ export async function fetchAssessmentResults(
  * Writes a new assessment down, as a draft.
  *
  * The topic is the address and never a field, and there is no publish flag —
- * the server refuses both if sent. A topic holds at most one of each type, and
- * a second is refused with 422.
+ * the server refuses both if sent. This is version 1 of its slot: a slot that
+ * already has a version is refused with 422, and grows with
+ * createAssessmentVersion instead.
  */
 export async function createAssessment(
   topicId: number,
@@ -438,7 +534,8 @@ export async function createAssessment(
  * Rewrites an assessment's title and description.
  *
  * The type is never sent: a pre-test cannot become a post-test, and the server
- * refuses the field outright rather than ignoring it.
+ * refuses the field outright rather than ignoring it. Refused with 409 once the
+ * version has been taken, or while it is archived — see detailsEditable().
  */
 export async function updateAssessment(
   assessmentId: number,
@@ -453,11 +550,12 @@ export async function updateAssessment(
 }
 
 /**
- * Puts it in front of students.
+ * Makes this the version students are offered, retiring whichever version of
+ * the slot was — which keeps its results, unpublished, until it is archived.
  *
  * Refused with 422 until it has at least one question and every question is
- * complete; the server names the one that is not, so callers show that.
- * Publishing a published assessment is not an error.
+ * complete; the server names the one that is not, so callers show that. 409
+ * while it is archived. Publishing the published version is not an error.
  */
 export async function publishAssessment(
   assessmentId: number,
@@ -487,7 +585,7 @@ export async function unpublishAssessment(
  * Destroys it with its questions and choices.
  *
  * Refused with 409 once anyone has taken it, published or not — the attempts
- * are students' results. That assessment is unpublished instead.
+ * are students' results. That version is unpublished or archived instead.
  */
 export async function deleteAssessment(assessmentId: number): Promise<void> {
   await api.delete(`/admin/assessments/${assessmentId}`);
