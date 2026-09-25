@@ -1,5 +1,5 @@
 {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "endpoint": "GET /api/topics/{topic}/progression",
     "generated_by": "backend tests/Feature/TopicProgressionContractTest.php",
     "cases": {
@@ -8,11 +8,14 @@
                 "topic_id": 1,
                 "pre_test": {
                     "id": 1,
+                    "version": 1,
                     "title": "Before you start",
                     "submitted": true,
                     "waived": false,
                     "required": false,
                     "result": {
+                        "assessment_id": 1,
+                        "version": 1,
                         "earned_points": 2,
                         "total_points": 3,
                         "percent": 66.67,
@@ -46,6 +49,7 @@
                 "past_results": [],
                 "post_test": {
                     "id": 2,
+                    "version": 1,
                     "title": "Check your understanding",
                     "available": false,
                     "submitted": false,
@@ -59,11 +63,14 @@
                 "topic_id": 5,
                 "pre_test": {
                     "id": 3,
+                    "version": 1,
                     "title": "Routing check-in",
                     "submitted": true,
                     "waived": false,
                     "required": false,
                     "result": {
+                        "assessment_id": 3,
+                        "version": 1,
                         "earned_points": 2,
                         "total_points": 2,
                         "percent": 100,
@@ -91,6 +98,7 @@
                 "past_results": [
                     {
                         "assessment_id": 4,
+                        "version": 1,
                         "type": "post_test",
                         "title": "Routing wrap-up",
                         "earned_points": 1,
@@ -102,9 +110,44 @@
                 "post_test": null
             }
         },
-        "bare": {
+        "replaced": {
             "payload": {
                 "topic_id": 8,
+                "pre_test": {
+                    "id": 6,
+                    "version": 2,
+                    "title": "Addressing check-in",
+                    "submitted": true,
+                    "waived": false,
+                    "required": false,
+                    "result": {
+                        "assessment_id": 5,
+                        "version": 1,
+                        "earned_points": 1,
+                        "total_points": 2,
+                        "percent": 50,
+                        "submitted_at": "2026-09-18T10:00:00.000000Z"
+                    }
+                },
+                "subtopics": [
+                    {
+                        "id": 9,
+                        "title": "Subnetting",
+                        "order": 0,
+                        "status": "available"
+                    }
+                ],
+                "next_subtopic_id": 9,
+                "completed_count": 0,
+                "total_count": 1,
+                "remaining_count": 1,
+                "past_results": [],
+                "post_test": null
+            }
+        },
+        "bare": {
+            "payload": {
+                "topic_id": 10,
                 "pre_test": null,
                 "subtopics": [],
                 "next_subtopic_id": null,

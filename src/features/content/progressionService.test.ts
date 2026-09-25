@@ -33,11 +33,14 @@ function apiProgression(over: Record<string, unknown> = {}) {
     topic_id: 1,
     pre_test: {
       id: 51,
+      version: 1,
       title: "Before you start",
       submitted: true,
       waived: false,
       required: false,
       result: {
+        assessment_id: 51,
+        version: 1,
         earned_points: 8,
         total_points: 10,
         percent: "80.00",
@@ -55,6 +58,7 @@ function apiProgression(over: Record<string, unknown> = {}) {
     remaining_count: 2,
     post_test: {
       id: 52,
+      version: 1,
       title: "Check your understanding",
       available: false,
       submitted: false,
@@ -71,11 +75,14 @@ const mapped: TopicProgression = {
   topicId: 1,
   preTest: {
     id: 51,
+    version: 1,
     title: "Before you start",
     submitted: true,
     waived: false,
     required: false,
     result: {
+      assessmentId: 51,
+      version: 1,
       earnedPoints: 8,
       totalPoints: 10,
       percent: 80,
@@ -93,6 +100,7 @@ const mapped: TopicProgression = {
   remainingCount: 2,
   postTest: {
     id: 52,
+    version: 1,
     title: "Check your understanding",
     available: false,
     submitted: false,
@@ -151,6 +159,7 @@ describe("reading a progression", () => {
         past_results: [
           {
             assessment_id: 51,
+            version: 1,
             type: "pre_test",
             title: "Before you start",
             earned_points: 8,
@@ -169,9 +178,12 @@ describe("reading a progression", () => {
     expect(pastResults).toEqual([
       {
         assessmentId: 51,
+        version: 1,
         type: "pre_test",
         title: "Before you start",
         result: {
+          assessmentId: 51,
+          version: 1,
           earnedPoints: 8,
           totalPoints: 10,
           percent: 80,
@@ -195,6 +207,7 @@ describe("reading a progression", () => {
         past_results: [
           {
             assessment_id: 51,
+            version: 2,
             type: "post_test",
             title: "Check your understanding",
             earned_points: 2,
@@ -210,13 +223,22 @@ describe("reading a progression", () => {
 
     const [past] = (await fetchTopicProgression(1)).pastResults;
 
-    expect(Object.keys(past).sort()).toEqual(["assessmentId", "result", "title", "type"]);
+    expect(Object.keys(past).sort()).toEqual([
+      "assessmentId",
+      "result",
+      "title",
+      "type",
+      "version",
+    ]);
     expect(Object.keys(past.result).sort()).toEqual([
+      "assessmentId",
       "earnedPoints",
       "percent",
       "submittedAt",
       "totalPoints",
+      "version",
     ]);
+    expect(past.version).toBe(2);
   });
 });
 

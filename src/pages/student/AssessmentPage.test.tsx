@@ -113,6 +113,7 @@ function assessment(over: Partial<StudentAssessment> = {}): StudentAssessment {
     id: 11,
     topicId: 4,
     type: "pre_test",
+    version: 1,
     title: "Networking Fundamentals",
     description: "Answer what you can.",
     questions: [switching, routing],
@@ -149,6 +150,7 @@ function review(over: Partial<AssessmentReview> = {}): AssessmentReview {
       id: 11,
       topicId: 4,
       type: "pre_test",
+      version: 1,
       title: "Networking Fundamentals",
       description: "Answer what you can.",
     },
@@ -193,6 +195,7 @@ async function show(
             id: value.id,
             topicId: value.topicId,
             type: value.type,
+            version: value.version,
             title: value.title,
             description: value.description,
           },
@@ -675,6 +678,54 @@ describe("submitting", () => {
   });
 });
 
+describe("a version replaced by a newer one", () => {
+  const replaced =
+    "This assessment has been updated since you opened it. Go back to the topic to take the current version.";
+
+  it("says the assessment was updated when it is opened after being replaced", async () => {
+    vi.mocked(service.fetchOwnAttemptReview).mockResolvedValue(null);
+    vi.mocked(service.fetchStudentAssessment).mockRejectedValue(new ApiError(replaced, 409));
+
+    render(<AssessmentPage />);
+
+    expect(await screen.findByText("Assessment updated")).toBeInTheDocument();
+    expect(screen.getByText(replaced)).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+  });
+
+  it("reloads onto the update when a newer version went live while it was being answered", async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(service.fetchStudentAssessment)
+      .mockResolvedValueOnce(assessment())
+      .mockRejectedValue(new ApiError(replaced, 409));
+    vi.mocked(service.fetchOwnAttemptReview).mockResolvedValue(null);
+    vi.mocked(service.submitAssessment).mockRejectedValue(new ApiError(replaced, 409));
+
+    render(<AssessmentPage />);
+    await screen.findByRole("heading", { name: "Networking Fundamentals" });
+
+    await answerAll(user);
+
+    expect(await screen.findByText("Assessment updated")).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(service.submitAssessment).toHaveBeenCalledTimes(1);
+  });
+
+  it("names the version a review was taken on", async () => {
+    // show() gives the review the assessment it is handed.
+    await show(assessment({ version: 2 }), review());
+
+    expect(await screen.findByText("Version 2")).toBeInTheDocument();
+  });
+
+  it("does not name a version over the form a student is answering", async () => {
+    await show(assessment({ version: 3 }));
+
+    expect(screen.queryByText(/^Version /)).not.toBeInTheDocument();
+  });
+});
+
 describe("an assessment already taken", () => {
   it("opens on the result", async () => {
     await show(assessment(), review({ earnedPoints: 2, totalPoints: 3, percent: 66.67 }));
@@ -1003,11 +1054,19 @@ function progression(over: Partial<TopicProgression> = {}): TopicProgression {
     topicId: 4,
     preTest: {
       id: 11,
+      version: 1,
       title: "Networking Fundamentals",
       submitted: true,
       waived: false,
       required: false,
-      result: { earnedPoints: 8, totalPoints: 10, percent: 80, submittedAt: null },
+      result: {
+        assessmentId: 11,
+        version: 1,
+        earnedPoints: 8,
+        totalPoints: 10,
+        percent: 80,
+        submittedAt: null,
+      },
     },
     subtopics: [
       { id: 101, title: "OSI Model", order: 0, status: "available" },

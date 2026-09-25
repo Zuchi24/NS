@@ -77,6 +77,11 @@ type AssessmentView =
   | { kind: "missing" }
   /** 403: the topic has not been released, or the post-test is not open yet. */
   | { kind: "withheld"; message: string }
+  /**
+   * 409: a newer version of this assessment is live, so this one is no longer
+   * offered. The topic is where the current version is.
+   */
+  | { kind: "replaced"; message: string }
   /** Taken. The review is the page, and it carries its own assessment. */
   | { kind: "reviewed"; review: AssessmentReview }
   /** Not taken, and open to be: the assessment as it is offered now. */
@@ -97,6 +102,9 @@ async function loadView(assessmentId: number): Promise<AssessmentView> {
     if (e instanceof ApiError && e.status === 404) return { kind: "missing" };
     if (e instanceof ApiError && e.status === 403) {
       return { kind: "withheld", message: e.message };
+    }
+    if (e instanceof ApiError && e.status === 409) {
+      return { kind: "replaced", message: e.message };
     }
 
     throw e;
@@ -218,12 +226,21 @@ export function AssessmentPage() {
     );
   }
 
+  if (data.kind === "replaced") {
+    return shell(<Unavailable title="Assessment updated" message={data.message} />);
+  }
+
   const assessment =
     data.kind === "reviewed" ? data.review.assessment : data.assessment;
 
   return shell(
     <div className="space-y-6">
-      <AssessmentHeading assessment={assessment} />
+      <AssessmentHeading
+        assessment={assessment}
+        // A review names the version it was taken on, which may be older than
+        // the one offered now; a form is always the version offered now.
+        version={data.kind === "reviewed" ? data.review.assessment.version : null}
+      />
 
       {notice && (
         <p
@@ -307,15 +324,25 @@ function Unavailable({ title, message }: { title: string; message: string }) {
  */
 function AssessmentHeading({
   assessment,
+  version,
 }: {
   assessment: Pick<StudentAssessment, "type" | "title" | "description">;
+  /** Shown beside the type when given. */
+  version: number | null;
 }) {
   return (
     <Card className="border border-gray-200 shadow-sm">
       <CardContent className="p-6 space-y-2">
-        <span className="inline-flex text-xs font-medium rounded px-1.5 py-0.5 border text-blue-700 bg-blue-50 border-blue-200">
-          {STUDENT_ASSESSMENT_TYPE_LABELS[assessment.type]}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex text-xs font-medium rounded px-1.5 py-0.5 border text-blue-700 bg-blue-50 border-blue-200">
+            {STUDENT_ASSESSMENT_TYPE_LABELS[assessment.type]}
+          </span>
+          {version !== null && (
+            <span className="inline-flex text-xs font-medium rounded px-1.5 py-0.5 border text-gray-700 bg-white border-gray-200">
+              Version {version}
+            </span>
+          )}
+        </div>
         <h1 className="text-2xl font-bold text-gray-900">{assessment.title}</h1>
         {assessment.description && (
           <p className="text-sm text-gray-700 whitespace-pre-line">

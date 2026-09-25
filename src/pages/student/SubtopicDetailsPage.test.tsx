@@ -497,6 +497,7 @@ describe("marking a subtopic complete", () => {
     const both = [siblings[0], subtopic({ id: 101, title: "OSI Model", order: 1 })];
     const post = {
       id: 52,
+      version: 1,
       title: "Check your understanding",
       submitted: false,
       result: null,

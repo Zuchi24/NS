@@ -34,7 +34,7 @@ const { api } = await import("@/services/api");
 const { fetchTopicProgression } = await import("../progressionService");
 
 /** SHA-256 of the fixture with line endings normalised to LF. Update both repos together. */
-const CONTRACT_SHA256 = "1ccaacb3ac9af5be23032ce9f9d50fee42b393113757d9d85a52df4d287a20f4";
+const CONTRACT_SHA256 = "4695290abd2f77a9662d45474c38aa09a85dde1e7f67231b96b301811b74e078";
 
 interface Contract {
   version: string;
@@ -87,7 +87,7 @@ beforeEach(() => {
 describe("the shared progression contract", () => {
   it("holds the same contract bytes as the backend", async () => {
     expect(await sha256(contractText)).toBe(CONTRACT_SHA256);
-    expect(contract.version).toBe("1.0.0");
+    expect(contract.version).toBe("1.1.0");
     expect(contract.endpoint).toBe("GET /api/topics/{topic}/progression");
   });
 
@@ -112,11 +112,14 @@ describe("a topic part way through", () => {
       topicId: 1,
       preTest: {
         id: 1,
+        version: 1,
         title: "Before you start",
         submitted: true,
         waived: false,
         required: false,
         result: {
+          assessmentId: 1,
+          version: 1,
           earnedPoints: 2,
           totalPoints: 3,
           // 2 of 3 on the wire is 66.67, which is the case that proves the
@@ -136,6 +139,7 @@ describe("a topic part way through", () => {
       remainingCount: 2,
       postTest: {
         id: 2,
+        version: 1,
         title: "Check your understanding",
         available: false,
         submitted: false,
@@ -170,9 +174,12 @@ describe("a topic with a result on something no longer offered", () => {
     expect(pastResults).toEqual([
       {
         assessmentId: 4,
+        version: 1,
         type: "post_test",
         title: "Routing wrap-up",
         result: {
+          assessmentId: 4,
+          version: 1,
           earnedPoints: 1,
           totalPoints: 2,
           percent: 50,
@@ -185,6 +192,8 @@ describe("a topic with a result on something no longer offered", () => {
     // step, and the pre-test still offered with the result it was taken for.
     expect(postTest).toBeNull();
     expect(preTest?.result).toEqual({
+      assessmentId: 3,
+      version: 1,
       earnedPoints: 2,
       totalPoints: 2,
       // A whole percentage crosses as 100 rather than 100.0, which is why the
@@ -203,12 +212,40 @@ describe("a topic with a result on something no longer offered", () => {
   });
 });
 
+describe("a topic whose pre-test has a newer version than the one taken", () => {
+  it("offers the newer version and keeps the result on the one taken", async () => {
+    const { preTest, pastResults, subtopics } = await mapped("replaced");
+
+    expect(preTest).toEqual({
+      id: 6,
+      version: 2,
+      title: "Addressing check-in",
+      submitted: true,
+      waived: false,
+      required: false,
+      result: {
+        assessmentId: 5,
+        version: 1,
+        earnedPoints: 1,
+        totalPoints: 2,
+        percent: 50,
+        submittedAt: "2026-09-18T10:00:00.000000Z",
+      },
+    });
+
+    // Not sent back to take it: the subtopics are open, and the result is in
+    // the step rather than listed again as an earlier one.
+    expect(subtopics.map((subtopic) => subtopic.status)).toEqual(["available"]);
+    expect(pastResults).toEqual([]);
+  });
+});
+
 describe("a topic with nothing to pace", () => {
   it("reads absent assessments as null and absent sections as empty", async () => {
     // What most topics are, and the case a mapper reading a missing key as a
     // crash would take the page down on.
     expect(await mapped("bare")).toEqual<TopicProgression>({
-      topicId: 8,
+      topicId: 10,
       preTest: null,
       subtopics: [],
       nextSubtopicId: null,

@@ -57,6 +57,8 @@ export interface StudentAssessment {
   id: number;
   topicId: number;
   type: StudentAssessmentType;
+  /** Which version of the topic's pre-test or post-test this is. */
+  version: number;
   title: string;
   description: string | null;
   /** In the order the server returned them. */
@@ -89,6 +91,8 @@ export interface ReviewedAssessment {
   id: number;
   topicId: number;
   type: StudentAssessmentType;
+  /** The version the attempt was taken on — not necessarily the one offered now. */
+  version: number;
   title: string;
   description: string | null;
 }
@@ -186,6 +190,7 @@ interface ApiAssessment {
   id: number;
   topic_id: number;
   type: StudentAssessmentType;
+  version: number;
   title: string;
   description: string | null;
   questions?: ApiQuestion[];
@@ -236,6 +241,7 @@ function toAssessment(row: ApiAssessment): StudentAssessment {
     id: row.id,
     topicId: row.topic_id,
     type: row.type,
+    version: row.version,
     title: row.title,
     description: row.description,
     questions: (row.questions ?? []).map(toQuestion),
@@ -284,6 +290,7 @@ function toReview(row: ApiReview): AssessmentReview {
       id: row.assessment.id,
       topicId: row.assessment.topic_id,
       type: row.assessment.type,
+      version: row.assessment.version,
       title: row.assessment.title,
       description: row.assessment.description,
     },

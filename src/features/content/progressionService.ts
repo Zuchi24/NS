@@ -25,8 +25,17 @@ import type { SubtopicStatus } from "./types";
  */
 export type { SubtopicStatus };
 
-/** A submitted assessment's totals — nothing about which answers were right. */
+/**
+ * A submitted assessment's totals — nothing about which answers were right.
+ *
+ * With the version it was taken on. That is where its review is read from,
+ * and it can be older than the version the step offers now: a student who took
+ * version 1 keeps that result, and is not asked to take version 2.
+ */
 export interface ProgressionResult {
+  /** The version the student took — the id its review is read from. */
+  assessmentId: number;
+  version: number;
   earnedPoints: number;
   totalPoints: number;
   percent: number;
@@ -34,7 +43,9 @@ export interface ProgressionResult {
 }
 
 export interface ProgressionPreTest {
+  /** The version on offer now. */
   id: number;
+  version: number;
   title: string;
   submitted: boolean;
   /** Not asked of this student: they were already under way before it existed. */
@@ -52,7 +63,9 @@ export interface ProgressionSubtopic {
 }
 
 export interface ProgressionPostTest {
+  /** The version on offer now. */
   id: number;
+  version: number;
   title: string;
   available: boolean;
   submitted: boolean;
@@ -78,6 +91,7 @@ export interface ProgressionPostTest {
  */
 export interface ProgressionPastResult {
   assessmentId: number;
+  version: number;
   type: "pre_test" | "post_test";
   title: string;
   result: ProgressionResult;
@@ -99,6 +113,8 @@ export interface TopicProgression {
 }
 
 interface ApiResult {
+  assessment_id: number;
+  version: number;
   earned_points: number;
   total_points: number;
   percent: number | string;
@@ -109,6 +125,7 @@ interface ApiProgression {
   topic_id: number;
   pre_test: {
     id: number;
+    version: number;
     title: string;
     submitted: boolean;
     waived: boolean;
@@ -122,14 +139,16 @@ interface ApiProgression {
   remaining_count: number;
   post_test: {
     id: number;
+    version: number;
     title: string;
     available: boolean;
     submitted: boolean;
     locked_reason: string | null;
     result: ApiResult | null;
   } | null;
-  past_results?: (ApiResult & {
+  past_results?: (Omit<ApiResult, "assessment_id" | "version"> & {
     assessment_id: number;
+    version: number;
     type: "pre_test" | "post_test";
     title: string;
   })[];
@@ -139,6 +158,8 @@ function toResult(row: ApiResult | null): ProgressionResult | null {
   return row === null
     ? null
     : {
+        assessmentId: row.assessment_id,
+        version: row.version,
         earnedPoints: row.earned_points,
         totalPoints: row.total_points,
         percent: Number(row.percent),
@@ -154,6 +175,7 @@ function toProgression(row: ApiProgression): TopicProgression {
         ? null
         : {
             id: row.pre_test.id,
+            version: row.pre_test.version,
             title: row.pre_test.title,
             submitted: row.pre_test.submitted,
             waived: row.pre_test.waived,
@@ -175,6 +197,7 @@ function toProgression(row: ApiProgression): TopicProgression {
         ? null
         : {
             id: row.post_test.id,
+            version: row.post_test.version,
             title: row.post_test.title,
             available: row.post_test.available,
             submitted: row.post_test.submitted,
@@ -186,9 +209,12 @@ function toProgression(row: ApiProgression): TopicProgression {
     // review is the only reply that carries that, and it is its own request.
     pastResults: (row.past_results ?? []).map((past) => ({
       assessmentId: past.assessment_id,
+      version: past.version,
       type: past.type,
       title: past.title,
       result: {
+        assessmentId: past.assessment_id,
+        version: past.version,
         earnedPoints: past.earned_points,
         totalPoints: past.total_points,
         percent: Number(past.percent),

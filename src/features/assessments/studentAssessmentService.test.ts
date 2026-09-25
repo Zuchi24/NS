@@ -76,6 +76,7 @@ function apiReview(over: Record<string, unknown> = {}) {
     assessment: {
       id: 11,
       topic_id: 4,
+      version: 1,
       type: "pre_test",
       title: "Networking Fundamentals",
       description: "What you already know about cabling.",
@@ -124,6 +125,7 @@ describe("reading an assessment", () => {
       data: {
         id: 11,
         topic_id: 4,
+        version: 1,
         type: "pre_test",
         title: "Networking Fundamentals",
         description: null,
@@ -143,6 +145,7 @@ describe("reading an assessment", () => {
       data: {
         id: 11,
         topic_id: 4,
+        version: 1,
         type: "post_test",
         title: "Networking Fundamentals",
         description: "Answer what you can.",
@@ -165,6 +168,7 @@ describe("reading an assessment", () => {
       id: 11,
       topicId: 4,
       type: "post_test",
+      version: 1,
       title: "Networking Fundamentals",
       description: "Answer what you can.",
       questions: [
@@ -188,6 +192,7 @@ describe("reading an assessment", () => {
       data: {
         id: 11,
         topic_id: 4,
+        version: 1,
         type: "pre_test",
         title: "Networking Fundamentals",
         description: null,
@@ -270,6 +275,7 @@ describe("reading the student's own review", () => {
         id: 11,
         topicId: 4,
         type: "pre_test",
+        version: 1,
         title: "Networking Fundamentals",
         description: "What you already know about cabling.",
       },
@@ -416,6 +422,7 @@ describe("reading the student's own review", () => {
         assessment: {
           id: 11,
           topic_id: 4,
+          version: 1,
           type: "pre_test",
           title: "Networking Fundamentals",
           description: null,
@@ -446,6 +453,7 @@ describe("reading the student's own review", () => {
       "id",
       "topicId",
       "type",
+      "version",
       "title",
       "description",
     ]);
@@ -479,6 +487,7 @@ describe("a question's timer", () => {
       data: {
         id: 11,
         topic_id: 4,
+        version: 1,
         type: "pre_test",
         title: "Networking Fundamentals",
         description: null,

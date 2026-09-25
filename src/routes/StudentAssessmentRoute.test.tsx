@@ -94,6 +94,7 @@ beforeEach(() => {
     id: 11,
     topicId: 4,
     type: "pre_test",
+    version: 1,
     title: "Networking Fundamentals",
     description: null,
     questions: [],

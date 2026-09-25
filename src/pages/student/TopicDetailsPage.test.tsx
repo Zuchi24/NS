@@ -324,6 +324,7 @@ describe("the student's way through the topic", () => {
   function preTest(over: Partial<ProgressionPreTest> = {}): ProgressionPreTest {
     return {
       id: 51,
+      version: 1,
       title: "Before you start",
       submitted: false,
       waived: false,
@@ -336,6 +337,7 @@ describe("the student's way through the topic", () => {
   function postTest(over: Partial<ProgressionPostTest> = {}): ProgressionPostTest {
     return {
       id: 52,
+      version: 1,
       title: "Check your understanding",
       available: false,
       submitted: false,
@@ -415,6 +417,72 @@ describe("the student's way through the topic", () => {
     expect(navigate).toHaveBeenCalledWith("/assessments/51");
   });
 
+  it("keeps a result on an older version, reviewed where it was taken", async () => {
+    const user = userEvent.setup();
+
+    await showWith(
+      paced({
+        preTest: preTest({
+          id: 60,
+          version: 2,
+          submitted: true,
+          required: false,
+          result: {
+            assessmentId: 51,
+            version: 1,
+            earnedPoints: 5,
+            totalPoints: 8,
+            percent: 62.5,
+            submittedAt: null,
+          },
+        }),
+      }),
+    );
+
+    const gate = within(await screen.findByRole("region", { name: "Pre-test" }));
+
+    // Not asked to take version 2: the result on version 1 stands, and says so.
+    expect(gate.getByText("Submitted on version 1 · 5 / 8 (62.5%)")).toBeInTheDocument();
+    expect(gate.queryByRole("button", { name: "Take the pre-test" })).not.toBeInTheDocument();
+
+    await user.click(gate.getByRole("button", { name: "View result" }));
+
+    expect(navigate).toHaveBeenCalledWith("/assessments/51");
+  });
+
+  it("reviews a replaced post-test result on the version taken", async () => {
+    const user = userEvent.setup();
+
+    await showWith(
+      paced({
+        completedCount: 3,
+        remainingCount: 0,
+        postTest: postTest({
+          id: 70,
+          version: 2,
+          submitted: true,
+          lockedReason: null,
+          result: {
+            assessmentId: 52,
+            version: 1,
+            earnedPoints: 7,
+            totalPoints: 10,
+            percent: 70,
+            submittedAt: null,
+          },
+        }),
+      }),
+    );
+
+    const post = within(await screen.findByRole("region", { name: "Post-test" }));
+
+    expect(post.getByText("Submitted on version 1 · 7 / 10 (70%)")).toBeInTheDocument();
+
+    await user.click(post.getByRole("button", { name: "View result" }));
+
+    expect(navigate).toHaveBeenCalledWith("/assessments/52");
+  });
+
   it("opens the first subtopic once the pre-test is submitted, whatever the score", async () => {
     const user = userEvent.setup();
 
@@ -423,7 +491,14 @@ describe("the student's way through the topic", () => {
         preTest: preTest({
           submitted: true,
           required: false,
-          result: { earnedPoints: 3, totalPoints: 10, percent: 30, submittedAt: null },
+          result: {
+            assessmentId: 51,
+            version: 1,
+            earnedPoints: 3,
+            totalPoints: 10,
+            percent: 30,
+            submittedAt: null,
+          },
         }),
       }),
     );
@@ -526,7 +601,14 @@ describe("the student's way through the topic", () => {
         postTest: postTest({
           submitted: true,
           lockedReason: null,
-          result: { earnedPoints: 7, totalPoints: 10, percent: 70, submittedAt: null },
+          result: {
+            assessmentId: 52,
+            version: 1,
+            earnedPoints: 7,
+            totalPoints: 10,
+            percent: 70,
+            submittedAt: null,
+          },
         }),
       }),
     );
@@ -584,9 +666,12 @@ describe("the student's way through the topic", () => {
   ): ProgressionPastResult {
     return {
       assessmentId: 51,
+      version: 1,
       type: "pre_test",
       title: "Before you start",
       result: {
+        assessmentId: 51,
+        version: 1,
         earnedPoints: 8,
         totalPoints: 10,
         percent: 80,
@@ -606,7 +691,8 @@ describe("the student's way through the topic", () => {
 
     expect(earlier.getByText("Before you start")).toBeInTheDocument();
     expect(earlier.getByText("Pre-test")).toBeInTheDocument();
-    expect(earlier.getByText(/Submitted · 8 \/ 10 \(80%\)/)).toBeInTheDocument();
+    // The version it was taken on, since there is no version on offer to be it.
+    expect(earlier.getByText(/Submitted on version 1 · 8 \/ 10 \(80%\)/)).toBeInTheDocument();
 
     await user.click(earlier.getByRole("button", { name: /Review your pre-test result/ }));
 
@@ -684,6 +770,8 @@ describe("the student's way through the topic", () => {
         available: false,
         lockedReason: null,
         result: {
+          assessmentId: 52,
+          version: 1,
           earnedPoints: 6,
           totalPoints: 10,
           percent: 60,

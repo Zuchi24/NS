@@ -167,13 +167,23 @@ function PastResults({
 
             <p className="text-sm text-gray-700 flex items-start gap-2">
               <History className="w-4 h-4 mt-0.5 shrink-0 text-gray-500" aria-hidden="true" />
-              Submitted · {formatResult(past.result)}
+              Submitted on version {past.version} · {formatResult(past.result)}
             </p>
           </li>
         ))}
       </ul>
     </section>
   );
+}
+
+/**
+ * Which version a result was taken on, said only when it is not the version the
+ * step offers now — a student who took version 1 before version 2 went live.
+ * Every other result is on the version in front of them, and saying so would
+ * be noise.
+ */
+function versionNote(result: ProgressionResult, offered: number): string {
+  return result.version === offered ? "" : ` on version ${result.version}`;
 }
 
 function StepHeading({ kind, title }: { kind: string; title: string }) {
@@ -210,7 +220,13 @@ function PreTestStep({
             Take the pre-test
           </Button>
         ) : (
-          <Button size="sm" variant="outline" onClick={() => onOpen(preTest.id)}>
+          // A result is reviewed on the version it was taken on, which may be
+          // older than the one on offer now.
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onOpen(preTest.result?.assessmentId ?? preTest.id)}
+          >
             {preTest.submitted ? "View result" : "Open pre-test"}
           </Button>
         )}
@@ -229,7 +245,9 @@ function PreTestStep({
             className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600"
             aria-hidden="true"
           />
-          {preTest.result ? `Submitted · ${formatResult(preTest.result)}` : "Submitted"}
+          {preTest.result
+            ? `Submitted${versionNote(preTest.result, preTest.version)} · ${formatResult(preTest.result)}`
+            : "Submitted"}
         </p>
       ) : preTest.waived ? (
         // Optional, not withheld: the server still lets this student take it,
@@ -326,7 +344,11 @@ function PostTestStep({
         <StepHeading kind="Post-test" title={postTest.title} />
 
         {postTest.submitted ? (
-          <Button size="sm" variant="outline" onClick={() => onOpen(postTest.id)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onOpen(postTest.result?.assessmentId ?? postTest.id)}
+          >
             View result
           </Button>
         ) : postTest.available ? (
@@ -342,7 +364,9 @@ function PostTestStep({
             className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600"
             aria-hidden="true"
           />
-          {postTest.result ? `Submitted · ${formatResult(postTest.result)}` : "Submitted"}
+          {postTest.result
+            ? `Submitted${versionNote(postTest.result, postTest.version)} · ${formatResult(postTest.result)}`
+            : "Submitted"}
         </p>
       ) : postTest.available ? (
         <p className="text-sm text-gray-700">
