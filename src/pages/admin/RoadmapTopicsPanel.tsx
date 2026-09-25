@@ -134,11 +134,10 @@ export function RoadmapTopicsPanel({
    * the same reason.
    *
    * Held apart from `expandedId` rather than folded into it because the two
-   * are read differently: a topic's branch is drawn whether or not its card is
-   * open, so a section can be opened without its parent being. They are still
-   * mutually exclusive, which is the point — an open node of either kind
-   * mounts a materials panel, and a panel is a fetch. One open node is one
-   * fetch, however the author got there.
+   * are read differently. A topic's branch is drawn only while its card is
+   * open, so a section is always opened from inside an open parent — and
+   * opening it leaves that parent open, rather than folding away the very
+   * branch the section sits on. Folding the parent closes the section with it.
    */
   const [expandedSubtopicId, setExpandedSubtopicId] = useState<number | null>(
     null,
@@ -152,7 +151,6 @@ export function RoadmapTopicsPanel({
   };
 
   const toggleSubtopic = (subtopicId: number) => {
-    setExpandedId(null);
     setExpandedSubtopicId((current) =>
       current === subtopicId ? null : subtopicId,
     );
@@ -247,9 +245,13 @@ export function RoadmapTopicsPanel({
                   position={index + 1}
                   busy={busy}
                   // An open form is never folded away out from under the author
-                  // mid-edit, whatever else is open.
+                  // mid-edit, whatever else is open — the topic's own, or one of
+                  // its sections', which is drawn inside the open card.
                   isExpanded={
-                    expandedId === topic.id || editingTopicId === topic.id
+                    expandedId === topic.id ||
+                    editingTopicId === topic.id ||
+                    (editing?.mode === "edit-subtopic" &&
+                      editing.parent.id === topic.id)
                   }
                   isEditing={editingTopicId === topic.id}
                   isFirst={index === 0}
@@ -305,10 +307,9 @@ export function RoadmapTopicsPanel({
             setEditing(null);
             // Onto the section that was just written, open, with its materials
             // panel already mounted — that is the next thing an author does to
-            // a section, and the dialog says so. The parent's branch is drawn
-            // whether or not its card is open, so the new row is on screen
-            // without opening the card around it.
-            setExpandedId(null);
+            // a section, and the dialog says so. The branch is drawn only
+            // inside an open card, so the parent is opened around it.
+            setExpandedId(saved.parentId);
             setExpandedSubtopicId(saved.id);
             onChanged();
           }}
@@ -536,28 +537,25 @@ function TopicCard({
         )}
       </div>
 
-      {/* The sections inside this topic, drawn whether or not the card is
-          open. Everything else on a folded card is one line on purpose, and
-          this is the deliberate exception: the hierarchy is the thing an
-          author is reading the list to understand, and a tree that only
-          appears once you open a topic is not a tree you can scan. Two or
-          three short rows per topic is what it costs.
-
-          A section can therefore be opened onto its materials without opening
-          the topic around it — which is why the two expansions are mutually
-          exclusive rather than nested. */}
-      <SubtopicTree
-        parent={topic}
-        parentPosition={position}
-        busy={busy}
-        editingSubtopicId={editingSubtopicId}
-        onEditSubtopic={onEditSubtopic}
-        onCloseSubtopicForm={onCloseSubtopicForm}
-        expandedSubtopicId={expandedSubtopicId}
-        onToggleSubtopic={onToggleSubtopic}
-        onChanged={onChanged}
-        onAddSubtopic={onAddSubtopic}
-      />
+      {/* The sections inside this topic, drawn only while the card is open,
+          like everything else on it: a folded card is one line, so a long
+          roadmap reads as its topics alone. A section is therefore always
+          opened from inside an open card, and opening it keeps that card open
+          (see toggleSubtopic). */}
+      {isExpanded && (
+        <SubtopicTree
+          parent={topic}
+          parentPosition={position}
+          busy={busy}
+          editingSubtopicId={editingSubtopicId}
+          onEditSubtopic={onEditSubtopic}
+          onCloseSubtopicForm={onCloseSubtopicForm}
+          expandedSubtopicId={expandedSubtopicId}
+          onToggleSubtopic={onToggleSubtopic}
+          onChanged={onChanged}
+          onAddSubtopic={onAddSubtopic}
+        />
+      )}
 
       {/* Rendered only while open, so a folded card costs nothing and the
           materials panel inside fetches for the topic being worked on rather

@@ -115,13 +115,20 @@ const withoutSections = topic({
 
 const onChanged = vi.fn();
 
-function renderWith(topics: Topic[]) {
+/**
+ * The panel, with `openTopicId`'s card open when given.
+ *
+ * A topic's sections are drawn only inside its open card, so a test about a
+ * section starts from its topic open — the way an author reaches it.
+ */
+function renderWith(topics: Topic[], openTopicId: number | null = null) {
   return render(
     <RoadmapTopicsPanel
       roadmapId={4}
       roadmapTitle="Networking Essentials"
       topics={topics}
       onChanged={onChanged}
+      initialExpandedTopicId={openTopicId}
     />,
   );
 }
@@ -138,8 +145,43 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("subtopics in the authoring tree", () => {
-  it("draws each section inside the topic holding it", () => {
+  it("draws no section of a folded topic", () => {
     renderWith([withSections, withoutSections]);
+
+    // A folded card is its topic's line and nothing under it: no sections, and
+    // — as before — no materials or assessments.
+    expect(screen.getByText("Networking Fundamentals")).toBeInTheDocument();
+    expect(screen.queryByText("OSI Model")).not.toBeInTheDocument();
+    expect(screen.queryByText("TCP/IP")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /learning materials for OSI Model/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("materials-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("assessments-panel")).not.toBeInTheDocument();
+  });
+
+  it("draws a topic's sections once its card is opened, and hides them when folded", async () => {
+    const user = userEvent.setup();
+
+    renderWith([withSections, withoutSections]);
+
+    await user.click(
+      screen.getByRole("button", { name: /expand Networking Fundamentals/i }),
+    );
+
+    const card = cardFor("Networking Fundamentals");
+    expect(within(card).getByText("OSI Model")).toBeInTheDocument();
+    expect(within(card).getByText("TCP/IP")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /collapse Networking Fundamentals/i }),
+    );
+
+    expect(screen.queryByText("OSI Model")).not.toBeInTheDocument();
+  });
+
+  it("draws each section inside the topic holding it", () => {
+    renderWith([withSections, withoutSections], withSections.id);
 
     const first = cardFor("Networking Fundamentals");
 
@@ -153,7 +195,7 @@ describe("subtopics in the authoring tree", () => {
   });
 
   it("numbers a section inside its parent rather than in the roadmap", () => {
-    renderWith([withSections, withoutSections]);
+    renderWith([withSections, withoutSections], withSections.id);
 
     // "1.1" and "1.2" — a section of topic 1, which can never be misread as
     // topic 2.
@@ -188,7 +230,7 @@ describe("subtopics in the authoring tree", () => {
           }),
         ],
       }),
-    ]);
+    ], 1);
 
     expect(
       screen.getByRole("button", {
@@ -394,7 +436,7 @@ describe("editing a subtopic", () => {
     const user = userEvent.setup();
     vi.mocked(service.updateTopic).mockResolvedValue(topic({ id: 101 }));
 
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
     await user.click(screen.getByRole("button", { name: /edit OSI Model/i }));
 
@@ -415,6 +457,21 @@ describe("editing a subtopic", () => {
       });
     });
   });
+
+  it("never folds a section's edit form away under the author", async () => {
+    const user = userEvent.setup();
+
+    renderWith([withSections], withSections.id);
+
+    await user.click(screen.getByRole("button", { name: /edit OSI Model/i }));
+    await user.click(
+      screen.getByRole("button", { name: /collapse Networking Fundamentals/i }),
+    );
+
+    // The form is drawn inside the card, so the card stays open around it,
+    // as it does around a topic's own edit form.
+    expect(screen.getByRole("form", { name: /edit subtopic/i })).toBeInTheDocument();
+  });
 });
 
 describe("deleting a subtopic", () => {
@@ -422,7 +479,7 @@ describe("deleting a subtopic", () => {
     const user = userEvent.setup();
     vi.mocked(service.deleteTopic).mockResolvedValue(undefined);
 
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
     await user.click(screen.getByRole("button", { name: /delete OSI Model/i }));
 
@@ -444,7 +501,7 @@ describe("reordering subtopics", () => {
     const user = userEvent.setup();
     vi.mocked(service.reorderSubtopics).mockResolvedValue([]);
 
-    renderWith([withSections, withoutSections]);
+    renderWith([withSections, withoutSections], withSections.id);
 
     await user.click(screen.getByRole("button", { name: /move TCP\/IP up/i }));
 
@@ -458,7 +515,7 @@ describe("reordering subtopics", () => {
   });
 
   it("cannot move the first section up or the last one down", () => {
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
     expect(
       screen.getByRole("button", { name: /move OSI Model up/i }),
@@ -506,6 +563,16 @@ function material(over: Partial<LearningMaterial> = {}): LearningMaterial {
   };
 }
 
+/**
+ * The materials panels mounted for sections — each hangs in its section's own
+ * wrapper. The open topic's own panel, drawn on its card, is not among them.
+ */
+function sectionPanels(): HTMLElement[] {
+  return screen
+    .queryAllByTestId("materials-panel")
+    .filter((panel) => panel.closest('[id^="subtopic-"]') !== null);
+}
+
 /** The named action that opens one section's materials. */
 function materialsButton(title: string): HTMLElement {
   return screen.getByRole("button", {
@@ -520,10 +587,10 @@ function materialsButton(title: string): HTMLElement {
  * a topic row, and its materials hang off it the same way. Two things matter
  * here and neither is cosmetic.
  *
- * The first is that the action is *visible*. An author must be able to see that
- * a section's materials are theirs to edit without clicking anything to find
- * out, so these look for a named button rather than a title that happens to
- * respond.
+ * The first is that the action is *visible*. An author who has opened a topic
+ * must be able to see that a section's materials are theirs to edit without
+ * clicking anything more to find out, so these look for a named button rather
+ * than a title that happens to respond.
  *
  * The second is *when* the panel is mounted: mounting is fetching, so a tree of
  * twenty sections that mounted every panel would be twenty requests for a page
@@ -531,9 +598,9 @@ function materialsButton(title: string): HTMLElement {
  */
 describe("a section's learning materials", () => {
   it("offers every section a materials action, named and visible", () => {
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
-    // Both of them, on a folded card, before anything has been clicked.
+    // Both of them, on the open card, before anything else has been clicked.
     expect(materialsButton("OSI Model")).toBeInTheDocument();
     expect(materialsButton("TCP/IP")).toBeInTheDocument();
   });
@@ -547,81 +614,70 @@ describe("a section's learning materials", () => {
   it("opens a section onto its own materials, by its own id", async () => {
     const user = userEvent.setup();
 
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
     await user.click(materialsButton("OSI Model"));
 
     // 101, the section — not 1, the topic holding it. The parent's id here
     // would fill the section's panel with the topic's materials, and write new
     // ones onto the topic.
-    expect(screen.getByTestId("materials-panel")).toHaveTextContent(
-      "Materials for 101",
-    );
+    expect(sectionPanels()).toHaveLength(1);
+    expect(sectionPanels()[0]).toHaveTextContent("Materials for 101");
   });
 
   it("gives each section its own materials, independently", async () => {
     const user = userEvent.setup();
 
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
     await user.click(materialsButton("OSI Model"));
-    expect(screen.getByTestId("materials-panel")).toHaveTextContent(
-      "Materials for 101",
-    );
+    expect(sectionPanels()[0]).toHaveTextContent("Materials for 101");
 
     await user.click(materialsButton("TCP/IP"));
-    expect(screen.getByTestId("materials-panel")).toHaveTextContent(
-      "Materials for 102",
-    );
+    expect(sectionPanels()[0]).toHaveTextContent("Materials for 102");
   });
 
   it("draws the panel inside the topic holding the section", async () => {
     const user = userEvent.setup();
 
-    renderWith([withSections, withoutSections]);
+    renderWith([withSections, withoutSections], withSections.id);
 
     await user.click(materialsButton("TCP/IP"));
 
     // Nested, not merely present: the panel has to be inside the branch of the
     // topic whose section was opened.
-    const parent = cardFor("Networking Fundamentals");
-    expect(within(parent).getByTestId("materials-panel")).toHaveTextContent(
-      "Materials for 102",
-    );
-
-    expect(cardFor("Routing")).not.toContainElement(
-      screen.getByTestId("materials-panel"),
-    );
+    const [panel] = sectionPanels();
+    expect(panel).toHaveTextContent("Materials for 102");
+    expect(cardFor("Networking Fundamentals")).toContainElement(panel);
+    expect(cardFor("Routing")).not.toContainElement(panel);
   });
 
   it("folds the panel away again, unmounted", async () => {
     const user = userEvent.setup();
 
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
     await user.click(materialsButton("OSI Model"));
     await user.click(materialsButton("OSI Model"));
 
     // Gone, not hidden. A panel left mounted goes on refetching behind a
     // section nobody is looking at.
-    expect(screen.queryByTestId("materials-panel")).not.toBeInTheDocument();
+    expect(sectionPanels()).toEqual([]);
   });
 
   it("keeps one section open at a time", async () => {
     const user = userEvent.setup();
 
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
     await user.click(materialsButton("OSI Model"));
     await user.click(materialsButton("TCP/IP"));
 
-    expect(screen.getAllByTestId("materials-panel")).toHaveLength(1);
-    expect(screen.getByTestId("materials-panel")).toHaveTextContent(
-      "Materials for 102",
-    );
+    expect(sectionPanels()).toHaveLength(1);
+    expect(sectionPanels()[0]).toHaveTextContent("Materials for 102");
   });
 
-  it("closes an open topic card when a section is opened", async () => {
+  it("keeps the topic card open when one of its sections is opened", async () => {
     const user = userEvent.setup();
 
     renderWith([withSections]);
@@ -635,44 +691,59 @@ describe("a section's learning materials", () => {
 
     await user.click(materialsButton("OSI Model"));
 
-    // A topic's panel and a section's panel are both fetches, so the rule that
-    // holds one card open holds across both kinds of node.
-    expect(screen.getAllByTestId("materials-panel")).toHaveLength(1);
-    expect(screen.getByTestId("materials-panel")).toHaveTextContent(
-      "Materials for 101",
-    );
+    // The section sits on the open card, so opening it must not fold that card
+    // — which would take the section, and its panel, away with it.
+    expect(
+      screen.getByRole("button", { name: /collapse Networking Fundamentals/i }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(within(cardFor("Networking Fundamentals")).getByText("OSI Model")).toBeInTheDocument();
+    expect(sectionPanels()).toHaveLength(1);
+    expect(sectionPanels()[0]).toHaveTextContent("Materials for 101");
+    // The topic's own materials stay where they were.
+    expect(
+      screen.getAllByTestId("materials-panel").map((panel) => panel.textContent),
+    ).toContain("Materials for 1");
   });
 
-  it("closes an open section when its topic card is opened", async () => {
+  it("closes an open section, and hides the sections, when its topic card is folded", async () => {
     const user = userEvent.setup();
 
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
     await user.click(materialsButton("OSI Model"));
+    await user.click(
+      screen.getByRole("button", { name: /collapse Networking Fundamentals/i }),
+    );
+
+    expect(screen.queryByTestId("materials-panel")).not.toBeInTheDocument();
+    expect(screen.queryByText("OSI Model")).not.toBeInTheDocument();
+
+    // Opened again, the card shows its sections shut rather than resuming one.
     await user.click(
       screen.getByRole("button", { name: /expand Networking Fundamentals/i }),
     );
 
-    // The root topic's own materials, still reached the way they always were.
-    expect(screen.getAllByTestId("materials-panel")).toHaveLength(1);
-    expect(screen.getByTestId("materials-panel")).toHaveTextContent(
-      "Materials for 1",
-    );
+    expect(within(cardFor("Networking Fundamentals")).getByText("OSI Model")).toBeInTheDocument();
+    expect(sectionPanels()).toEqual([]);
   });
 
   it("offers no assessments on an open section", async () => {
     const user = userEvent.setup();
 
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
     await user.click(materialsButton("OSI Model"));
 
     // A section's materials, and nothing else: a section cannot own a pre-test
-    // or a post-test, so neither is offered on it.
-    expect(screen.getByTestId("materials-panel")).toHaveTextContent(
-      "Materials for 101",
-    );
-    expect(screen.queryByTestId("assessments-panel")).not.toBeInTheDocument();
+    // or a post-test, so neither is offered on it. The only assessments on
+    // screen are the open topic's own.
+    const [panel] = sectionPanels();
+    expect(panel).toHaveTextContent("Materials for 101");
+    expect(
+      panel.closest('[id^="subtopic-"]')?.querySelector('[data-testid="assessments-panel"]'),
+    ).toBeNull();
+    expect(screen.getAllByTestId("assessments-panel")).toHaveLength(1);
+    expect(screen.getByTestId("assessments-panel")).toHaveTextContent("Assessments for 1");
   });
 
   it("keeps the assessments on the topic holding the sections", async () => {
@@ -690,8 +761,16 @@ describe("a section's learning materials", () => {
       within(cardFor("Networking Fundamentals")).getByTestId("assessments-panel"),
     ).toHaveTextContent("Assessments for 1");
 
-    // Opening a section folds the topic, and its assessments go with it.
+    // Opening a section leaves the topic open, and its assessments with it.
     await user.click(materialsButton("OSI Model"));
+
+    expect(screen.getAllByTestId("assessments-panel")).toHaveLength(1);
+    expect(screen.getByTestId("assessments-panel")).toHaveTextContent("Assessments for 1");
+
+    // Folding the topic takes them away, as it always did.
+    await user.click(
+      screen.getByRole("button", { name: /collapse Networking Fundamentals/i }),
+    );
 
     expect(screen.queryByTestId("assessments-panel")).not.toBeInTheDocument();
   });
@@ -710,7 +789,7 @@ describe("a section's learning materials", () => {
           subtopic({ id: 102, title: "TCP/IP", order: 1, materials: [] }),
         ],
       }),
-    ]);
+    ], 1);
 
     // Shut, this is the only word on whether a section holds anything.
     expect(materialsButton("OSI Model")).toHaveTextContent("2");
@@ -725,7 +804,7 @@ describe("a section's learning materials", () => {
   it("says which way the section is about to go", async () => {
     const user = userEvent.setup();
 
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
     const toggle = materialsButton("OSI Model");
     expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -743,7 +822,7 @@ describe("a section's learning materials", () => {
     vi.mocked(service.reorderSubtopics).mockResolvedValue([]);
     vi.mocked(service.deleteTopic).mockResolvedValue(undefined);
 
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
     await user.click(materialsButton("TCP/IP"));
 
@@ -765,7 +844,7 @@ describe("a section's learning materials", () => {
     const user = userEvent.setup();
     vi.mocked(service.deleteTopic).mockResolvedValue(undefined);
 
-    renderWith([withSections]);
+    renderWith([withSections], withSections.id);
 
     await user.click(materialsButton("OSI Model"));
     await user.click(screen.getByRole("button", { name: /delete OSI Model/i }));
@@ -777,7 +856,7 @@ describe("a section's learning materials", () => {
 
     // Left open, the id would be handed to whatever row the server returns
     // under it next.
-    expect(screen.queryByTestId("materials-panel")).not.toBeInTheDocument();
+    expect(sectionPanels()).toEqual([]);
   });
 
   it("leaves the root topic's own materials where they were", async () => {
@@ -817,7 +896,8 @@ describe("a section's learning materials", () => {
     await waitFor(() => expect(service.createSubtopic).toHaveBeenCalled());
 
     // The page reloads the roadmap after a write, and the new section arrives
-    // with it — standing open, ready for the first material.
+    // with it — standing open inside its open topic, ready for the first
+    // material.
     rerender(
       <RoadmapTopicsPanel
         roadmapId={4}
@@ -837,10 +917,10 @@ describe("a section's learning materials", () => {
       />,
     );
 
-    await waitFor(() =>
-      expect(screen.getByTestId("materials-panel")).toHaveTextContent(
-        "Materials for 103",
-      ),
-    );
+    await waitFor(() => expect(sectionPanels()).toHaveLength(1));
+    expect(sectionPanels()[0]).toHaveTextContent("Materials for 103");
+    expect(
+      screen.getByRole("button", { name: /collapse Networking Fundamentals/i }),
+    ).toHaveAttribute("aria-expanded", "true");
   });
 });
