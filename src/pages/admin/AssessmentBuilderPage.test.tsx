@@ -1162,6 +1162,30 @@ describe("going back", () => {
     expect(navigate).toHaveBeenCalledWith("/admin/roadmap?roadmap=3&topic=7");
   });
 
+  it.each([
+    ["pre-test", "/admin/archive/tests/pre-test"],
+    ["post-test", "/admin/archive/tests/post-test"],
+  ])("returns to the %s archive it was opened from", async (slug, destination) => {
+    const user = userEvent.setup();
+    search = `from=archive&type=${slug}`;
+    await show();
+
+    await user.click(screen.getByRole("button", { name: "Back to archive" }));
+
+    expect(navigate).toHaveBeenCalledWith(destination);
+    expect(screen.queryByRole("button", { name: "Back to roadmap" })).not.toBeInTheDocument();
+  });
+
+  it("returns to the roadmap when the archive context names no archive", async () => {
+    const user = userEvent.setup();
+    search = "from=archive&type=quiz";
+    await show();
+
+    await user.click(screen.getByRole("button", { name: "Back to roadmap" }));
+
+    expect(navigate).toHaveBeenCalledWith("/admin/roadmap");
+  });
+
   it("returns to the plain roadmap page when the address carries nothing usable", async () => {
     const user = userEvent.setup();
     search = "roadmap=abc&topic=0";

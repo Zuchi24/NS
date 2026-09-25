@@ -12,6 +12,10 @@ export function AdminLayout() {
   const getPageTitle = () => {
     const path = location.pathname;
 
+    // The archive is named by the type it lists; the bare archive redirects to
+    // the pre-tests, so that is its title too.
+    if (path.startsWith('/admin/archive/tests/post-test')) return 'Archive · Post-Tests';
+    if (path.startsWith('/admin/archive')) return 'Archive · Pre-Tests';
     if (path.includes('/admin/achievements')) return 'Achievements';
     if (path.includes('/admin/roadmap')) return 'Roadmap Content';
     if (path.includes('/admin/analytics')) return 'Analytics & Insights';

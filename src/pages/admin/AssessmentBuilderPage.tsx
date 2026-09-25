@@ -56,10 +56,7 @@ import type {
   AssessmentQuestion,
   AssessmentQuestionDraft,
 } from "@/features/assessments/adminAssessmentService";
-import {
-  readRoadmapContext,
-  roadmapAdminPath,
-} from "@/features/assessments/assessmentPaths";
+import { builderReturnOf } from "@/features/assessments/assessmentPaths";
 import { AssessmentResultsPanel } from "./AssessmentResultsPanel";
 
 /**
@@ -115,11 +112,11 @@ export function AssessmentBuilderPage() {
   const navigate = useNavigate();
   const id = parseAssessmentId(assessmentId);
 
-  // Back to where the author came from: the roadmap and topic the builder was
-  // opened from ride along in the address, and it is the plain roadmap page
-  // when they do not.
+  // Back to where the author came from: the archive it was opened from, or the
+  // roadmap and topic — which ride along in the address — and the plain
+  // roadmap page when neither does.
   const [searchParams] = useSearchParams();
-  const roadmapPath = roadmapAdminPath(readRoadmapContext(searchParams));
+  const back = builderReturnOf(searchParams);
 
   // An address with no usable id is not worth a request: it can only 404.
   const load = useCallback(
@@ -167,9 +164,9 @@ export function AssessmentBuilderPage() {
       } else {
         await deleteAssessment(assessment.id);
         toast.success(`Deleted “${assessment.title}”.`);
-        // Back to the roadmap and topic it was opened from, where its slot now
-        // offers to create it again.
-        navigate(roadmapPath);
+        // Back to where it was opened from: the roadmap and topic, where its
+        // slot now offers to create it again, or the archive.
+        navigate(back.path);
       }
     } catch (e) {
       // The server's own words: it names what is incomplete, or that the
@@ -242,9 +239,9 @@ export function AssessmentBuilderPage() {
       {/* Above every state, so the way out is there whether the assessment
           loaded, failed, or is still on its way. */}
       <div>
-        <Button variant="ghost" size="sm" onClick={() => navigate(roadmapPath)}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(back.path)}>
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to roadmap
+          {back.label}
         </Button>
       </div>
 

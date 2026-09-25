@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { Navigate, createBrowserRouter } from "react-router";
 import type { RouteObject } from "react-router";
 
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -27,6 +27,17 @@ import { StudentLayout } from "@/layouts/StudentLayout";
  */
 
 /** Stable module-level identity — an inline arrow here would remount on every render. */
+/**
+ * A route that only sends the visitor on, replacing itself in history. Lazy
+ * like every page, though it imports nothing: the route table keeps every
+ * addressable route behind `lazy`, and a redirect is no exception.
+ */
+const redirectTo = (to: string) => async () => ({
+  Component: function Redirect() {
+    return <Navigate to={to} replace />;
+  },
+});
+
 const AdminOnly = () => <RoleRoute allow={["admin"]} />;
 
 /** The same, for the pages only a student has any use for. */
@@ -247,6 +258,18 @@ export const routes: RouteObject[] = [
             path: "achievements",
             lazy: async () => ({
               Component: (await import("@/pages/admin/AchievementAdminPage")).AchievementAdminPage,
+            }),
+          },
+          // Archived assessment versions, a type at a time. The bare archive
+          // and its Test group open onto the pre-tests; an unknown type is the
+          // page's own "No such archive", as an unknown assessment id is the
+          // builder's.
+          { path: "archive", lazy: redirectTo("/admin/archive/tests/pre-test") },
+          { path: "archive/tests", lazy: redirectTo("/admin/archive/tests/pre-test") },
+          {
+            path: "archive/tests/:type",
+            lazy: async () => ({
+              Component: (await import("@/pages/admin/AssessmentArchivePage")).AssessmentArchivePage,
             }),
           },
           {

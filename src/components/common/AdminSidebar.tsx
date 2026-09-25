@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
   LayoutDashboard,
@@ -11,12 +11,15 @@ import {
   Map,
   BarChart3,
   Award,
+  Archive,
+  ClipboardList,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/components/ui/utils';
 import { fetchCohorts } from '@/features/admin/adminService';
 import { useAuth } from '@/features/auth/useAuth';
 import { useAsync } from '@/services/useAsync';
+import { ARCHIVE_ADMIN_PATH, archiveAdminPath } from '@/features/assessments/assessmentPaths';
 
 /**
  * Where the sidebar can send an admin, exported so a test can hold these
@@ -35,6 +38,15 @@ export const ADMIN_NAV_ITEMS = [
   { name: 'Achievements', icon: Award, path: '/admin/achievements' },
 ];
 
+/**
+ * The Archive group's destinations: archived assessment versions, a type at a
+ * time, under Archive › Test. Exported for the same reason as the list above.
+ */
+export const ADMIN_ARCHIVE_ITEMS = [
+  { name: 'Pre-Test', path: archiveAdminPath('pre_test') },
+  { name: 'Post-Test', path: archiveAdminPath('post_test') },
+];
+
 export function AdminSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,6 +60,15 @@ export function AdminSidebar() {
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
 
   const isActive = (path: string) => location.pathname.startsWith(path);
+
+  // Open while anywhere inside it, however the admin got there — a link, the
+  // builder's Back, or a typed address — and otherwise as they left it.
+  const inArchive = isActive(ARCHIVE_ADMIN_PATH);
+  const [isArchiveExpanded, setIsArchiveExpanded] = useState(inArchive);
+
+  useEffect(() => {
+    if (inArchive) setIsArchiveExpanded(true);
+  }, [inArchive]);
 
   const handleYearClick = (yearId: number) => {
     setExpandedYear(expandedYear === yearId ? null : yearId);
@@ -87,6 +108,55 @@ export function AdminSidebar() {
               {item.name}
             </button>
           ))}
+
+          {/* Archive: archived assessment versions, under Test by type. */}
+          <div>
+            <button
+              onClick={() => {
+                setIsArchiveExpanded(!isArchiveExpanded);
+                if (!isArchiveExpanded) navigate(ADMIN_ARCHIVE_ITEMS[0].path);
+              }}
+              aria-expanded={isArchiveExpanded}
+              className={cn(
+                'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                inArchive
+                  ? 'bg-blue-50 text-blue-600'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <Archive size={18} />
+                <span>Archive</span>
+              </div>
+              {isArchiveExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
+
+            {isArchiveExpanded && (
+              <div className="mt-1 ml-4 border-l border-gray-100 pl-2 space-y-1">
+                <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-500">
+                  <ClipboardList size={14} />
+                  Test
+                </div>
+                <div className="ml-4 border-l border-gray-100 pl-2 space-y-1">
+                  {ADMIN_ARCHIVE_ITEMS.map((item) => (
+                    <button
+                      key={item.path}
+                      onClick={() => navigate(item.path)}
+                      aria-current={location.pathname === item.path ? 'page' : undefined}
+                      className={cn(
+                        'w-full flex items-center px-3 py-1.5 rounded-md text-xs transition-colors',
+                        location.pathname === item.path
+                          ? 'text-blue-600 font-medium bg-blue-50/50'
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                      )}
+                    >
+                      {item.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Students hierarchical menu */}
           <div>

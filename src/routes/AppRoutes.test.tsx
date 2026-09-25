@@ -71,6 +71,11 @@ const EXPECTED_PATHS = [
   "/admin/roadmap",
   "/admin/roadmap/assessments/:assessmentId",
   "/admin/achievements",
+  // The archive: the bare address and its Test group redirect to the
+  // pre-tests; ":type" is pre-test or post-test.
+  "/admin/archive",
+  "/admin/archive/tests",
+  "/admin/archive/tests/:type",
   "/admin/profile",
 ];
 
