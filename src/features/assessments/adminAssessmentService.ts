@@ -1,4 +1,5 @@
 import { api } from "@/services/api";
+import type { Paginated } from "@/features/content/types";
 
 /**
  * Authoring a topic's pre-test and post-test.
@@ -587,8 +588,18 @@ export async function unpublishAssessment(
  * Refused with 409 once anyone has taken it, published or not — the attempts
  * are students' results. That version is unpublished or archived instead.
  */
-export async function deleteAssessment(assessmentId: number): Promise<void> {
-  await api.delete(`/admin/assessments/${assessmentId}`);
+export async function deleteAssessment(
+  assessmentId: number,
+  /**
+   * `expected: "archived"` asks the server to delete it only if it is still
+   * archived — for a caller acting on what it last saw in the archive. If
+   * another author restored it since, the answer is 409 and nothing goes.
+   */
+  { expected }: { expected?: "archived" } = {},
+): Promise<void> {
+  await api.delete(
+    `/admin/assessments/${assessmentId}${expected ? `?expected=${expected}` : ""}`,
+  );
 }
 
 /*
@@ -777,4 +788,119 @@ export function validateQuestionDraft(
   }
 
   return errors;
+}
+
+/*
+|--------------------------------------------------------------------------
+| The archive
+|--------------------------------------------------------------------------
+|
+| Archived versions of one type, across every topic. Read here; archived,
+| restored and deleted through the calls above — restoreAssessment, and
+| deleteAssessment with `expected: "archived"`.
+*/
+
+/**
+ * One archived version, as the archive lists it.
+ *
+ * Addressed by its own id: results belong to the exact version they were
+ * taken on, so nothing here is keyed by the slot.
+ */
+export interface ArchivedAssessment {
+  id: number;
+  type: AssessmentType;
+  version: number;
+  title: string;
+  archivedAt: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+  attemptsCount: number;
+  questionsCount: number;
+  topic: { id: number; title: string };
+  roadmap: { id: number; title: string };
+  /**
+   * The scheduled purge's own answer. `eligibleAt` is null for a version
+   * somebody has taken: it is kept for good. Eligible is not deleted — only
+   * the scheduled purge deletes, and only while the server runs it.
+   */
+  purge: { eligible: boolean; eligibleAt: string | null };
+}
+
+/** One page of the archive, and where it sits among the rest. */
+export interface ArchivedAssessmentPage {
+  items: ArchivedAssessment[];
+  page: number;
+  lastPage: number;
+  perPage: number;
+  total: number;
+}
+
+export interface ArchiveQuery {
+  type: AssessmentType;
+  topicId?: number;
+  /** true: taken by somebody; false: never taken; absent: both. */
+  taken?: boolean;
+  page?: number;
+  perPage?: number;
+}
+
+interface ApiArchivedAssessment {
+  id: number;
+  type: AssessmentType;
+  version: number;
+  title: string;
+  archived_at: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  attempts_count: number;
+  questions_count: number;
+  topic: { id: number; title: string };
+  roadmap: { id: number; title: string };
+  purge: { eligible: boolean; eligible_at: string | null };
+}
+
+function toArchived(row: ApiArchivedAssessment): ArchivedAssessment {
+  return {
+    id: row.id,
+    type: row.type,
+    version: row.version,
+    title: row.title,
+    archivedAt: row.archived_at,
+    createdAt: row.created_at ?? null,
+    updatedAt: row.updated_at ?? null,
+    attemptsCount: row.attempts_count,
+    questionsCount: row.questions_count,
+    topic: { id: row.topic.id, title: row.topic.title },
+    roadmap: { id: row.roadmap.id, title: row.roadmap.title },
+    purge: { eligible: row.purge.eligible, eligibleAt: row.purge.eligible_at },
+  };
+}
+
+/**
+ * One page of archived versions of `type`, most recently archived first.
+ *
+ * Only what was asked is sent: an absent filter means "all", and the server
+ * reads an absent `taken` that way too.
+ */
+export async function fetchArchivedAssessments(
+  query: ArchiveQuery,
+): Promise<ArchivedAssessmentPage> {
+  const params = new URLSearchParams({ type: query.type });
+
+  if (query.topicId !== undefined) params.set("topic_id", String(query.topicId));
+  if (query.taken !== undefined) params.set("taken", query.taken ? "true" : "false");
+  if (query.page !== undefined) params.set("page", String(query.page));
+  if (query.perPage !== undefined) params.set("per_page", String(query.perPage));
+
+  const { data, meta } = await api.get<Paginated<ApiArchivedAssessment>>(
+    `/admin/archive/assessments?${params.toString()}`,
+  );
+
+  return {
+    items: data.map(toArchived),
+    page: meta.current_page,
+    lastPage: meta.last_page,
+    perPage: meta.per_page,
+    total: meta.total,
+  };
 }

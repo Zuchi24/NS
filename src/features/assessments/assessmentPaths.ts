@@ -13,6 +13,8 @@
  * topic is simply not found, and the page falls back as it would with none.
  */
 
+import type { AssessmentType } from "./adminAssessmentService";
+
 export const ROADMAP_ADMIN_PATH = "/admin/roadmap";
 
 export interface RoadmapContext {
@@ -58,4 +60,68 @@ export function assessmentBuilderPath(
   context: Partial<RoadmapContext> = {},
 ): string {
   return `${ROADMAP_ADMIN_PATH}/assessments/${assessmentId}${contextQuery(context)}`;
+}
+
+/*
+|--------------------------------------------------------------------------
+| The archive
+|--------------------------------------------------------------------------
+|
+| Archived versions are listed a type at a time, at /admin/archive/tests/<slug>.
+| The builder opened from there carries `from=archive&type=<slug>`, so its Back
+| action returns to the same list rather than to the roadmap.
+*/
+
+export const ARCHIVE_ADMIN_PATH = "/admin/archive";
+
+/** How each type is spelled in an archive address. */
+export type ArchiveTypeSlug = "pre-test" | "post-test";
+
+const ARCHIVE_SLUGS: Record<AssessmentType, ArchiveTypeSlug> = {
+  pre_test: "pre-test",
+  post_test: "post-test",
+};
+
+/** The type an archive slug names, or null for anything else. */
+export function archiveTypeOfSlug(slug: string | null | undefined): AssessmentType | null {
+  return (
+    (Object.keys(ARCHIVE_SLUGS) as AssessmentType[]).find(
+      (type) => ARCHIVE_SLUGS[type] === slug,
+    ) ?? null
+  );
+}
+
+/** The archive of one type — the pre-tests when none is named. */
+export function archiveAdminPath(type: AssessmentType = "pre_test"): string {
+  return `${ARCHIVE_ADMIN_PATH}/tests/${ARCHIVE_SLUGS[type]}`;
+}
+
+/** The builder, opened from the archive of `type`, so Back returns there. */
+export function archivedAssessmentBuilderPath(
+  assessmentId: number,
+  type: AssessmentType,
+): string {
+  const query = new URLSearchParams({ from: "archive", type: ARCHIVE_SLUGS[type] });
+
+  return `${ROADMAP_ADMIN_PATH}/assessments/${assessmentId}?${query.toString()}`;
+}
+
+/** Where the builder's Back action goes, and what it is called. */
+export interface BuilderReturn {
+  path: string;
+  label: string;
+}
+
+/**
+ * Back from the builder: to the archive it was opened from, when the address
+ * says so with a type it recognises; to the roadmap — with whatever roadmap
+ * context rode along — otherwise. A half-written or hand-edited archive
+ * context falls back to the roadmap rather than to a page that is not there.
+ */
+export function builderReturnOf(params: URLSearchParams): BuilderReturn {
+  const archiveType = params.get("from") === "archive" ? archiveTypeOfSlug(params.get("type")) : null;
+
+  return archiveType !== null
+    ? { path: archiveAdminPath(archiveType), label: "Back to archive" }
+    : { path: roadmapAdminPath(readRoadmapContext(params)), label: "Back to roadmap" };
 }

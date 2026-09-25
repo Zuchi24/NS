@@ -13,6 +13,7 @@ import {
   archiveAssessment,
   createAssessmentVersion,
   detailsEditable,
+  fetchArchivedAssessments,
   fetchAssessmentResults,
   fetchAssessmentVersions,
   fetchTopicAssessments,
@@ -928,5 +929,110 @@ describe("versions", () => {
 
   it("names a version by its number", () => {
     expect(versionLabel({ version: 2 })).toBe("V2");
+  });
+});
+
+describe("the archive", () => {
+  function apiArchived(over: Record<string, unknown> = {}) {
+    return {
+      id: 13,
+      type: "pre_test",
+      version: 2,
+      title: "Before you start",
+      archived_at: "2026-09-20T10:00:00.000000Z",
+      created_at: "2026-09-01T10:00:00.000000Z",
+      updated_at: "2026-09-20T10:00:00.000000Z",
+      attempts_count: 0,
+      questions_count: 4,
+      topic: { id: 16, title: "Routing" },
+      roadmap: { id: 4, title: "Networking Essentials" },
+      purge: { eligible: false, eligible_at: "2026-10-20T10:00:00.000000Z" },
+      ...over,
+    };
+  }
+
+  function page(data: unknown[], meta: Record<string, number> = {}) {
+    return { data, meta: { current_page: 1, last_page: 1, per_page: 15, total: data.length, ...meta } };
+  }
+
+  it("asks for one type, sending only the filters given", async () => {
+    vi.mocked(api.get).mockResolvedValue(page([]));
+
+    await fetchArchivedAssessments({ type: "post_test" });
+
+    expect(api.get).toHaveBeenCalledWith("/admin/archive/assessments?type=post_test");
+  });
+
+  it("sends topic, taken and paging as the API names them", async () => {
+    vi.mocked(api.get).mockResolvedValue(page([]));
+
+    await fetchArchivedAssessments({ type: "pre_test", topicId: 16, taken: false, page: 2, perPage: 10 });
+    await fetchArchivedAssessments({ type: "pre_test", taken: true });
+
+    expect(api.get).toHaveBeenNthCalledWith(
+      1,
+      "/admin/archive/assessments?type=pre_test&topic_id=16&taken=false&page=2&per_page=10",
+    );
+    expect(api.get).toHaveBeenNthCalledWith(2, "/admin/archive/assessments?type=pre_test&taken=true");
+  });
+
+  it("maps a row to the exact version it is, and the page it is on", async () => {
+    vi.mocked(api.get).mockResolvedValue(
+      page([apiArchived()], { current_page: 2, last_page: 3, per_page: 1, total: 3 }),
+    );
+
+    expect(await fetchArchivedAssessments({ type: "pre_test", page: 2, perPage: 1 })).toEqual({
+      items: [
+        {
+          id: 13,
+          type: "pre_test",
+          version: 2,
+          title: "Before you start",
+          archivedAt: "2026-09-20T10:00:00.000000Z",
+          createdAt: "2026-09-01T10:00:00.000000Z",
+          updatedAt: "2026-09-20T10:00:00.000000Z",
+          attemptsCount: 0,
+          questionsCount: 4,
+          topic: { id: 16, title: "Routing" },
+          roadmap: { id: 4, title: "Networking Essentials" },
+          purge: { eligible: false, eligibleAt: "2026-10-20T10:00:00.000000Z" },
+        },
+      ],
+      page: 2,
+      lastPage: 3,
+      perPage: 1,
+      total: 3,
+    });
+  });
+
+  it("reads a taken version as kept for good", async () => {
+    vi.mocked(api.get).mockResolvedValue(
+      page([apiArchived({ attempts_count: 3, purge: { eligible: false, eligible_at: null } })]),
+    );
+
+    const [row] = (await fetchArchivedAssessments({ type: "pre_test" })).items;
+
+    expect(row.attemptsCount).toBe(3);
+    expect(row.purge).toEqual({ eligible: false, eligibleAt: null });
+  });
+
+  it("deletes only what is still archived when asked to", async () => {
+    vi.mocked(api.delete).mockResolvedValue(undefined);
+
+    await deleteAssessment(13, { expected: "archived" });
+    await deleteAssessment(14);
+
+    expect(api.delete).toHaveBeenNthCalledWith(1, "/admin/assessments/13?expected=archived");
+    // Every existing caller: the delete it always was.
+    expect(api.delete).toHaveBeenNthCalledWith(2, "/admin/assessments/14");
+  });
+
+  it("passes the server's refusal through when the version was restored meanwhile", async () => {
+    const { ApiError } = await import("@/services/api");
+    vi.mocked(api.delete).mockRejectedValue(
+      new ApiError('Version 2 of "Before you start" is no longer archived, so it was not deleted.', 409),
+    );
+
+    await expect(deleteAssessment(13, { expected: "archived" })).rejects.toMatchObject({ status: 409 });
   });
 });

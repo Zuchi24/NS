@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ARCHIVE_ADMIN_PATH,
+  archiveAdminPath,
+  archiveTypeOfSlug,
+  archivedAssessmentBuilderPath,
   assessmentBuilderPath,
+  builderReturnOf,
   readRoadmapContext,
   roadmapAdminPath,
 } from "./assessmentPaths";
@@ -66,5 +71,66 @@ describe("reading the context back", () => {
       roadmapId: null,
       topicId: null,
     });
+  });
+});
+
+describe("the archive addresses", () => {
+  it("names the archive of each type, pre-tests by default", () => {
+    expect(ARCHIVE_ADMIN_PATH).toBe("/admin/archive");
+    expect(archiveAdminPath("pre_test")).toBe("/admin/archive/tests/pre-test");
+    expect(archiveAdminPath("post_test")).toBe("/admin/archive/tests/post-test");
+    expect(archiveAdminPath()).toBe("/admin/archive/tests/pre-test");
+  });
+
+  it("reads a type back out of its slug, and nothing else", () => {
+    expect(archiveTypeOfSlug("pre-test")).toBe("pre_test");
+    expect(archiveTypeOfSlug("post-test")).toBe("post_test");
+    for (const slug of ["pre_test", "quiz", "", null, undefined]) {
+      expect(archiveTypeOfSlug(slug)).toBeNull();
+    }
+  });
+
+  it("opens the builder with the archive it came from", () => {
+    expect(archivedAssessmentBuilderPath(13, "pre_test")).toBe(
+      "/admin/roadmap/assessments/13?from=archive&type=pre-test",
+    );
+    expect(archivedAssessmentBuilderPath(14, "post_test")).toBe(
+      "/admin/roadmap/assessments/14?from=archive&type=post-test",
+    );
+  });
+});
+
+describe("where the builder goes back to", () => {
+  const back = (query: string) => builderReturnOf(new URLSearchParams(query));
+
+  it("returns to the archive of the type it was opened from", () => {
+    expect(back("from=archive&type=pre-test")).toEqual({
+      path: "/admin/archive/tests/pre-test",
+      label: "Back to archive",
+    });
+    expect(back("from=archive&type=post-test")).toEqual({
+      path: "/admin/archive/tests/post-test",
+      label: "Back to archive",
+    });
+  });
+
+  it("round-trips through the address the archive built", () => {
+    const address = archivedAssessmentBuilderPath(13, "post_test");
+
+    expect(back(address.split("?")[1]).path).toBe("/admin/archive/tests/post-test");
+  });
+
+  it("returns to the roadmap it was opened from, as before", () => {
+    expect(back("roadmap=3&topic=7")).toEqual({
+      path: "/admin/roadmap?roadmap=3&topic=7",
+      label: "Back to roadmap",
+    });
+    expect(back("")).toEqual({ path: "/admin/roadmap", label: "Back to roadmap" });
+  });
+
+  it("falls back to the roadmap on an archive context it cannot use", () => {
+    for (const query of ["from=archive", "from=archive&type=quiz", "type=pre-test", "from=elsewhere&type=pre-test"]) {
+      expect(back(query)).toEqual({ path: "/admin/roadmap", label: "Back to roadmap" });
+    }
   });
 });
