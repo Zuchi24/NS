@@ -10,12 +10,22 @@ import {
   ErrorState,
   LoadingState,
 } from "@/components/common/AsyncStates";
+import { useCallback, useState } from "react";
 import { CompletionChart } from "./CompletionChart";
 import { fetchOverview } from "@/features/admin/adminService";
+import { fetchAcademicYears } from "@/features/academic/academicService";
 import { useAsync } from "@/services/useAsync";
 
 export function Dashboard() {
-  const { data: overview, error, loading, reload } = useAsync(fetchOverview);
+  /*
+   * The academic year reported on: the current one until another is chosen.
+   * The current year is the platform as it stands; a past year is that
+   * year's cohort, counting work up to the end of that year.
+   */
+  const [yearId, setYearId] = useState<number | undefined>(undefined);
+  const load = useCallback(() => fetchOverview(yearId), [yearId]);
+  const { data: overview, error, loading, reload } = useAsync(load, [yearId]);
+  const { data: years } = useAsync(fetchAcademicYears);
 
   if (loading) return <LoadingState label="Loading dashboard…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
@@ -64,6 +74,32 @@ export function Dashboard() {
           Monitor student progress and platform statistics
         </p>
       </div>
+
+      {(years ?? []).length > 1 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <label htmlFor="dashboard-year" className="text-sm text-gray-700">
+            Academic year
+          </label>
+          <select
+            id="dashboard-year"
+            className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm"
+            value={overview.academicYear?.id ?? ""}
+            onChange={(event) => setYearId(Number(event.target.value))}
+          >
+            {(years ?? []).map((year) => (
+              <option key={year.id} value={year.id}>
+                {year.name} ({year.statusLabel})
+              </option>
+            ))}
+          </select>
+          {overview.academicYear && overview.academicYear.status !== "current" && (
+            <span className="text-xs text-gray-500">
+              {overview.academicYear.name}&apos;s cohort, grouped by where each
+              student ended that year, with work counted up to its end.
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Students in no section appear in no roster, no cohort head count and
           no year-level breakdown. Saying so is the difference between a figure

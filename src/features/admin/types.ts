@@ -19,6 +19,12 @@ export interface YearLevelCompletion {
 }
 
 export interface Overview {
+  /**
+   * The academic year these figures are for. The current year is the platform
+   * as it stands; any other year is that year's cohort, counting work up to
+   * the end of that year. Null only when there are no academic years at all.
+   */
+  academicYear: { id: number; name: string; status: "planned" | "current" | "closed" } | null;
   students: number;
   /**
    * Students belonging to no section.

@@ -32,6 +32,7 @@ interface ApiRate {
 }
 
 interface ApiOverview {
+  academic_year?: { id: number; name: string; status: "planned" | "current" | "closed" } | null;
   students: number;
   unassigned_students: number;
   topics: number;
@@ -191,10 +192,15 @@ function toChallengePerformance(
 }
 
 /** The dashboard's figures: platform totals and cohort completion. */
-export async function fetchOverview(): Promise<Overview> {
-  const { data } = await api.get<{ data: ApiOverview }>("/admin/overview");
+export async function fetchOverview(academicYearId?: number): Promise<Overview> {
+  const { data } = await api.get<{ data: ApiOverview }>(
+    academicYearId === undefined
+      ? "/admin/overview"
+      : `/admin/overview?academic_year_id=${academicYearId}`,
+  );
 
   return {
+    academicYear: data.academic_year ?? null,
     students: data.students,
     unassignedStudents: data.unassigned_students,
     topics: data.topics,

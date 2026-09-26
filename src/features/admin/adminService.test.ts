@@ -4,6 +4,7 @@ import {
   activateSection,
   deactivateSection,
   fetchCohorts,
+  fetchOverview,
   moveStudentToSection,
   resetStudentPassword,
 } from "./adminService";
@@ -210,5 +211,42 @@ describe("resetting a student's password", () => {
     const [, body] = vi.mocked(api.put).mock.calls[0];
     expect(Object.keys(body as object)).toEqual(["password", "password_confirmation"]);
     expect(message).toBe("Ana Reyes's password was reset.");
+  });
+});
+
+describe("the overview", () => {
+  const payload = {
+    data: {
+      academic_year: { id: 1, name: "2025–2026", status: "closed" },
+      students: 2,
+      unassigned_students: 0,
+      topics: 4,
+      challenges: 10,
+      sections: 1,
+      year_levels: 4,
+      active_students: 0,
+      active_within_days: 7,
+      challenge_completion: { count: 5, possible: 20, percent: 25 },
+      submissions: { total: 6, passed: 5, pass_rate: 83 },
+      year_levels_breakdown: [],
+    },
+  };
+
+  it("asks for the current year unless another is named", async () => {
+    vi.mocked(api.get).mockResolvedValue(payload);
+
+    await fetchOverview();
+    await fetchOverview(1);
+
+    expect(vi.mocked(api.get).mock.calls.map(([path]) => path)).toEqual([
+      "/admin/overview",
+      "/admin/overview?academic_year_id=1",
+    ]);
+  });
+
+  it("says which year the figures are for", async () => {
+    vi.mocked(api.get).mockResolvedValue(payload);
+
+    expect((await fetchOverview(1)).academicYear).toEqual({ id: 1, name: "2025–2026", status: "closed" });
   });
 });
