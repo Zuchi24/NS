@@ -138,3 +138,71 @@ describe("sections", () => {
     expect(api.put).toHaveBeenCalledWith("/admin/sections/30", { name: "BSIT 1A", capacity: 35 });
   });
 });
+
+describe("moving students into a year", () => {
+  it("asks for a preview from one year into another", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        from: { id: 2, name: "2026–2027" },
+        to: { id: 3, name: "2027–2028" },
+        rows: [
+          {
+            student: { id: 10, student_id: "S-10", full_name: "Ana Reyes" },
+            from: { section: { id: 1, name: "Section A" }, year_level: { id: 1, name: "1st Year", level_order: 1 } },
+            proposed: { section: { id: 31, name: "Section A" }, year_level: { id: 2, name: "2nd Year", level_order: 2 } },
+            reason: "promoted",
+          },
+        ],
+        sections: [
+          { section: { id: 31, name: "Section A" }, year_level: { id: 2, name: "2nd Year", level_order: 2 }, is_active: true },
+        ],
+      },
+    });
+
+    const preview = await service.fetchPromotionPreview(3, 2);
+
+    expect(api.get).toHaveBeenCalledWith("/admin/academic-years/3/promotions/preview?from_academic_year_id=2");
+    expect(preview.rows[0]).toEqual({
+      student: { id: 10, studentId: "S-10", fullName: "Ana Reyes" },
+      from: { section: { id: 1, name: "Section A" }, yearLevel: { id: 1, name: "1st Year", levelOrder: 1 } },
+      proposed: { section: { id: 31, name: "Section A" }, yearLevel: { id: 2, name: "2nd Year", levelOrder: 2 } },
+      reason: "promoted",
+    });
+    expect(preview.sections[0].isActive).toBe(true);
+  });
+
+  it("sends the reviewed list, with null for not placed, and reads the outcome", async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: {
+        dry_run: true,
+        academic_year: { id: 3, name: "2027–2028" },
+        created: [{ student_id: 10, section_id: 31 }],
+        skipped: [],
+        not_placed: [{ student_id: 11 }],
+      },
+    });
+
+    const outcome = await service.commitPromotion(
+      3,
+      [
+        { studentId: 10, sectionId: 31 },
+        { studentId: 11, sectionId: null },
+      ],
+      true,
+    );
+
+    expect(api.post).toHaveBeenCalledWith("/admin/academic-years/3/promotions", {
+      dry_run: true,
+      placements: [
+        { student_id: 10, section_id: 31 },
+        { student_id: 11, section_id: null },
+      ],
+    });
+    expect(outcome).toEqual({
+      dryRun: true,
+      created: [{ studentId: 10, sectionId: 31 }],
+      skipped: [],
+      notPlaced: [{ studentId: 11 }],
+    });
+  });
+});

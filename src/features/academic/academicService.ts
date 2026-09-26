@@ -5,6 +5,11 @@ import type {
   AcademicYearStatus,
   ManagedSection,
   ManagedYearLevel,
+  PromotionOutcome,
+  PromotionPlacement,
+  PromotionPreview,
+  PromotionReason,
+  PromotionSection,
   SectionDraft,
   YearLevelDraft,
 } from "./types";
@@ -217,4 +222,101 @@ export async function updateSection(
 /** Only a section nobody has been placed in, in a year still open. */
 export async function deleteSection(id: number): Promise<void> {
   await api.delete(`/admin/sections/${id}`);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Moving students into a year                                              */
+/* ------------------------------------------------------------------------ */
+
+interface ApiPromotionSection {
+  section: { id: number; name: string };
+  year_level: { id: number; name: string; level_order: number };
+}
+
+interface ApiPromotionPreview {
+  from: { id: number; name: string };
+  to: { id: number; name: string };
+  rows: {
+    student: { id: number; student_id: string | null; full_name: string };
+    from: ApiPromotionSection;
+    proposed: ApiPromotionSection | null;
+    reason: PromotionReason;
+  }[];
+  sections: (ApiPromotionSection & { is_active: boolean })[];
+}
+
+function toPromotionSection(section: ApiPromotionSection): PromotionSection {
+  return {
+    section: section.section,
+    yearLevel: {
+      id: section.year_level.id,
+      name: section.year_level.name,
+      levelOrder: section.year_level.level_order,
+    },
+  };
+}
+
+/**
+ * What moving `fromYearId`'s students into `toYearId` would look like. The
+ * server proposes; nothing is written.
+ */
+export async function fetchPromotionPreview(
+  toYearId: number,
+  fromYearId: number,
+): Promise<PromotionPreview> {
+  const { data } = await api.get<{ data: ApiPromotionPreview }>(
+    `/admin/academic-years/${toYearId}/promotions/preview?from_academic_year_id=${fromYearId}`,
+  );
+
+  return {
+    from: data.from,
+    to: data.to,
+    rows: data.rows.map((row) => ({
+      student: {
+        id: row.student.id,
+        studentId: row.student.student_id,
+        fullName: row.student.full_name,
+      },
+      from: toPromotionSection(row.from),
+      proposed: row.proposed ? toPromotionSection(row.proposed) : null,
+      reason: row.reason,
+    })),
+    sections: data.sections.map((section) => ({
+      ...toPromotionSection(section),
+      isActive: section.is_active,
+    })),
+  };
+}
+
+/**
+ * Places the reviewed list in `toYearId`, all of it or none of it — or, as a
+ * dry run, says what that would do without writing anything. Students already
+ * placed there are left as they are and reported as skipped.
+ */
+export async function commitPromotion(
+  toYearId: number,
+  placements: PromotionPlacement[],
+  dryRun: boolean,
+): Promise<PromotionOutcome> {
+  const { data } = await api.post<{
+    data: {
+      dry_run: boolean;
+      created: { student_id: number; section_id: number }[];
+      skipped: { student_id: number; section_id: number }[];
+      not_placed: { student_id: number }[];
+    };
+  }>(`/admin/academic-years/${toYearId}/promotions`, {
+    dry_run: dryRun,
+    placements: placements.map((placement) => ({
+      student_id: placement.studentId,
+      section_id: placement.sectionId,
+    })),
+  });
+
+  return {
+    dryRun: data.dry_run,
+    created: data.created.map((row) => ({ studentId: row.student_id, sectionId: row.section_id })),
+    skipped: data.skipped.map((row) => ({ studentId: row.student_id, sectionId: row.section_id })),
+    notPlaced: data.not_placed.map((row) => ({ studentId: row.student_id })),
+  };
 }

@@ -79,6 +79,7 @@ const EXPECTED_PATHS = [
   // The academic structure: the bare address redirects to the years.
   "/admin/academic",
   "/admin/academic/years",
+  "/admin/academic/years/:id/promotion",
   "/admin/academic/year-levels",
   "/admin/academic/sections",
   "/admin/profile",

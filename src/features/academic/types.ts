@@ -65,3 +65,56 @@ export interface SectionDraft {
   name: string;
   capacity: number | null;
 }
+
+/* ------------------------------------------------------------------------ */
+/* Moving students into a year                                              */
+/* ------------------------------------------------------------------------ */
+
+/** A section as the promotion preview describes it. */
+export interface PromotionSection {
+  section: { id: number; name: string };
+  yearLevel: { id: number; name: string; levelOrder: number };
+}
+
+/**
+ * Why the preview proposed what it did — or nothing.
+ *
+ * `promoted`: the same section name one year level up.
+ * `no_next_year_level`: the last year level; graduating or not continuing.
+ * `no_matching_section`: the new year has no such section; choose one.
+ * `already_placed`: placed in the new year already; left as they are.
+ */
+export type PromotionReason =
+  | "promoted"
+  | "no_next_year_level"
+  | "no_matching_section"
+  | "already_placed";
+
+export interface PromotionRow {
+  student: { id: number; studentId: string | null; fullName: string };
+  from: PromotionSection;
+  proposed: PromotionSection | null;
+  reason: PromotionReason;
+}
+
+export interface PromotionPreview {
+  from: { id: number; name: string };
+  to: { id: number; name: string };
+  rows: PromotionRow[];
+  /** Every section of the year being moved into, to choose from. */
+  sections: (PromotionSection & { isActive: boolean })[];
+}
+
+/** One student's placement in the year being moved into; null is none. */
+export interface PromotionPlacement {
+  studentId: number;
+  sectionId: number | null;
+}
+
+/** What a commit did — or, for a dry run, would do. */
+export interface PromotionOutcome {
+  dryRun: boolean;
+  created: { studentId: number; sectionId: number }[];
+  skipped: { studentId: number; sectionId: number }[];
+  notPlaced: { studentId: number }[];
+}

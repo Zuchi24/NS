@@ -282,6 +282,13 @@ export const routes: RouteObject[] = [
               Component: (await import("@/pages/admin/AcademicYearsPage")).AcademicYearsPage,
             }),
           },
+          // Moving students into a year, addressed by the year they go into.
+          {
+            path: "academic/years/:id/promotion",
+            lazy: async () => ({
+              Component: (await import("@/pages/admin/PromotionPage")).PromotionPage,
+            }),
+          },
           {
             path: "academic/year-levels",
             lazy: async () => ({
