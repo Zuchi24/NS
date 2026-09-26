@@ -48,7 +48,7 @@ function MoveSection({
   onMoved,
 }: {
   student: Student;
-  onMoved: () => void;
+  onMoved: (moved: Student) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState<string>("");
@@ -79,11 +79,11 @@ function MoveSection({
     setBusy(true);
 
     try {
-      await moveStudentToSection(student.id, Number(choice));
+      const moved = await moveStudentToSection(student.id, Number(choice));
       toast.success(`Moved ${student.fullName}.`);
       setOpen(false);
       setChoice("");
-      onMoved();
+      onMoved(moved.student);
     } catch (e) {
       // The server refuses a closed or missing section with a 422 whose message
       // says so; that is the one worth showing.
@@ -299,13 +299,38 @@ export function StudentDetail() {
   const percent = (count: number, of: number) =>
     of > 0 ? Math.round((count / of) * 100) : 0;
 
+  /*
+   * The roster this student belongs to, from where they are placed rather than
+   * from the address the page was opened at — which still names their old
+   * section after a move. A student in no section goes back the way they came.
+   */
+  const rosterPath = student.section
+    ? `/admin/students/${student.section.yearLevelId}/${student.section.id}`
+    : `/admin/students/${year}/${sectionId}`;
+
+  /*
+   * After a move the student lives under another section's address, so the
+   * page follows them there — replacing the old entry, which would otherwise
+   * be a way back to a roster they are no longer on — and redraws.
+   */
+  const followMove = (moved: Student) => {
+    if (moved.section) {
+      navigate(
+        `/admin/students/${moved.section.yearLevelId}/${moved.section.id}/${moved.id}`,
+        { replace: true },
+      );
+    }
+
+    reload();
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate(`/admin/students/${year}/${sectionId}`)}
+          onClick={() => navigate(rosterPath)}
           className="mb-3"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -351,7 +376,7 @@ export function StudentDetail() {
                   ? `${student.section.yearLevel} - ${student.section.name}`
                   : "Not placed in a section"}
               </p>
-              <MoveSection student={student} onMoved={reload} />
+              <MoveSection student={student} onMoved={followMove} />
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-600">

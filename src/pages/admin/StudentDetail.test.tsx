@@ -24,9 +24,11 @@ import { ApiError } from "@/services/api";
  * not be given the choice and then told no.
  */
 
+const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
+
 vi.mock("react-router", () => ({
   useParams: () => ({ year: "2", sectionId: "6", studentId: "3" }),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigate,
 }));
 
 vi.mock("@/features/admin/adminService", async (importOriginal) => {
@@ -55,7 +57,7 @@ const detail: Detail = {
     lastName: "Reyes",
     fullName: "Ana Reyes",
     email: "ana@example.test",
-    section: { id: 6, name: "Section A", yearLevel: "Grade 12" },
+    section: { id: 6, name: "Section A", yearLevel: "Grade 12", yearLevelId: 2 },
     summary: {
       challengesPassed: 1,
       challengesTotal: 2,
@@ -96,6 +98,7 @@ beforeEach(() => {
   vi.mocked(service.resetStudentPassword).mockReset();
   vi.mocked(toast.success).mockReset();
   vi.mocked(toast.error).mockReset();
+  navigate.mockReset();
 });
 
 afterEach(cleanup);
@@ -132,7 +135,12 @@ it("moves the student and says so", async () => {
     ...detail,
     student: {
       ...detail.student,
-      section: { id: 7, name: "Section B", yearLevel: "Grade 12" },
+      section: {
+        id: 7,
+        name: "Section B",
+        yearLevel: "Grade 12",
+        yearLevelId: 2,
+      },
     },
   });
 
@@ -302,4 +310,49 @@ it("sends one reset however quickly it is clicked", async () => {
   expect(service.resetStudentPassword).toHaveBeenCalledTimes(1);
   finish("done");
   await waitFor(() => expect(toast.success).toHaveBeenCalledWith("done"));
+});
+
+it("follows a moved student to their new section's address", async () => {
+  // Moved out of Grade 12 / Section A into Grade 11 / Section D.
+  vi.mocked(service.moveStudentToSection).mockResolvedValue({
+    ...detail,
+    student: {
+      ...detail.student,
+      section: { id: 9, name: "Section D", yearLevel: "Grade 11", yearLevelId: 1 },
+    },
+  });
+
+  render(<StudentDetail />);
+
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Move to another section" }),
+  );
+  await userEvent.selectOptions(
+    await screen.findByRole("combobox", { name: "Section" }),
+    "7",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Move" }));
+
+  await waitFor(() =>
+    expect(navigate).toHaveBeenCalledWith("/admin/students/1/9/3", {
+      replace: true,
+    }),
+  );
+});
+
+it("goes back to the roster the student is on, not the one in the address", async () => {
+  // Opened at /admin/students/2/6/3, but placed in Grade 11 / Section D.
+  vi.mocked(service.fetchStudent).mockResolvedValue({
+    ...detail,
+    student: {
+      ...detail.student,
+      section: { id: 9, name: "Section D", yearLevel: "Grade 11", yearLevelId: 1 },
+    },
+  });
+
+  render(<StudentDetail />);
+
+  await userEvent.click(await screen.findByRole("button", { name: "Back" }));
+
+  expect(navigate).toHaveBeenCalledWith("/admin/students/1/9");
 });

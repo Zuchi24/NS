@@ -143,6 +143,7 @@ function toStudent(student: ApiStudent): Student {
           id: student.section.id,
           name: student.section.name,
           yearLevel: student.section.year_level.name,
+          yearLevelId: student.section.year_level.id,
         }
       : null,
     summary: {

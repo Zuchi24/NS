@@ -177,6 +177,7 @@ describe("moving a student", () => {
       id: 7,
       name: "Section B",
       yearLevel: "Grade 12",
+      yearLevelId: 2,
     });
     // Their work comes back with them, so the page redraws from the answer
     // rather than assuming the move changed nothing else.

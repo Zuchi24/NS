@@ -127,7 +127,17 @@ export interface Student {
   lastName: string;
   fullName: string;
   email: string;
-  section: { id: number; name: string; yearLevel: string } | null;
+  /**
+   * Where the student is placed this academic year. The year level's id comes
+   * along so a page can address the section it belongs to — the admin routes
+   * are `/admin/students/:year/:sectionId`.
+   */
+  section: {
+    id: number;
+    name: string;
+    yearLevel: string;
+    yearLevelId: number;
+  } | null;
   summary: StudentSummary;
 }
 
