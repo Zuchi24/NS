@@ -112,12 +112,16 @@ export function Dashboard() {
               <p className="font-semibold text-amber-900">
                 {overview.unassignedStudents} student
                 {overview.unassignedStudents === 1 ? " is" : "s are"} not
-                assigned to a section
+                placed in a section
+                {overview.academicYear ? ` for ${overview.academicYear.name}` : ""}
               </p>
               <p className="text-amber-800 mt-1">
                 They are counted in the total above, but they appear in no
-                section roster and in no year-level figure below. Signing up now
-                requires a section, so these are accounts created before that.
+                section roster and in no year-level figure below. They are
+                accounts from before sign-up required a section, or students not
+                moved into this academic year — graduated, not continuing, or
+                not placed yet. Place them from their student page, or move them
+                in from Academic Structure.
               </p>
             </div>
           </CardContent>

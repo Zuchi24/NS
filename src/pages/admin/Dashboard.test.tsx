@@ -75,3 +75,15 @@ it("asks the server for a past year and says what its figures count", async () =
   expect(await screen.findByText("40")).toBeTruthy();
   expect(screen.getByText(/2025–2026's cohort, grouped by where each/)).toBeTruthy();
 });
+
+it("says which year the unplaced students are unplaced for, without claiming why", async () => {
+  vi.mocked(admin.fetchOverview).mockResolvedValue({
+    ...overview({ id: 3, name: "2027–2028", status: "current" }, 87),
+    unassignedStudents: 23,
+  });
+
+  render(<Dashboard />);
+
+  expect(await screen.findByText(/23 students are not placed in a section for 2027–2028/)).toBeTruthy();
+  expect(screen.getByText(/graduated, not continuing, or not placed yet/)).toBeTruthy();
+});

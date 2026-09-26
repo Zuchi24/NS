@@ -32,8 +32,10 @@ export interface Overview {
    * Reported rather than filtered out. Every other figure on this page is
    * organised by section, so these students appear in no roster, no cohort
    * head count and no year-level breakdown — and the dashboard has to say so,
-   * or `students` and the cohort counts silently disagree. Registration now
-   * requires a section, so this only ever holds accounts made before that.
+   * or `students` and the cohort counts silently disagree. These are accounts
+   * from before registration required a section, and students not placed in
+   * the current academic year — graduated, not continuing, or not yet moved
+   * in. Always 0 for a past year, whose figures are its placed cohort.
    */
   unassignedStudents: number;
   topics: number;
