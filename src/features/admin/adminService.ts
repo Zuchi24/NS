@@ -2,6 +2,7 @@ import { api } from "@/services/api";
 import type {
   Analytics,
   ChallengePerformance,
+  EnrollmentHistoryRow,
   Overview,
   Rate,
   SectionState,
@@ -124,6 +125,20 @@ interface ApiSubmission {
   passed: boolean;
   requirements: { requirement: string; passed: boolean }[] | null;
   submitted_at: string | null;
+}
+
+interface ApiEnrollmentHistoryRow {
+  academic_year: { id: number; name: string; status: "planned" | "current" | "closed" };
+  year_level: { id: number; name: string };
+  section: { id: number; name: string };
+}
+
+function toEnrollmentHistoryRow(row: ApiEnrollmentHistoryRow): EnrollmentHistoryRow {
+  return {
+    academicYear: row.academic_year,
+    yearLevel: row.year_level,
+    section: row.section,
+  };
 }
 
 function toRate(rate: ApiRate): Rate {
@@ -258,12 +273,14 @@ export async function fetchStudent(studentId: number): Promise<StudentDetail> {
     data: {
       student: ApiStudent;
       challenges: ApiStudentChallenge[];
+      enrollments?: ApiEnrollmentHistoryRow[];
     };
   }>(`/admin/students/${studentId}`);
 
   return {
     student: toStudent(data.student),
     challenges: data.challenges.map(toStudentChallenge),
+    enrollments: (data.enrollments ?? []).map(toEnrollmentHistoryRow),
   };
 }
 
@@ -380,12 +397,14 @@ export async function moveStudentToSection(
     data: {
       student: ApiStudent;
       challenges: ApiStudentChallenge[];
+      enrollments?: ApiEnrollmentHistoryRow[];
     };
   }>(`/admin/students/${studentId}`, { section_id: sectionId });
 
   return {
     student: toStudent(data.student),
     challenges: data.challenges.map(toStudentChallenge),
+    enrollments: (data.enrollments ?? []).map(toEnrollmentHistoryRow),
   };
 }
 

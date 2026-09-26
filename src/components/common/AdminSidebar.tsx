@@ -12,6 +12,7 @@ import {
   BarChart3,
   Award,
   Archive,
+  CalendarRange,
   ClipboardList,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -47,6 +48,18 @@ export const ADMIN_ARCHIVE_ITEMS = [
   { name: 'Post-Test', path: archiveAdminPath('post_test') },
 ];
 
+/**
+ * The Academic Structure group's destinations. Exported for the same reason
+ * as the lists above.
+ */
+export const ACADEMIC_ADMIN_PATH = '/admin/academic';
+
+export const ADMIN_ACADEMIC_ITEMS = [
+  { name: 'Academic Years', path: `${ACADEMIC_ADMIN_PATH}/years` },
+  { name: 'Year Levels', path: `${ACADEMIC_ADMIN_PATH}/year-levels` },
+  { name: 'Sections', path: `${ACADEMIC_ADMIN_PATH}/sections` },
+];
+
 export function AdminSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -69,6 +82,14 @@ export function AdminSidebar() {
   useEffect(() => {
     if (inArchive) setIsArchiveExpanded(true);
   }, [inArchive]);
+
+  // The same for the academic structure group.
+  const inAcademic = isActive(ACADEMIC_ADMIN_PATH);
+  const [isAcademicExpanded, setIsAcademicExpanded] = useState(inAcademic);
+
+  useEffect(() => {
+    if (inAcademic) setIsAcademicExpanded(true);
+  }, [inAcademic]);
 
   const handleYearClick = (yearId: number) => {
     setExpandedYear(expandedYear === yearId ? null : yearId);
@@ -154,6 +175,49 @@ export function AdminSidebar() {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Academic structure: years, year levels, each year's sections. */}
+          <div>
+            <button
+              onClick={() => {
+                setIsAcademicExpanded(!isAcademicExpanded);
+                if (!isAcademicExpanded) navigate(ADMIN_ACADEMIC_ITEMS[0].path);
+              }}
+              aria-expanded={isAcademicExpanded}
+              className={cn(
+                'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                inAcademic
+                  ? 'bg-blue-50 text-blue-600'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <CalendarRange size={18} />
+                <span>Academic Structure</span>
+              </div>
+              {isAcademicExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
+
+            {isAcademicExpanded && (
+              <div className="mt-1 ml-4 border-l border-gray-100 pl-2 space-y-1">
+                {ADMIN_ACADEMIC_ITEMS.map((item) => (
+                  <button
+                    key={item.path}
+                    onClick={() => navigate(item.path)}
+                    aria-current={isActive(item.path) ? 'page' : undefined}
+                    className={cn(
+                      'w-full flex items-center px-3 py-1.5 rounded-md text-xs transition-colors',
+                      isActive(item.path)
+                        ? 'text-blue-600 font-medium bg-blue-50/50'
+                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                    )}
+                  >
+                    {item.name}
+                  </button>
+                ))}
               </div>
             )}
           </div>

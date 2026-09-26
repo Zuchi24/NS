@@ -16,6 +16,12 @@ export function AdminLayout() {
     // the pre-tests, so that is its title too.
     if (path.startsWith('/admin/archive/tests/post-test')) return 'Archive · Post-Tests';
     if (path.startsWith('/admin/archive')) return 'Archive · Pre-Tests';
+    if (path.startsWith('/admin/academic/years/') && path.endsWith('/promotion')) {
+      return 'Academic Structure · Move Students In';
+    }
+    if (path.startsWith('/admin/academic/year-levels')) return 'Academic Structure · Year Levels';
+    if (path.startsWith('/admin/academic/sections')) return 'Academic Structure · Sections';
+    if (path.startsWith('/admin/academic')) return 'Academic Structure · Academic Years';
     if (path.includes('/admin/achievements')) return 'Achievements';
     if (path.includes('/admin/roadmap')) return 'Roadmap Content';
     if (path.includes('/admin/analytics')) return 'Analytics & Insights';

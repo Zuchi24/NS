@@ -272,6 +272,28 @@ export const routes: RouteObject[] = [
               Component: (await import("@/pages/admin/AssessmentArchivePage")).AssessmentArchivePage,
             }),
           },
+          // The academic structure: academic years, the year levels every
+          // year shares, and each year's sections. The bare group address
+          // opens onto the years, as the archive's opens onto its pre-tests.
+          { path: "academic", lazy: redirectTo("/admin/academic/years") },
+          {
+            path: "academic/years",
+            lazy: async () => ({
+              Component: (await import("@/pages/admin/AcademicYearsPage")).AcademicYearsPage,
+            }),
+          },
+          {
+            path: "academic/year-levels",
+            lazy: async () => ({
+              Component: (await import("@/pages/admin/YearLevelsPage")).YearLevelsPage,
+            }),
+          },
+          {
+            path: "academic/sections",
+            lazy: async () => ({
+              Component: (await import("@/pages/admin/SectionsAdminPage")).SectionsAdminPage,
+            }),
+          },
           {
             path: "profile",
             lazy: async () => ({ Component: (await import("@/pages/admin/AdminProfile")).AdminProfile }),

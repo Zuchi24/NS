@@ -76,6 +76,11 @@ const EXPECTED_PATHS = [
   "/admin/archive",
   "/admin/archive/tests",
   "/admin/archive/tests/:type",
+  // The academic structure: the bare address redirects to the years.
+  "/admin/academic",
+  "/admin/academic/years",
+  "/admin/academic/year-levels",
+  "/admin/academic/sections",
   "/admin/profile",
 ];
 

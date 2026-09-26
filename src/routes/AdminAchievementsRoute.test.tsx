@@ -5,7 +5,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter, matchRoutes } from "react-router";
 
-import { ADMIN_NAV_ITEMS } from "@/components/common/AdminSidebar";
+import { ADMIN_ACADEMIC_ITEMS, ADMIN_NAV_ITEMS } from "@/components/common/AdminSidebar";
 import { warmLazyRoutes } from "@/test/lazyRoutes";
 import type { User } from "@/features/auth/types";
 
@@ -204,6 +204,7 @@ describe("reaching the admin achievement catalogue", () => {
     // clicks it, and this is the assertion that makes it visible here instead.
     const destinations = [
       ...ADMIN_NAV_ITEMS.map((item) => item.path),
+      ...ADMIN_ACADEMIC_ITEMS.map((item) => item.path),
       // Rendered outside the list, so named explicitly.
       "/admin/students",
       "/admin/profile",

@@ -157,6 +157,22 @@ export interface StudentDetail {
   student: Student;
   /** Every challenge in the catalogue, including ones never opened. */
   challenges: StudentChallenge[];
+  /**
+   * Where the student has been placed, one row per academic year, newest
+   * first — from their enrolments, not from their current section.
+   */
+  enrollments: EnrollmentHistoryRow[];
+}
+
+/**
+ * A student's placement in one academic year — as it ended, or stands for
+ * the current year. A move within a year updates that year's row, so the
+ * section before a mid-year move is not kept.
+ */
+export interface EnrollmentHistoryRow {
+  academicYear: { id: number; name: string; status: "planned" | "current" | "closed" };
+  yearLevel: { id: number; name: string };
+  section: { id: number; name: string };
 }
 
 /** One requirement of a challenge, and whether the submission met it. */

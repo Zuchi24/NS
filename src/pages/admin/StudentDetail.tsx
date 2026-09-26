@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Circle,
   Clock,
+  GraduationCap,
   Mail,
   TrendingUp,
   Trophy,
@@ -289,7 +290,12 @@ export function StudentDetail() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
 
-  const { student, challenges } = data;
+  const { student, challenges, enrollments } = data;
+
+  // This year's placement, from the enrolment record rather than from the
+  // section the account currently names.
+  const current =
+    enrollments.find((row) => row.academicYear.status === "current") ?? null;
   const { summary } = student;
 
   const challengesPassed = challenges.filter(
@@ -369,12 +375,12 @@ export function StudentDetail() {
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-600">
-                Year &amp; Section
+                Current placement
               </label>
               <p className="text-gray-900 font-medium">
-                {student.section
-                  ? `${student.section.yearLevel} - ${student.section.name}`
-                  : "Not placed in a section"}
+                {current
+                  ? `${current.academicYear.name} · ${current.yearLevel.name} · ${current.section.name}`
+                  : "Not placed this academic year"}
               </p>
               <MoveSection student={student} onMoved={followMove} />
             </div>
@@ -458,6 +464,50 @@ export function StudentDetail() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-gray-200">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-blue-600" />
+            Academic History
+          </CardTitle>
+          <p className="text-sm text-gray-600 mt-2">
+            Where {student.firstName} has been placed in each academic year. A
+            change of section within a year replaces that year&apos;s placement,
+            so the section before a mid-year move is not shown.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {enrollments.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              Not placed in any academic year yet.
+            </p>
+          ) : (
+            <ul className="divide-y divide-gray-100" aria-label="Academic history">
+              {enrollments.map((row) => (
+                <li
+                  key={row.academicYear.id}
+                  className="flex items-center justify-between py-2 text-sm"
+                >
+                  <span className="font-medium text-gray-900">
+                    {row.academicYear.name}
+                  </span>
+                  <span className="text-gray-700">
+                    {row.yearLevel.name} · {row.section.name}
+                  </span>
+                  <span className="text-xs text-gray-500 w-16 text-right">
+                    {row.academicYear.status === "current"
+                      ? "Current"
+                      : row.academicYear.status === "planned"
+                        ? "Planned"
+                        : "Closed"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="border-gray-200">
         <CardHeader>

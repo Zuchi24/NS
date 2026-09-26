@@ -69,6 +69,18 @@ const detail: Detail = {
     },
   },
   challenges: [],
+  enrollments: [
+    {
+      academicYear: { id: 2, name: "2026–2027", status: "current" },
+      yearLevel: { id: 2, name: "Grade 12" },
+      section: { id: 6, name: "Section A" },
+    },
+    {
+      academicYear: { id: 1, name: "2025–2026", status: "closed" },
+      yearLevel: { id: 1, name: "Grade 11" },
+      section: { id: 3, name: "Section C" },
+    },
+  ],
 };
 
 const cohorts: YearLevelCohort[] = [
@@ -355,4 +367,40 @@ it("goes back to the roster the student is on, not the one in the address", asyn
   await userEvent.click(await screen.findByRole("button", { name: "Back" }));
 
   expect(navigate).toHaveBeenCalledWith("/admin/students/1/9");
+});
+
+it("says where the student is placed this academic year, from their enrolment", async () => {
+  render(<StudentDetail />);
+
+  expect(
+    await screen.findByText("2026–2027 · Grade 12 · Section A"),
+  ).toBeTruthy();
+});
+
+it("lists every academic year the student has been placed in", async () => {
+  render(<StudentDetail />);
+
+  const history = await screen.findByRole("list", { name: "Academic history" });
+  const rows = within(history).getAllByRole("listitem");
+
+  expect(rows).toHaveLength(2);
+  expect(rows[0].textContent).toContain("2026–2027");
+  expect(rows[0].textContent).toContain("Grade 12 · Section A");
+  expect(rows[0].textContent).toContain("Current");
+  expect(rows[1].textContent).toContain("2025–2026");
+  expect(rows[1].textContent).toContain("Grade 11 · Section C");
+  expect(rows[1].textContent).toContain("Closed");
+});
+
+it("says so when the student has never been placed", async () => {
+  vi.mocked(service.fetchStudent).mockResolvedValue({
+    ...detail,
+    student: { ...detail.student, section: null },
+    enrollments: [],
+  });
+
+  render(<StudentDetail />);
+
+  expect(await screen.findByText("Not placed this academic year")).toBeTruthy();
+  expect(screen.getByText("Not placed in any academic year yet.")).toBeTruthy();
 });
