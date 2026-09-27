@@ -1,11 +1,11 @@
-import { Monitor, Server, Laptop, Smartphone, Printer } from "lucide-react";
+import { Computer, Server, Laptop, Smartphone, Printer } from "lucide-react";
 
 export const DEVICE_CATEGORIES = {
   endDevices: {
     name: "End Devices",
     color: "blue",
     items: [
-      { type: "pc", family: "pc", label: "PC", icon: Monitor },
+      { type: "pc", family: "pc", label: "PC", icon: Computer },
       { type: "laptop", family: "laptop", label: "Laptop", icon: Laptop },
       { type: "server", family: "server", label: "Server", icon: Server },
       { type: "printer", family: "printer", label: "Printer", icon: Printer },

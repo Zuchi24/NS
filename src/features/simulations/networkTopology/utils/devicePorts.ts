@@ -50,53 +50,24 @@ export function getDevicePorts(device: Device): Port[] {
 
   /*
    * SWITCH
+   *
+   * In the port strip under the switch's name (PlacedDevice), two rows of
+   * three, rather than over the drawing — where they hid the switch itself.
+   * Offsets from the card's top-left: columns at 18, 36 and 54 across its 84px
+   * width, rows at 100 and 116 inside the strip.
    */
 
   if (device.type.includes("switch")) {
-    return [
-      {
-        id: `${device.id}-fa0/1`,
-        deviceId: device.id,
-        x: baseX - 20,
-        y: baseY - 10,
-        label: "Fa0/1",
-      },
-      {
-        id: `${device.id}-fa0/2`,
-        deviceId: device.id,
-        x: baseX,
-        y: baseY - 10,
-        label: "Fa0/2",
-      },
-      {
-        id: `${device.id}-fa0/3`,
-        deviceId: device.id,
-        x: baseX + 20,
-        y: baseY - 10,
-        label: "Fa0/3",
-      },
-      {
-        id: `${device.id}-fa0/4`,
-        deviceId: device.id,
-        x: baseX - 20,
-        y: baseY + 30,
-        label: "Fa0/4",
-      },
-      {
-        id: `${device.id}-fa0/5`,
-        deviceId: device.id,
-        x: baseX,
-        y: baseY + 30,
-        label: "Fa0/5",
-      },
-      {
-        id: `${device.id}-fa0/6`,
-        deviceId: device.id,
-        x: baseX + 20,
-        y: baseY + 30,
-        label: "Fa0/6",
-      },
-    ];
+    const columns = [device.x + 18, device.x + 36, device.x + 54];
+    const rows = [device.y + 100, device.y + 116];
+
+    return [1, 2, 3, 4, 5, 6].map((n) => ({
+      id: `${device.id}-fa0/${n}`,
+      deviceId: device.id,
+      x: columns[(n - 1) % 3],
+      y: rows[Math.floor((n - 1) / 3)],
+      label: `Fa0/${n}`,
+    }));
   }
 
   /*

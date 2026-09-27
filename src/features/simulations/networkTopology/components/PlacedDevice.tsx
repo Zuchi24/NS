@@ -77,6 +77,7 @@ export function PlacedDevice({
         <DeviceIcon
           type={device.type}
           model={device.model}
+          ports={ports}
           portStatus={portStatus}
           deviceConnected={isDeviceConnected}
         />
@@ -84,6 +85,17 @@ export function PlacedDevice({
         <div className="text-xs text-center text-gray-900 mt-1 font-medium">
           {device.label}
         </div>
+
+        {/* A switch's ports have a strip of their own under its name, so
+            they never cover the drawing. Always there, ports shown or not,
+            so the card and its cable ends do not move. Where each port sits
+            in it is getDevicePorts'. */}
+        {device.type.includes("switch") && (
+          <div
+            data-testid="port-strip"
+            className="mt-1 h-8 rounded-md border border-dashed border-gray-200 bg-gray-50"
+          />
+        )}
 
         {/* =================================================
             SETTINGS

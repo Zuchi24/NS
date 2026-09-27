@@ -247,16 +247,8 @@ function WorkspaceCanvas() {
     };
   }, [attemptId]);
 
-  /**
-   * The end devices on offer.
-   *
-   * A short default list, plus whatever the open challenge's rules actually
-   * ask for — a printer exercise has to offer a printer. In free play there is
-   * no challenge, so only the default list is offered.
-   */
-  const offeredEndDevices = paletteEndDevices(
-    active?.challenge.requiredFamilies ?? [],
-  );
+  /** The end devices on offer: all of them, in free play and in challenges. */
+  const offeredEndDevices = paletteEndDevices();
 
   const currentTopology = () => toTopologyDocument(devices, connections);
 
