@@ -148,7 +148,9 @@ export function RoadmapPanel({
           </p>
         ) : (
           <>
-            <div className="space-y-2">
+            {/* Capped: the card spans the page, and a picker of short titles
+                need not. */}
+            <div className="space-y-2 sm:max-w-md">
               <Label htmlFor="roadmap-picker">Authoring</Label>
               <select
                 id="roadmap-picker"

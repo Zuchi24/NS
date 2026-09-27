@@ -68,8 +68,12 @@ export function RoadmapAdminPage() {
     roadmaps[0] ??
     null;
 
+  // Stacked, the roadmap above its topics, at every width. Side by side, the
+  // short roadmap card left an empty column beside a long topic list. Still a
+  // one-column grid: its minmax(0, 1fr) track is what keeps a long roadmap
+  // name in the picker from widening the page past a phone's screen.
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[400px_1fr] items-start">
+    <div className="grid grid-cols-1 gap-6">
       <RoadmapPanel
         roadmaps={roadmaps}
         roadmap={roadmap}
@@ -83,7 +87,7 @@ export function RoadmapAdminPage() {
       {roadmap === null ? (
         <EmptyState
           title="Nothing to author yet"
-          description="Add a roadmap on the left. Topics, and the learning materials in them, hang off one."
+          description="Add a roadmap above. Topics, and the learning materials in them, hang off one."
         />
       ) : (
         <RoadmapTopicsPanel

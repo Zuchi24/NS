@@ -391,7 +391,15 @@ describe("RoadmapAdminPage on a narrow screen", () => {
 
     const layout = screen.getByLabelText(/authoring/i).closest(".grid");
 
-    expect(layout).toHaveClass("grid-cols-1", "lg:grid-cols-[400px_1fr]");
+    expect(layout).toHaveClass("grid-cols-1");
+  });
+
+  it("stacks the roadmap above its topics at every width, leaving no empty column", async () => {
+    await renderWith([roadmap()]);
+
+    const layout = screen.getByLabelText(/authoring/i).closest(".grid")!;
+
+    expect(layout.className).not.toMatch(/(^|\s)(sm|md|lg|xl|2xl):grid-cols-/);
   });
 
   it("lets each card's heading controls wrap below the title", async () => {
