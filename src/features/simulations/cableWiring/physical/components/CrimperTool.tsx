@@ -67,13 +67,16 @@ export function CrimperShelfTool({ onTake, lifted }: ShelfProps) {
 /**
  * One crimper: a C-shaped frame holding an upper and a lower jaw around the
  * plug's path, the upper jaw carrying the teeth, and two long handles.
+ *
+ * Drawn with the frame and handles to the left. `mirrored` turns it to face
+ * the other way, about its die, so the die stays where it was.
  */
-export function Crimper({ cx, cy }: { cx: number; cy: number }) {
+export function Crimper({ cx, cy, mirrored = false }: { cx: number; cy: number; mirrored?: boolean }) {
   const body = "#5B6B78";
   const edge = "#D8E3EC";
 
   return (
-    <g transform={`translate(${cx} ${cy})`}>
+    <g transform={`translate(${cx} ${cy})${mirrored ? " scale(-1 1)" : ""}`}>
       {/* a padded hit area over the die, so a hand closing on it need not be precise */}
       <rect x={-30} y={-64} width={60} height={128} fill="transparent" />
       {/* handles, reaching up and down away from the cable */}

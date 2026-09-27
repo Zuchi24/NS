@@ -471,6 +471,23 @@ describe("which end is crimped", () => {
 
     expect(onCrimp).toHaveBeenCalledWith("B", "full");
   });
+
+  it("faces away from the cable on either end: as drawn at End A, turned round at End B", () => {
+    const cable = bothPlugged();
+    const { svg } = benchViewAt(cable);
+    const drawn = () => crimper()!.querySelector(":scope > g")!.getAttribute("transform");
+
+    placeCrimper(svg, overEnd("A"));
+    expect(drawn()).not.toContain("scale(-1 1)");
+
+    placeCrimper(svg, overEnd("B"));
+    expect(crimper()!.getAttribute("data-end")).toBe("B");
+    expect(drawn()).toContain("scale(-1 1)");
+
+    // Carried over neither end, it is drawn as it lies on the shelf.
+    placeCrimper(svg, OVER_NOTHING, { release: false });
+    expect(drawn()).not.toContain("scale(-1 1)");
+  });
 });
 
 describe("the crimper belongs to the pointer that took hold of it", () => {

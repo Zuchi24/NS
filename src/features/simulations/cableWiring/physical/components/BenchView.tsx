@@ -666,6 +666,9 @@ export function BenchView({
                 : crimpDieXAt(crimp.target.end, cable.ends[crimp.target.end], scale, crimp.crimper.at.x)
             }
             cy={crimp.target === null ? crimp.crimper.at.y : CY}
+            // Frame and handles to the outside of whichever end it stands on,
+            // away from the cable: as drawn at End A, turned round at End B.
+            mirrored={crimp.target !== null && LAYOUT[crimp.target.end].dir === 1}
           />
           {crimp.target !== null && (
             <g transform={`translate(${Math.min(WIDTH - 70, Math.max(70, crimp.crimper.at.x))} ${CY + 88})`} pointerEvents="none">
