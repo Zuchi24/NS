@@ -90,16 +90,11 @@ describe("signing in", () => {
   });
 });
 
-describe("signing in, which verification has not changed yet", () => {
-  it("lands an unverified account on its dashboard, as before", async () => {
+describe("signing in, now that addresses must be confirmed", () => {
+  /** Signs in as the given account, from wherever the app sent them. */
+  async function signInAs(account: Record<string, unknown>) {
     const user = userEvent.setup();
-    login.mockResolvedValue({
-      id: 1,
-      name: "Ana",
-      email: "ana@example.com",
-      emailVerified: false,
-      role: "student",
-    });
+    login.mockResolvedValue({ id: 1, name: "Ana", email: "ana@example.com", ...account });
     render(
       <MemoryRouter initialEntries={["/login"]}>
         <Routes>
@@ -112,11 +107,36 @@ describe("signing in, which verification has not changed yet", () => {
     await user.type(screen.getByLabelText("Email"), "ana@example.com");
     await user.type(screen.getByLabelText("Password"), "hunter2-pass");
     await user.click(screen.getByRole("button", { name: "Login" }));
+  }
+
+  it("sends an unverified student to verify, then on to their dashboard", async () => {
+    await signInAs({ role: "student", emailVerified: false });
+
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/verify-email from /dashboard"));
+  });
+
+  it("signs a verified student straight in, with no code asked for", async () => {
+    await signInAs({ role: "student", emailVerified: true });
 
     await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/dashboard"));
+    expect(screen.getByTestId("where")).not.toHaveTextContent("verify");
+  });
+
+  it("never sends staff to verify", async () => {
+    await signInAs({ role: "admin", emailVerified: false });
+
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/admin/dashboard"));
   });
 });
 
 function Where() {
-  return <output data-testid="where">{useLocation().pathname}</output>;
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from;
+
+  return (
+    <output data-testid="where">
+      {location.pathname}
+      {from ? ` from ${from}` : ""}
+    </output>
+  );
 }

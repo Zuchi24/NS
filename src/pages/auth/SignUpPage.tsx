@@ -91,7 +91,7 @@ export function SignUpPage() {
     setLoading(true);
 
     try {
-      const created = await signup({
+      const { user: created, codeSent, sendFailed } = await signup({
         firstName,
         middleInitial,
         lastName,
@@ -103,10 +103,14 @@ export function SignUpPage() {
         sectionId: Number(sectionId),
       });
       toast.success("Account created successfully!");
-      // A new account lands on its dashboard — or, once addresses must be
-      // confirmed, on the page that confirms it.
+      // A new account confirms its address first. The verification page is
+      // told whether the first code went out — and the server's timings for
+      // it — so it can count down, or offer to send one, from the start.
       const target = postSignInTarget(created);
-      navigate(target.path, { replace: true, state: target.state });
+      navigate(target.path, {
+        replace: true,
+        state: target.state ? { ...target.state, codeSent, sendFailed } : undefined,
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Sign up failed");
     } finally {

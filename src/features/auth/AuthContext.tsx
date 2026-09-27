@@ -1,7 +1,8 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import * as authService from "./authService";
-import type { LoginCredentials, SignUpDetails, User } from "./types";
+import type { LoginCredentials, SignUpDetails, SignUpResult, User } from "./types";
+import { VERIFICATION_REQUIRED_EVENT } from "@/services/api";
 
 export interface AuthContextValue {
   user: User | null;
@@ -10,7 +11,7 @@ export interface AuthContextValue {
   /** True until the persisted session has been read, so guards don't redirect early. */
   loading: boolean;
   login: (credentials: LoginCredentials) => Promise<User>;
-  signup: (details: SignUpDetails) => Promise<User>;
+  signup: (details: SignUpDetails) => Promise<SignUpResult>;
   logout: () => Promise<void>;
   /**
    * Re-reads the user from the server, after something changed their profile.
@@ -56,9 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signup = useCallback(async (details: SignUpDetails) => {
-    const created = await authService.signup(details);
-    setUser(created);
-    return created;
+    const result = await authService.signup(details);
+    setUser(result.user);
+    return result;
   }, []);
 
   const logout = useCallback(async () => {
@@ -69,6 +70,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = useCallback(async () => {
     setUser(await authService.restoreSession());
   }, []);
+
+  // The server turned a request away because this account has not confirmed
+  // its address. Re-read the account rather than guess: the route guard then
+  // sends it to verify from the state the server reports.
+  useEffect(() => {
+    const onVerificationRequired = () => {
+      void refreshUser();
+    };
+
+    window.addEventListener(VERIFICATION_REQUIRED_EVENT, onVerificationRequired);
+    return () => window.removeEventListener(VERIFICATION_REQUIRED_EVENT, onVerificationRequired);
+  }, [refreshUser]);
 
   const verifyEmailCode = useCallback(async (code: string) => {
     const verified = await authService.verifyEmailCode(code);

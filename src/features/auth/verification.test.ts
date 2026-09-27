@@ -8,8 +8,8 @@ import type { User } from "./types";
 
 /**
  * The one switch for sending unverified accounts to confirm their address,
- * while it is still off: nobody is sent anywhere new, and signing in and
- * signing up land exactly where they did before.
+ * now on — with the API's rule mirrored: an unverified student verifies
+ * first; a verified one, and staff, go where they always did.
  */
 
 const unverified: User = {
@@ -25,31 +25,52 @@ const unverified: User = {
   section: null,
 };
 
-describe("while verification is not yet enforced", () => {
-  it("is off", () => {
-    expect(EMAIL_VERIFICATION_ENFORCED).toBe(false);
+const verified: User = { ...unverified, emailVerified: true };
+
+describe("now that verification is enforced", () => {
+  it("is on", () => {
+    expect(EMAIL_VERIFICATION_ENFORCED).toBe(true);
   });
 
-  it("asks nobody to verify, not even an unverified account", () => {
-    expect(mustVerifyEmail(unverified)).toBe(false);
-    expect(mustVerifyEmail({ ...unverified, emailVerified: true })).toBe(false);
-    expect(mustVerifyEmail({ ...unverified, emailVerified: undefined })).toBe(false);
+  it("asks an unverified student, and only them, to verify", () => {
+    expect(mustVerifyEmail(unverified)).toBe(true);
+    expect(mustVerifyEmail(verified)).toBe(false);
     expect(mustVerifyEmail(null)).toBe(false);
   });
 
-  it("lands an unverified account where it always did", () => {
-    expect(postSignInTarget(unverified)).toEqual({ path: "/dashboard" });
-    expect(postSignInTarget(unverified, "/roadmap")).toEqual({ path: "/roadmap" });
-    expect(postSignInTarget({ ...unverified, role: "admin" })).toEqual({ path: "/admin/dashboard" });
+  it("never asks staff, verified or not", () => {
+    expect(mustVerifyEmail({ ...unverified, role: "admin" })).toBe(false);
+    expect(mustVerifyEmail({ ...verified, role: "admin" })).toBe(false);
   });
 
-  it("agrees with the landing page for everyone", () => {
-    for (const from of [undefined, null, "/roadmap", "/admin/students", "nowhere"]) {
-      expect(postSignInTarget(unverified, from).path).toBe(landingPath(unverified, from));
+  it("does not trap an account whose state is not known", () => {
+    expect(mustVerifyEmail({ ...unverified, emailVerified: undefined })).toBe(false);
+  });
+
+  it("sends an unverified student to verify first, remembering where they were going", () => {
+    expect(postSignInTarget(unverified)).toEqual({ path: VERIFY_EMAIL_PATH, state: { from: "/dashboard" } });
+    expect(postSignInTarget(unverified, "/roadmap")).toEqual({
+      path: VERIFY_EMAIL_PATH,
+      state: { from: "/roadmap" },
+    });
+  });
+
+  it("only remembers a destination the account's role may open", () => {
+    expect(postSignInTarget(unverified, "/admin/students")).toEqual({
+      path: VERIFY_EMAIL_PATH,
+      state: { from: "/dashboard" },
+    });
+  });
+
+  it("lands everyone else where they always did", () => {
+    for (const user of [verified, { ...unverified, role: "admin" as const }, { ...verified, role: "admin" as const }]) {
+      for (const from of [undefined, null, "/roadmap", "/admin/students", "nowhere"]) {
+        expect(postSignInTarget(user, from)).toEqual({ path: landingPath(user, from) });
+      }
     }
   });
 
-  it("names the page it will send them to", () => {
+  it("names the page it sends them to", () => {
     expect(VERIFY_EMAIL_PATH).toBe("/verify-email");
   });
 });

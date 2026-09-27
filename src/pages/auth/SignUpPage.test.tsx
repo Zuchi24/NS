@@ -9,9 +9,9 @@ import { SignUpPage } from "./SignUpPage";
 
 /**
  * The sign-up form's two password fields, each with its own show/hide
- * toggle, and what signing up does — which email verification has not
- * changed yet: the same details go to the server, and a new account lands on
- * its dashboard.
+ * toggle, and what signing up does: the same details go to the server, and
+ * the new account is taken to confirm its email address, told whether the
+ * first code went out.
  */
 
 const signup = vi.fn();
@@ -30,8 +30,16 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const { toast } = await import("sonner");
 
+/** Where sign-up sent the new account, and what it told the page it sent it to. */
 function Where() {
-  return <output data-testid="where">{useLocation().pathname}</output>;
+  const location = useLocation();
+
+  return (
+    <>
+      <output data-testid="where">{location.pathname}</output>
+      <output data-testid="state">{JSON.stringify(location.state)}</output>
+    </>
+  );
 }
 
 function renderSignUp() {
@@ -64,11 +72,9 @@ async function fillForm(user: ReturnType<typeof userEvent.setup>) {
 beforeEach(() => {
   vi.clearAllMocks();
   signup.mockResolvedValue({
-    id: 9,
-    name: "Ana Reyes",
-    email: "ana@example.com",
-    emailVerified: false,
-    role: "student",
+    user: { id: 9, name: "Ana Reyes", email: "ana@example.com", emailVerified: false, role: "student" },
+    codeSent: { expiresIn: 900, resendAvailableIn: 60 },
+    sendFailed: false,
   });
 });
 
@@ -131,7 +137,7 @@ describe("the password fields", () => {
   });
 });
 
-describe("signing up, which verification has not changed yet", () => {
+describe("signing up", () => {
   it("sends the same details whether the passwords are shown or not", async () => {
     const user = userEvent.setup();
     renderSignUp();
@@ -154,15 +160,39 @@ describe("signing up, which verification has not changed yet", () => {
     );
   });
 
-  it("lands a new account on its dashboard, verified or not", async () => {
+  it("takes a new account to confirm its address, with the code the server sent", async () => {
     const user = userEvent.setup();
     renderSignUp();
 
     await fillForm(user);
     await user.click(screen.getByRole("button", { name: /create account/i }));
 
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/dashboard"));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/verify-email"));
+    expect(JSON.parse(screen.getByTestId("state").textContent ?? "null")).toEqual({
+      from: "/dashboard",
+      codeSent: { expiresIn: 900, resendAvailableIn: 60 },
+      sendFailed: false,
+    });
     expect(toast.success).toHaveBeenCalledWith("Account created successfully!");
+  });
+
+  it("still takes it there when the first code could not be sent", async () => {
+    const user = userEvent.setup();
+    signup.mockResolvedValue({
+      user: { id: 9, name: "Ana Reyes", email: "ana@example.com", emailVerified: false, role: "student" },
+      codeSent: null,
+      sendFailed: true,
+    });
+    renderSignUp();
+
+    await fillForm(user);
+    await user.click(screen.getByRole("button", { name: /create account/i }));
+
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/verify-email"));
+    expect(JSON.parse(screen.getByTestId("state").textContent ?? "null")).toMatchObject({
+      codeSent: null,
+      sendFailed: true,
+    });
   });
 
   it("still refuses passwords that do not match, shown or not", async () => {

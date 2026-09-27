@@ -28,7 +28,9 @@ const SERVER_TROUBLE = "Something went wrong on our side. Please try again in a 
  */
 interface ArrivalState {
   from?: string;
-  codeSent?: { expiresIn: number; resendAvailableIn: number };
+  codeSent?: { expiresIn: number; resendAvailableIn: number } | null;
+  /** Sign-up's first code could not be sent: say so, and offer another. */
+  sendFailed?: boolean;
 }
 
 type Notice = { tone: "success" | "info" | "error"; text: string };
@@ -58,7 +60,9 @@ export function VerifyEmailPage() {
   const [notice, setNotice] = useState<Notice | null>(() =>
     arrival.codeSent
       ? { tone: "success", text: sentMessage(arrival.codeSent.expiresIn) }
-      : null,
+      : arrival.sendFailed
+        ? { tone: "error", text: SEND_FAILED }
+        : null,
   );
   const [verifying, setVerifying] = useState(false);
   const [sending, setSending] = useState(false);

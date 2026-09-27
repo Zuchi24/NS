@@ -71,11 +71,23 @@ function errorFrom(
       ? payload.message
       : statusMessage(status);
 
-  return new ApiError(message, status, payload?.errors ?? {}, {
+  const error = new ApiError(message, status, payload?.errors ?? {}, {
     retryAfter: retryAfterFrom(payload, headers),
     body: payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {},
   });
+
+  // Whatever asked, the account has to confirm its address first. Said once,
+  // here, so the session can re-read the account and the route guard send it
+  // to verify — rather than every page learning to recognise this refusal.
+  if (error.isVerificationRequired && typeof window !== "undefined") {
+    window.dispatchEvent(new Event(VERIFICATION_REQUIRED_EVENT));
+  }
+
+  return error;
 }
+
+/** Raised on the window when the API refuses a request for want of a verified address. */
+export const VERIFICATION_REQUIRED_EVENT = "netsim:verification-required";
 
 /**
  * How long the server asked to be left alone, in whole seconds.
@@ -123,6 +135,14 @@ export class ApiError extends Error {
   /** The token is missing, expired, or was revoked. */
   get isUnauthenticated(): boolean {
     return this.status === 401;
+  }
+
+  /**
+   * Refused because the account has not confirmed its email address. Read
+   * from the API's flag, never its wording.
+   */
+  get isVerificationRequired(): boolean {
+    return this.status === 403 && this.body.verification_required === true;
   }
 
   /** The request never reached the server. */

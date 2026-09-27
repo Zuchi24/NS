@@ -4,6 +4,7 @@ import type {
   LoginCredentials,
   Role,
   SignUpDetails,
+  SignUpResult,
   User,
   YearLevelOptions,
 } from "./types";
@@ -37,6 +38,13 @@ interface ApiUser {
 interface AuthResponse {
   user: ApiUser;
   token: string;
+  /** Whether the account must confirm its email address before anything else. */
+  verification_required?: boolean;
+}
+
+/** Sign-up's answer also says whether the first verification code went out. */
+interface SignUpResponse extends AuthResponse {
+  verification?: { sent: boolean; expires_in?: number; resend_available_in?: number };
 }
 
 function toUser(user: ApiUser): User {
@@ -92,8 +100,8 @@ export async function login({
   return persist(response.user, response.token, remember);
 }
 
-export async function signup(details: SignUpDetails): Promise<User> {
-  const response = await api.post<AuthResponse>("/register", {
+export async function signup(details: SignUpDetails): Promise<SignUpResult> {
+  const response = await api.post<SignUpResponse>("/register", {
     first_name: details.firstName,
     last_name: details.lastName,
     extended_name: details.nameExtension || null,
@@ -104,7 +112,19 @@ export async function signup(details: SignUpDetails): Promise<User> {
     section_id: details.sectionId,
   });
 
-  return persist(response.user, response.token);
+  const verification = response.verification;
+  const sent =
+    verification?.sent === true &&
+    typeof verification.expires_in === "number" &&
+    typeof verification.resend_available_in === "number";
+
+  return {
+    user: persist(response.user, response.token),
+    codeSent: sent
+      ? { expiresIn: verification.expires_in!, resendAvailableIn: verification.resend_available_in! }
+      : null,
+    sendFailed: verification?.sent === false,
+  };
 }
 
 /**

@@ -507,3 +507,14 @@ describe("signing out", () => {
     expect(logout).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("arriving from sign-up", () => {
+  it("says when the first code could not be sent, and offers another at once", () => {
+    renderPage({ state: { codeSent: null, sendFailed: true } });
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "We could not send the email just now. Please try again in a moment.",
+    );
+    expect(screen.getByRole("button", { name: "Send code" })).toBeEnabled();
+  });
+});

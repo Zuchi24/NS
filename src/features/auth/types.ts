@@ -36,6 +36,17 @@ export interface LoginCredentials {
   remember?: boolean;
 }
 
+/**
+ * What signing up returns: the new account, signed in, and what became of the
+ * verification code the server sends it — its timings when it went out, or
+ * that it could not be sent, so the verification page can offer another.
+ */
+export interface SignUpResult {
+  user: User;
+  codeSent: { expiresIn: number; resendAvailableIn: number } | null;
+  sendFailed: boolean;
+}
+
 export interface SignUpDetails {
   firstName: string;
   middleInitial?: string;

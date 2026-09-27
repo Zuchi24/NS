@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, api, authToken } from "./api";
+import { ApiError, VERIFICATION_REQUIRED_EVENT, api, authToken } from "./api";
 
 /**
  * What a caller is told when a request fails.
@@ -197,5 +197,35 @@ describe("how long the server asked to wait", () => {
     expect(error.retryAfter).toBeNull();
     expect(error.body).toEqual({});
     expect(error.fieldError("field")).toBe("Bad");
+  });
+});
+
+describe("a request refused for want of a verified address", () => {
+  it("is recognised by the API's flag, and announced once", async () => {
+    const heard = vi.fn();
+    window.addEventListener(VERIFICATION_REQUIRED_EVENT, heard);
+    fetchMock.mockResolvedValueOnce(
+      respond(403, JSON.stringify({ message: "Email verification required.", verification_required: true })),
+    );
+
+    const error = (await api.get("/roadmaps").catch((e: unknown) => e)) as ApiError;
+
+    expect(error.isVerificationRequired).toBe(true);
+    expect(heard).toHaveBeenCalledTimes(1);
+    window.removeEventListener(VERIFICATION_REQUIRED_EVENT, heard);
+  });
+
+  it("is not any other 403, whatever it says", async () => {
+    const heard = vi.fn();
+    window.addEventListener(VERIFICATION_REQUIRED_EVENT, heard);
+    fetchMock.mockResolvedValueOnce(
+      respond(403, JSON.stringify({ message: "Email verification required." })),
+    );
+
+    const error = (await api.get("/admin/overview").catch((e: unknown) => e)) as ApiError;
+
+    expect(error.isVerificationRequired).toBe(false);
+    expect(heard).not.toHaveBeenCalled();
+    window.removeEventListener(VERIFICATION_REQUIRED_EVENT, heard);
   });
 });
