@@ -42,6 +42,8 @@ const EXPECTED_PATHS = [
   "/",
   "/login",
   "/signup",
+  // Any signed-in account, confirming its email address
+  "/verify-email",
   // Student
   "/dashboard",
   "/progress",

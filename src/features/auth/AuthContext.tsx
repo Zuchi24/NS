@@ -12,8 +12,15 @@ export interface AuthContextValue {
   login: (credentials: LoginCredentials) => Promise<User>;
   signup: (details: SignUpDetails) => Promise<User>;
   logout: () => Promise<void>;
-  /** Re-reads the user from the server, after something changed their profile. */
+  /**
+   * Re-reads the user from the server, after something changed their profile.
+   * The one way the signed-in user is refreshed; it goes through the same
+   * session restore as a page load, so a server that cannot be reached keeps
+   * the cached user rather than signing anyone out.
+   */
   refreshUser: () => Promise<void>;
+  /** Checks an emailed code; the signed-in user becomes the verified one it returns. */
+  verifyEmailCode: (code: string) => Promise<User>;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -63,6 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await authService.restoreSession());
   }, []);
 
+  const verifyEmailCode = useCallback(async (code: string) => {
+    const verified = await authService.verifyEmailCode(code);
+    setUser(verified);
+    return verified;
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -73,8 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signup,
       logout,
       refreshUser,
+      verifyEmailCode,
     }),
-    [user, loading, login, signup, logout, refreshUser]
+    [user, loading, login, signup, logout, refreshUser, verifyEmailCode]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

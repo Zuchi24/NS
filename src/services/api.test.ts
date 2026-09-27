@@ -132,3 +132,70 @@ describe("failed requests", () => {
     expect(error.message).toMatch(/cannot reach the server/i);
   });
 });
+
+describe("how long the server asked to wait", () => {
+  /** A response with headers, the way a limited request comes back. */
+  function limited(body: unknown, headers: Record<string, string> = {}) {
+    return {
+      ok: false,
+      status: 429,
+      headers: new Headers(headers),
+      json: async () => body,
+    } as Response;
+  }
+
+  it("reads the API's own retry_after", async () => {
+    fetchMock.mockResolvedValueOnce(
+      limited({ message: "Please wait before requesting another code.", retry_after: 42 }, { "Retry-After": "42" }),
+    );
+
+    const error = (await api.post("/email/verification-code").catch((e: unknown) => e)) as ApiError;
+
+    expect(error.status).toBe(429);
+    expect(error.retryAfter).toBe(42);
+    expect(error.message).toBe("Please wait before requesting another code.");
+  });
+
+  it("falls back to the Retry-After header a route limiter sends alone", async () => {
+    fetchMock.mockResolvedValueOnce(limited({ message: "Too Many Attempts." }, { "Retry-After": "17" }));
+
+    const error = (await api.post("/email/verify", { code: "123456" }).catch((e: unknown) => e)) as ApiError;
+
+    expect(error.retryAfter).toBe(17);
+  });
+
+  it("says nothing when the server said nothing", async () => {
+    fetchMock.mockResolvedValueOnce(limited({ message: "Too Many Attempts." }));
+
+    const error = (await api.post("/email/verify").catch((e: unknown) => e)) as ApiError;
+
+    expect(error.retryAfter).toBeNull();
+  });
+
+  it("keeps the rest of the error body for fields beyond the message", async () => {
+    fetchMock.mockResolvedValueOnce(
+      respond(
+        422,
+        JSON.stringify({
+          message: "That code is incorrect or has expired.",
+          errors: { code: ["That code is incorrect or has expired."] },
+          resend_required: true,
+        }),
+      ),
+    );
+
+    const error = (await api.post("/email/verify", { code: "123456" }).catch((e: unknown) => e)) as ApiError;
+
+    expect(error.body.resend_required).toBe(true);
+    expect(error.fieldError("code")).toBe("That code is incorrect or has expired.");
+    expect(error.retryAfter).toBeNull();
+  });
+
+  it("leaves errors made by hand as they were", () => {
+    const error = new ApiError("Nope", 400, { field: ["Bad"] });
+
+    expect(error.retryAfter).toBeNull();
+    expect(error.body).toEqual({});
+    expect(error.fieldError("field")).toBe("Bad");
+  });
+});

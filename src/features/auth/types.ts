@@ -14,6 +14,8 @@ export interface User {
   lastName: string;
   studentId: string | null;
   email: string;
+  /** Whether the server has accepted the account's email address. */
+  emailVerified?: boolean;
   role: Role;
   /**
    * When the account was opened. The only date the platform holds about a

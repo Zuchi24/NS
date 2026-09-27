@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/useAuth";
 import { fetchSections } from "@/features/auth/authService";
+import { postSignInTarget } from "@/features/auth/landing";
 import type { YearLevelOptions } from "@/features/auth/types";
 
 export function SignUpPage() {
@@ -90,7 +91,7 @@ export function SignUpPage() {
     setLoading(true);
 
     try {
-      await signup({
+      const created = await signup({
         firstName,
         middleInitial,
         lastName,
@@ -102,7 +103,10 @@ export function SignUpPage() {
         sectionId: Number(sectionId),
       });
       toast.success("Account created successfully!");
-      navigate("/dashboard", { replace: true });
+      // A new account lands on its dashboard — or, once addresses must be
+      // confirmed, on the page that confirms it.
+      const target = postSignInTarget(created);
+      navigate(target.path, { replace: true, state: target.state });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Sign up failed");
     } finally {

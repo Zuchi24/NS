@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
 import { LoginPage } from "./LoginPage";
 
@@ -89,3 +89,34 @@ describe("signing in", () => {
     expect(login).not.toHaveBeenCalled();
   });
 });
+
+describe("signing in, which verification has not changed yet", () => {
+  it("lands an unverified account on its dashboard, as before", async () => {
+    const user = userEvent.setup();
+    login.mockResolvedValue({
+      id: 1,
+      name: "Ana",
+      email: "ana@example.com",
+      emailVerified: false,
+      role: "student",
+    });
+    render(
+      <MemoryRouter initialEntries={["/login"]}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="*" element={<Where />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText("Email"), "ana@example.com");
+    await user.type(screen.getByLabelText("Password"), "hunter2-pass");
+    await user.click(screen.getByRole("button", { name: "Login" }));
+
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/dashboard"));
+  });
+});
+
+function Where() {
+  return <output data-testid="where">{useLocation().pathname}</output>;
+}

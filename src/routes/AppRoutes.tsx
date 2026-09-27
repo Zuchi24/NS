@@ -88,6 +88,13 @@ export const routes: RouteObject[] = [
     Component: ProtectedRoute,
     HydrateFallback,
     children: [
+      // Confirming the account's email address. Signed in, but outside the
+      // app's own chrome: it is the one page an account that has not
+      // confirmed its address can open (see mustVerifyEmail).
+      {
+        path: "/verify-email",
+        lazy: async () => ({ Component: (await import("@/pages/auth/VerifyEmailPage")).VerifyEmailPage }),
+      },
       // Content pages share the student chrome (sidebar + header).
       {
         Component: StudentLayout,

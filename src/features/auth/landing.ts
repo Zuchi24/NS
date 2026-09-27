@@ -1,4 +1,5 @@
 import type { Role, User } from "./types";
+import { VERIFY_EMAIL_PATH, mustVerifyEmail } from "./verification";
 
 /** Where each role lands when it has nowhere particular to go. */
 const HOME: Record<Role, string> = {
@@ -33,4 +34,22 @@ export function landingPath(user: User, from?: string | null): string {
   }
 
   return isAdminPath(from) === (user.role === "admin") ? from : home;
+}
+
+/**
+ * Where someone goes straight after signing in or signing up.
+ *
+ * Their landing page — unless their address has to be confirmed first, in
+ * which case the verification page, remembering where they were headed so it
+ * can send them on afterwards.
+ */
+export function postSignInTarget(
+  user: User,
+  from?: string | null,
+): { path: string; state?: { from: string } } {
+  const destination = landingPath(user, from);
+
+  return mustVerifyEmail(user)
+    ? { path: VERIFY_EMAIL_PATH, state: { from: destination } }
+    : { path: destination };
 }

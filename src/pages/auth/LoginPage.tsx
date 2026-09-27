@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/useAuth";
-import { landingPath } from "@/features/auth/landing";
+import { postSignInTarget } from "@/features/auth/landing";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -45,7 +45,8 @@ export function LoginPage() {
       // the toggle above — picking "Admin" on a student account signs you in
       // as the student you are.
       const from = (location.state as { from?: string } | null)?.from;
-      navigate(landingPath(user, from), { replace: true });
+      const target = postSignInTarget(user, from);
+      navigate(target.path, { replace: true, state: target.state });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Login failed");
     } finally {

@@ -64,23 +64,55 @@ function statusMessage(status: number): string {
 function errorFrom(
   status: number,
   payload: { message?: string; errors?: ValidationErrors } | null,
+  headers?: Headers,
 ): ApiError {
   const message =
     typeof payload?.message === "string" && payload.message.trim() !== ""
       ? payload.message
       : statusMessage(status);
 
-  return new ApiError(message, status, payload?.errors ?? {});
+  return new ApiError(message, status, payload?.errors ?? {}, {
+    retryAfter: retryAfterFrom(payload, headers),
+    body: payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {},
+  });
+}
+
+/**
+ * How long the server asked to be left alone, in whole seconds.
+ *
+ * The API's own `retry_after` when it sent one, otherwise the standard
+ * Retry-After header — which is all Laravel's route limiters send. Only ever
+ * the server's figure: a page shows it, and never decides it.
+ */
+function retryAfterFrom(payload: unknown, headers?: Headers): number | null {
+  const fromBody = (payload as { retry_after?: unknown } | null)?.retry_after;
+
+  if (typeof fromBody === "number" && Number.isFinite(fromBody) && fromBody >= 0) {
+    return Math.ceil(fromBody);
+  }
+
+  const fromHeader = Number(headers?.get("Retry-After") ?? Number.NaN);
+
+  return Number.isFinite(fromHeader) && fromHeader >= 0 ? Math.ceil(fromHeader) : null;
 }
 
 export class ApiError extends Error {
+  /** Seconds the server asked to wait before trying again, when it said. */
+  readonly retryAfter: number | null;
+
+  /** The whole of the API's error body, for fields beyond message and errors. */
+  readonly body: Record<string, unknown>;
+
   constructor(
     message: string,
     readonly status: number,
     readonly errors: ValidationErrors = {},
+    details: { retryAfter?: number | null; body?: Record<string, unknown> } = {},
   ) {
     super(message);
     this.name = "ApiError";
+    this.retryAfter = details.retryAfter ?? null;
+    this.body = details.body ?? {};
   }
 
   /** The server's first complaint about one field, if it had one. */
@@ -160,7 +192,7 @@ async function request<T>(
       authToken.clear();
     }
 
-    throw errorFrom(response.status, payload);
+    throw errorFrom(response.status, payload, response.headers);
   }
 
   return payload as T;
@@ -201,7 +233,7 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
       authToken.clear();
     }
 
-    throw errorFrom(response.status, payload);
+    throw errorFrom(response.status, payload, response.headers);
   }
 
   return payload as T;
@@ -239,7 +271,7 @@ async function download(path: string): Promise<Blob> {
     // The body of a failed download is JSON, not the file.
     const payload = await response.json().catch(() => null);
 
-    throw errorFrom(response.status, payload);
+    throw errorFrom(response.status, payload, response.headers);
   }
 
   return response.blob();

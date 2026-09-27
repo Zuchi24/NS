@@ -27,6 +27,7 @@ interface ApiUser {
   extended_name: string | null;
   full_name: string;
   email: string;
+  email_verified?: boolean;
   role: Role;
   created_at: string | null;
   section_id: number | null;
@@ -46,6 +47,7 @@ function toUser(user: ApiUser): User {
     lastName: user.last_name,
     studentId: user.student_id,
     email: user.email,
+    emailVerified: user.email_verified,
     role: user.role,
     joinedAt: user.created_at ?? null,
     section: user.section
@@ -116,6 +118,35 @@ export async function fetchSections(): Promise<YearLevelOptions[]> {
   const { data } = await api.get<{ data: YearLevelOptions[] }>("/sections");
 
   return data;
+}
+
+/**
+ * What a successful request for a verification code answers: a code went out,
+ * with the server's timings, or there was nothing to send.
+ *
+ * Only the successes. Every refusal arrives as an ApiError instead — a 429
+ * carrying `retryAfter` for the cooldown and the hourly limit, a 503 when the
+ * mail could not be sent — and the page reads those from the error.
+ */
+export type VerificationCodeResponse =
+  | { sent: true; expires_in: number; resend_available_in: number }
+  | { already_verified: true };
+
+/** Asks for a code to be emailed to the signed-in account. */
+export async function requestEmailVerificationCode(): Promise<VerificationCodeResponse> {
+  return api.post<VerificationCodeResponse>("/email/verification-code");
+}
+
+/**
+ * Checks a code for the signed-in account and returns it, now verified.
+ *
+ * The same session carries on: no token comes back and none is replaced. A
+ * refused code is an ApiError (422) whose body says whether only a new code
+ * will help (`resend_required`).
+ */
+export async function verifyEmailCode(code: string): Promise<User> {
+  const response = await api.post<{ verified: true; user: ApiUser }>("/email/verify", { code });
+  return persist(response.user);
 }
 
 export interface PasswordChange {
