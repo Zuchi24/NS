@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/useAuth";
@@ -113,13 +114,13 @@ export function SignUpPage() {
     <div className="space-y-6">
           {/* Logo */}
           <div className="text-center space-y-2">
-            <div className="flex items-center justify-center gap-2 mb-4">
+            <div className="flex md:hidden items-center justify-center gap-2 mb-4">
               <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
                 <Network className="w-7 h-7 text-white" />
               </div>
               <span className="text-2xl font-bold text-gray-900">NetSim</span>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900">Create Account</h2>
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900">Create Account</h2>
             <p className="text-gray-600">Join NetSim to start learning</p>
           </div>
 
@@ -127,7 +128,7 @@ export function SignUpPage() {
           <form onSubmit={handleSignUp} className="space-y-4">
             <div className="space-y-2">
               <Label className="text-gray-700">Full Name</Label>
-              <div className="grid grid-cols-8 gap-3">
+              <div className="grid grid-cols-4 lg:grid-cols-8 gap-3">
                 {/* First Name - wider */}
                 <div className="col-span-3">
                   <Input
@@ -135,7 +136,7 @@ export function SignUpPage() {
                     placeholder="First Name"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="h-11 bg-gray-100 border-gray-300 focus:border-blue-500"
+                    className="h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
                   />
                 </div>
                 {/* Middle Initial - smaller */}
@@ -146,7 +147,7 @@ export function SignUpPage() {
                     maxLength={1}
                     value={middleInitial}
                     onChange={(e) => setMiddleInitial(e.target.value)}
-                    className="h-11 bg-gray-100 border-gray-300 focus:border-blue-500"
+                    className="h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
                   />
                 </div>
                 {/* Last Name - wider */}
@@ -156,7 +157,7 @@ export function SignUpPage() {
                     placeholder="Last Name"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="h-11 bg-gray-100 border-gray-300 focus:border-blue-500"
+                    className="h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
                   />
                 </div>
                 {/* Name Extension - smaller */}
@@ -167,7 +168,7 @@ export function SignUpPage() {
                     maxLength={5}
                     value={nameExtension}
                     onChange={(e) => setNameExtension(e.target.value)}
-                    className="h-11 bg-gray-100 border-gray-300 focus:border-blue-500"
+                    className="h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
                   />
                 </div>
               </div>
@@ -179,14 +180,14 @@ export function SignUpPage() {
                 <span className="text-gray-400 text-xs">(required)</span>
               </Label>
               <div className="relative">
-                <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
                 <Input
                   id="studentId"
                   type="text"
                   placeholder="202*******"
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value)}
-                  className="pl-10 h-11 border-gray-300 focus:border-blue-500"
+                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
                 />
               </div>
             </div>
@@ -196,13 +197,13 @@ export function SignUpPage() {
                 Year Level and Section
               </Label>
               <div className="relative">
-                <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
                 <select
                   id="sectionId"
                   value={sectionId}
                   onChange={(e) => setSectionId(e.target.value)}
                   disabled={sectionsError || yearLevels.length === 0}
-                  className="w-full pl-10 h-11 rounded-md border border-gray-300 bg-white text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                  className="w-full pl-10 h-11 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                 >
                   <option value="">
                     {sectionsError
@@ -237,14 +238,14 @@ export function SignUpPage() {
                 Email
               </Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="user@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 h-11 border-gray-300 focus:border-blue-500"
+                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
                 />
               </div>
             </div>
@@ -254,14 +255,13 @@ export function SignUpPage() {
                 Password
               </Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                <PasswordInput
                   id="password"
-                  type="password"
                   placeholder="Minimum 8 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 h-11 border-gray-300 focus:border-blue-500"
+                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
                 />
               </div>
             </div>
@@ -271,21 +271,20 @@ export function SignUpPage() {
                 Confirm Password
               </Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                <PasswordInput
                   id="confirmPassword"
-                  type="password"
                   placeholder="Re-enter password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="pl-10 h-11 border-gray-300 focus:border-blue-500"
+                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
                 />
               </div>
             </div>
 
             <Button
               type="submit"
-              className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium mt-6"
+              className="w-full h-11 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-md shadow-blue-600/20 mt-6"
               disabled={loading}
             >
               {loading ? (

@@ -205,8 +205,8 @@ export function RoadmapTopicsPanel({
 
   return (
     <Card className="border-gray-200">
-      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-        <div>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4 space-y-0">
+        <div className="min-w-0 flex-[1_1_12rem]">
           <CardTitle className="text-lg flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-blue-600" />
             Topics
@@ -394,7 +394,7 @@ function TopicCard({
           : "border-gray-200 bg-white"
       }`}
     >
-      <div className="px-4 py-3 flex items-start gap-3">
+      <div className="px-4 py-3 flex flex-wrap items-start gap-3">
         {/* The position, not a bullet: where a topic sits is what decides which
             topics unlock after it, so it is worth reading off the screen — and
             it stays readable with every card folded. It stays through an edit
@@ -417,7 +417,7 @@ function TopicCard({
         {isEditing ? (
           <div className="min-w-0 flex-1">{children}</div>
         ) : (
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-[1_1_10rem]">
             <button
               type="button"
               onClick={onToggle}

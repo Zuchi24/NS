@@ -178,3 +178,56 @@ describe("changing your own password", () => {
     await waitFor(() => expect(navigate).toHaveBeenCalled());
   });
 });
+
+describe("showing what you typed", () => {
+  it("toggles each field on its own, hidden to start", async () => {
+    const user = userEvent.setup();
+    render(<ChangePasswordCard />);
+
+    const toggles = screen.getAllByRole("button", { name: "Show password" });
+    expect(toggles).toHaveLength(3);
+
+    await user.click(toggles[1]);
+
+    expect(screen.getByLabelText("Current password")).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText("New password")).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText("Confirm new password")).toHaveAttribute("type", "password");
+    expect(screen.getByRole("button", { name: "Hide password" })).toHaveAttribute(
+      "aria-controls",
+      "change-password-password",
+    );
+  });
+
+  it("sends the same values with every field shown", async () => {
+    vi.mocked(api.put).mockResolvedValue({ message: "Password changed." });
+    const user = userEvent.setup();
+    render(<ChangePasswordCard />);
+
+    for (const toggle of screen.getAllByRole("button", { name: "Show password" })) {
+      await user.click(toggle);
+    }
+    expect(api.put).not.toHaveBeenCalled();
+
+    await fill(CURRENT, NEXT, NEXT);
+
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith("/password", {
+        current_password: CURRENT,
+        password: NEXT,
+        password_confirmation: NEXT,
+      }),
+    );
+    expect(api.put).toHaveBeenCalledTimes(1);
+  });
+
+  it("still checks the fields while they are shown", async () => {
+    const user = userEvent.setup();
+    render(<ChangePasswordCard />);
+
+    await user.click(screen.getAllByRole("button", { name: "Show password" })[1]);
+    await fill(CURRENT, "short", "short");
+
+    expect(await screen.findByText("Use at least 8 characters.")).toBeInTheDocument();
+    expect(api.put).not.toHaveBeenCalled();
+  });
+});

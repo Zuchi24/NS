@@ -14,6 +14,8 @@ import {
   Archive,
   CalendarRange,
   ClipboardList,
+  Network,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/components/ui/utils';
@@ -60,7 +62,18 @@ export const ADMIN_ACADEMIC_ITEMS = [
   { name: 'Sections', path: `${ACADEMIC_ADMIN_PATH}/sections` },
 ];
 
-export function AdminSidebar() {
+/**
+ * From `md` up the sidebar is always open; below it the same panel is a drawer
+ * the layout opens and closes. Closed, it is also `invisible` there, so what
+ * is offscreen is out of the tab order and the accessibility tree too.
+ */
+export function AdminSidebar({
+  open = false,
+  onClose,
+}: {
+  open?: boolean;
+  onClose?: () => void;
+} = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
@@ -104,13 +117,34 @@ export function AdminSidebar() {
   };
 
   return (
-    <div className="w-64 h-screen bg-white border-r border-gray-200 flex flex-col fixed left-0 top-0 overflow-y-auto z-50">
-      <div className="p-6">
-        <div className="flex items-center gap-2 mb-8">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-lg">N</span>
+    <div
+      className={cn(
+        'w-64 h-screen bg-white border-r border-slate-200 flex flex-col fixed left-0 top-0 overflow-y-auto z-50',
+        'transition-[transform,visibility] duration-200 md:translate-x-0 md:visible',
+        open ? 'translate-x-0 shadow-xl' : 'max-md:-translate-x-full max-md:invisible'
+      )}
+    >
+      <div className="p-5">
+        <div className="flex items-center justify-between gap-2 mb-8 px-1">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm shadow-blue-600/30">
+              <Network className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-slate-900 tracking-tight leading-tight">NetSim</h1>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Admin</p>
+            </div>
           </div>
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">NetSim</h1>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close navigation"
+              className="md:hidden p-2 -mr-2 rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         <nav className="space-y-1">
@@ -119,10 +153,10 @@ export function AdminSidebar() {
               key={item.name}
               onClick={() => navigate(item.path)}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                 isActive(item.path)
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-blue-50 text-blue-600 shadow-[inset_3px_0_0_var(--color-blue-600)]'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               )}
             >
               <item.icon size={18} />
@@ -139,10 +173,10 @@ export function AdminSidebar() {
               }}
               aria-expanded={isArchiveExpanded}
               className={cn(
-                'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                 inArchive
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-blue-50 text-blue-600 shadow-[inset_3px_0_0_var(--color-blue-600)]'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               )}
             >
               <div className="flex items-center gap-3">
@@ -153,22 +187,22 @@ export function AdminSidebar() {
             </button>
 
             {isArchiveExpanded && (
-              <div className="mt-1 ml-4 border-l border-gray-100 pl-2 space-y-1">
+              <div className="mt-1 ml-4 border-l border-slate-200 pl-2 space-y-1">
                 <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-500">
                   <ClipboardList size={14} />
                   Test
                 </div>
-                <div className="ml-4 border-l border-gray-100 pl-2 space-y-1">
+                <div className="ml-4 border-l border-slate-200 pl-2 space-y-1">
                   {ADMIN_ARCHIVE_ITEMS.map((item) => (
                     <button
                       key={item.path}
                       onClick={() => navigate(item.path)}
                       aria-current={location.pathname === item.path ? 'page' : undefined}
                       className={cn(
-                        'w-full flex items-center px-3 py-1.5 rounded-md text-xs transition-colors',
+                        'w-full flex items-center px-3 py-1.5 rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                         location.pathname === item.path
                           ? 'text-blue-600 font-medium bg-blue-50/50'
-                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                          : 'text-gray-500 hover:bg-slate-100 hover:text-slate-800'
                       )}
                     >
                       {item.name}
@@ -188,10 +222,10 @@ export function AdminSidebar() {
               }}
               aria-expanded={isAcademicExpanded}
               className={cn(
-                'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                 inAcademic
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-blue-50 text-blue-600 shadow-[inset_3px_0_0_var(--color-blue-600)]'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               )}
             >
               <div className="flex items-center gap-3">
@@ -202,17 +236,17 @@ export function AdminSidebar() {
             </button>
 
             {isAcademicExpanded && (
-              <div className="mt-1 ml-4 border-l border-gray-100 pl-2 space-y-1">
+              <div className="mt-1 ml-4 border-l border-slate-200 pl-2 space-y-1">
                 {ADMIN_ACADEMIC_ITEMS.map((item) => (
                   <button
                     key={item.path}
                     onClick={() => navigate(item.path)}
                     aria-current={isActive(item.path) ? 'page' : undefined}
                     className={cn(
-                      'w-full flex items-center px-3 py-1.5 rounded-md text-xs transition-colors',
+                      'w-full flex items-center px-3 py-1.5 rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                       isActive(item.path)
                         ? 'text-blue-600 font-medium bg-blue-50/50'
-                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                        : 'text-gray-500 hover:bg-slate-100 hover:text-slate-800'
                     )}
                   >
                     {item.name}
@@ -230,10 +264,10 @@ export function AdminSidebar() {
                 if (!isStudentsExpanded) navigate('/admin/students');
               }}
               className={cn(
-                'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                 isActive('/admin/students')
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-blue-50 text-blue-600 shadow-[inset_3px_0_0_var(--color-blue-600)]'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               )}
             >
               <div className="flex items-center gap-3">
@@ -244,16 +278,16 @@ export function AdminSidebar() {
             </button>
 
             {isStudentsExpanded && (
-              <div className="mt-1 ml-4 border-l border-gray-100 pl-2 space-y-1">
+              <div className="mt-1 ml-4 border-l border-slate-200 pl-2 space-y-1">
                 {(cohorts ?? []).map((year) => (
                   <div key={year.id}>
                     <button
                       onClick={() => handleYearClick(year.id)}
                       className={cn(
-                        'w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                        'w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                         location.pathname.startsWith(`/admin/students/${year.id}`)
                           ? 'text-blue-600 bg-blue-50/50'
-                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                          : 'text-gray-500 hover:bg-slate-100 hover:text-slate-800'
                       )}
                     >
                       <div className="flex items-center gap-2">
@@ -268,7 +302,7 @@ export function AdminSidebar() {
                     </button>
 
                     {expandedYear === year.id && (
-                      <div className="overflow-hidden mt-1 ml-4 border-l border-gray-100 pl-2 space-y-1">
+                      <div className="overflow-hidden mt-1 ml-4 border-l border-slate-200 pl-2 space-y-1">
                         {year.sections.map((section) => (
                           <button
                             key={section.id}
@@ -276,7 +310,7 @@ export function AdminSidebar() {
                               navigate(`/admin/students/${year.id}/${section.id}`)
                             }
                             className={cn(
-                              'w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-xs transition-colors',
+                              'w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                               location.pathname.startsWith(
                                 `/admin/students/${year.id}/${section.id}`
                               )
@@ -299,10 +333,10 @@ export function AdminSidebar() {
           <button
             onClick={() => navigate('/admin/profile')}
             className={cn(
-              'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium mt-4 transition-colors',
+              'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium mt-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
               isActive('/admin/profile')
-                ? 'bg-blue-50 text-blue-600'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                ? 'bg-blue-50 text-blue-600 shadow-[inset_3px_0_0_var(--color-blue-600)]'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
             )}
           >
             <UserCircle size={18} />
@@ -311,10 +345,10 @@ export function AdminSidebar() {
         </nav>
       </div>
 
-      <div className="mt-auto p-6 border-t border-gray-100">
+      <div className="mt-auto p-5 border-t border-slate-200">
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
         >
           <LogOut size={18} />
           Logout

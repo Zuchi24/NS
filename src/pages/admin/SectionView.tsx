@@ -62,23 +62,23 @@ export function SectionView() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Name
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Student ID
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Challenges passed
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Last active
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Standing
                     </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Actions
                     </th>
                   </tr>
@@ -87,7 +87,7 @@ export function SectionView() {
                   {students.map((student) => (
                     <tr
                       key={student.id}
-                      className="border-b border-gray-100 hover:bg-gray-50"
+                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors"
                     >
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">

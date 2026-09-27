@@ -404,3 +404,27 @@ it("says so when the student has never been placed", async () => {
   expect(await screen.findByText("Not placed this academic year")).toBeTruthy();
   expect(screen.getByText("Not placed in any academic year yet.")).toBeTruthy();
 });
+
+it("lets the admin see the new password before setting it, sending it unchanged", async () => {
+  vi.mocked(service.resetStudentPassword).mockResolvedValue("Password reset.");
+  const form = await openReset();
+
+  const toggles = within(form).getAllByRole("button", { name: "Show password" });
+  expect(toggles).toHaveLength(2);
+  expect(within(form).getByLabelText("New password")).toHaveAttribute("type", "password");
+
+  await userEvent.type(within(form).getByLabelText("New password"), "fresh-pass-123");
+  await userEvent.click(toggles[0]);
+
+  expect(within(form).getByLabelText("New password")).toHaveAttribute("type", "text");
+  expect(within(form).getByLabelText("New password")).toHaveValue("fresh-pass-123");
+  expect(within(form).getByLabelText("Confirm new password")).toHaveAttribute("type", "password");
+  expect(service.resetStudentPassword).not.toHaveBeenCalled();
+
+  await userEvent.type(within(form).getByLabelText("Confirm new password"), "fresh-pass-123");
+  await userEvent.click(within(form).getByRole("button", { name: "Set new password" }));
+
+  await waitFor(() =>
+    expect(service.resetStudentPassword).toHaveBeenCalledWith(3, "fresh-pass-123", "fresh-pass-123"),
+  );
+});

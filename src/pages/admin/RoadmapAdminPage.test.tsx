@@ -378,3 +378,40 @@ describe("remembering where the author was", () => {
     ).toHaveAttribute("aria-expanded", "false");
   });
 });
+
+/*
+ * Layout is not measured in jsdom, so these pin the classes that keep the page
+ * inside a phone-width screen: a long roadmap name in the picker once widened
+ * the whole column past the viewport, and the topic rows' controls squeezed
+ * the titles out.
+ */
+describe("RoadmapAdminPage on a narrow screen", () => {
+  it("keeps the single column to the width of the screen", async () => {
+    await renderWith([roadmap()]);
+
+    const layout = screen.getByLabelText(/authoring/i).closest(".grid");
+
+    expect(layout).toHaveClass("grid-cols-1", "lg:grid-cols-[400px_1fr]");
+  });
+
+  it("lets each card's heading controls wrap below the title", async () => {
+    await renderWith([roadmap()]);
+
+    expect(
+      screen.getByRole("button", { name: /new roadmap/i }).parentElement,
+    ).toHaveClass("flex-wrap");
+    expect(
+      screen.getByRole("button", { name: /add topic/i }).parentElement,
+    ).toHaveClass("flex-wrap");
+  });
+
+  it("lets a topic's controls wrap below it rather than crush its title", async () => {
+    await renderWith([roadmap()]);
+
+    const title = screen.getByRole("button", { name: /expand released topic/i })
+      .parentElement as HTMLElement;
+
+    expect(title).toHaveClass("min-w-0", "flex-[1_1_10rem]");
+    expect(title.parentElement).toHaveClass("flex-wrap");
+  });
+});

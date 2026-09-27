@@ -393,11 +393,11 @@ export function ChallengePage() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-4 mb-2">
+                      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-2">
                         <h3 className="text-xl font-semibold text-gray-900">
                           {row.challenge.title}
                         </h3>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
                           {/* Outlined, so it reads as a property of the
                               challenge rather than another status pill. */}
                           <DifficultyChip difficulty={row.difficulty} />

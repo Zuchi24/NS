@@ -207,13 +207,13 @@ function ArchiveOfType({ type }: { type: AssessmentType }) {
 
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-4">
-          <div className="space-y-1">
+          <div className="min-w-0 max-w-full space-y-1">
             <Label htmlFor="archive-topic">Topic</Label>
             <select
               id="archive-topic"
               value={topicId ?? ""}
               onChange={(event) => setQuery({ topic: positiveInt(event.target.value) })}
-              className="h-10 min-w-64 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="h-10 min-w-64 max-w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="">All topics</option>
               {(topics.data ?? []).map((topic) => (

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useParams } from 'react-router';
 import { AdminSidebar } from '@/components/common/AdminSidebar';
 import { AdminHeader } from '@/components/common/AdminHeader';
@@ -5,6 +6,23 @@ import { AdminHeader } from '@/components/common/AdminHeader';
 export function AdminLayout() {
   const location = useLocation();
   const params = useParams();
+
+  // Below `md` the sidebar is a drawer; arriving somewhere new closes it.
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => setMenuOpen(false), [location.pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [menuOpen]);
 
   // Determine the page title based on the current route. The drilldown's
   // segments are ids, so each level names itself generically and the page
@@ -37,11 +55,23 @@ export function AdminLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <AdminSidebar />
-      <div className="flex-1 flex flex-col overflow-hidden ml-64">
-        <AdminHeader title={getPageTitle()} />
-        <main className="flex-1 overflow-auto p-8">
+    <div className="flex h-screen bg-slate-50">
+      <AdminSidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
+      {menuOpen && (
+        <div
+          className="fixed inset-0 z-[45] bg-slate-900/50 md:hidden"
+          // The close button and Escape do the same, so it needs no name.
+          aria-hidden="true"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0 md:ml-64">
+        <AdminHeader
+          title={getPageTitle()}
+          menuOpen={menuOpen}
+          onOpenMenu={() => setMenuOpen(true)}
+        />
+        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>

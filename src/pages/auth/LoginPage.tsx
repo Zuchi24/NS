@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -56,14 +57,14 @@ export function LoginPage() {
     <div className="space-y-8">
           {/* Logo */}
           <div className="text-center space-y-2">
-            <div className="flex items-center justify-center gap-2 mb-4">
+            <div className="flex md:hidden items-center justify-center gap-2 mb-4">
               <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
                 <Network className="w-7 h-7 text-white" />
               </div>
               <span className="text-2xl font-bold text-gray-900">NetSim</span>
             </div>
 
-            <h2 className="text-2xl font-bold text-gray-900">Welcome Back</h2>
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900">Welcome Back</h2>
             <p className="text-gray-600">Sign in to continue your learning</p>
             {/* There was a Student/Admin toggle here. It only restyled itself:
                 the account's own role decides what you can open, so choosing
@@ -79,14 +80,14 @@ export function LoginPage() {
                 Email
               </Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="gfdfdd@university.edu"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 h-11 border-gray-300 focus:border-blue-500"
+                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
                 />
               </div>
             </div>
@@ -97,14 +98,13 @@ export function LoginPage() {
                 Password
               </Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                <PasswordInput
                   id="password"
-                  type="password"
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 h-11 border-gray-300 focus:border-blue-500"
+                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
                 />
               </div>
             </div>
@@ -126,7 +126,7 @@ export function LoginPage() {
             {/* Submit */}
             <Button
               type="submit"
-              className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+              className="w-full h-11 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-md shadow-blue-600/20"
               disabled={loading}
             >
               {loading ? (

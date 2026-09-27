@@ -123,7 +123,7 @@ export function RoadmapPanel({
 
   return (
     <Card className="border-gray-200">
-      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4 space-y-0">
         <CardTitle className="text-lg flex items-center gap-2">
           <Map className="w-5 h-5 text-blue-600" aria-hidden="true" />
           Roadmap

@@ -87,11 +87,11 @@ function NavLinks({
             // it is the only signal this had.
             aria-current={current ? "page" : undefined}
             className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
+              "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
               current
-                ? "bg-blue-50 text-blue-600 font-medium"
-                : "text-gray-700 hover:bg-gray-100",
+                ? "bg-blue-50 text-blue-600 font-medium shadow-[inset_3px_0_0_var(--color-blue-600)]"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
             )}
           >
             <item.icon className="w-5 h-5 shrink-0" />
@@ -111,10 +111,10 @@ function Brand({ onNavigate }: { onNavigate?: () => void }) {
       onClick={onNavigate}
       className="flex items-center gap-2 hover:opacity-80 transition-opacity"
     >
-      <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-        <Network className="w-6 h-6 text-white" />
+      <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm shadow-blue-600/30">
+        <Network className="w-5 h-5 text-white" />
       </div>
-      <span className="text-xl font-bold text-gray-900">NetSim</span>
+      <span className="text-lg font-bold tracking-tight text-slate-900">NetSim</span>
     </Link>
   );
 }
@@ -166,11 +166,11 @@ export function StudentLayout() {
       onClick={onNavigate}
       aria-current={isUnder(location.pathname, "/profile") ? "page" : undefined}
       className={cn(
-        "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
+        "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
         isUnder(location.pathname, "/profile")
-          ? "bg-blue-50 text-blue-600 font-medium"
-          : "text-gray-700 hover:bg-gray-100",
+          ? "bg-blue-50 text-blue-600 font-medium shadow-[inset_3px_0_0_var(--color-blue-600)]"
+          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
       )}
     >
       <User className="w-5 h-5 shrink-0" />
@@ -182,8 +182,8 @@ export function StudentLayout() {
     <button
       onClick={handleLogout}
       className={cn(
-        "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 transition-colors",
-        "hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
+        "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-red-600 transition-colors",
+        "hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1",
       )}
     >
       <LogOut className="w-5 h-5 shrink-0" />
@@ -192,10 +192,10 @@ export function StudentLayout() {
   );
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-slate-50">
       {/* The rail: the same sidebar as before, from the medium breakpoint up. */}
-      <aside className="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col shrink-0">
-        <div className="p-6 border-b border-gray-200">
+      <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col shrink-0">
+        <div className="h-16 px-5 flex items-center border-b border-slate-200">
           <Brand />
         </div>
 
@@ -203,7 +203,7 @@ export function StudentLayout() {
           <NavLinks pathname={location.pathname} />
         </nav>
 
-        <div className="p-4 border-t border-gray-200 space-y-1">
+        <div className="p-4 border-t border-slate-200 space-y-1">
           {profileLink()}
           {logoutButton}
         </div>
@@ -251,7 +251,7 @@ export function StudentLayout() {
               />
             </nav>
 
-            <div className="p-4 border-t border-gray-200 space-y-1">
+            <div className="p-4 border-t border-slate-200 space-y-1">
               {profileLink(() => setMenuOpen(false))}
               {logoutButton}
             </div>
@@ -260,12 +260,12 @@ export function StudentLayout() {
       )}
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <header className="bg-white border-b border-gray-200 px-8 py-4">
+        <header className="h-16 shrink-0 flex items-center bg-white/90 backdrop-blur border-b border-slate-200 px-4 sm:px-6 lg:px-8">
           {/* Search and notifications used to sit here. Neither exists: there
               is no search endpoint and no notifications feature, and a box that
               never finds anything beside a bell that is permanently unread are
               worse than the space they took. */}
-          <div className="flex items-center justify-between gap-3">
+          <div className="w-full flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <button
                 type="button"
@@ -283,7 +283,7 @@ export function StudentLayout() {
 
             <Link
               to="/profile"
-              className="flex items-center gap-3 hover:opacity-80 transition-opacity min-w-0"
+              className="flex items-center gap-3 rounded-lg px-1.5 py-1 hover:bg-slate-100 transition-colors min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               {/* The name is the first thing to go when the row is tight. */}
               <div className="text-right hidden sm:block min-w-0">
@@ -294,8 +294,8 @@ export function StudentLayout() {
                   {user?.role ?? "student"}
                 </div>
               </div>
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
-                <User className="w-5 h-5 text-blue-600" />
+              <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center shrink-0">
+                <User className="w-5 h-5 text-white" />
               </div>
             </Link>
           </div>

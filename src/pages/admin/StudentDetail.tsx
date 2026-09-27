@@ -23,7 +23,7 @@ import {
   resetStudentPassword,
 } from "@/features/admin/adminService";
 import { PASSWORD_MIN_LENGTH } from "@/features/auth/ChangePasswordCard";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/services/api";
 import { standingClass } from "@/features/admin/format";
@@ -231,9 +231,8 @@ function ResetPassword({ student }: { student: Student }) {
 
       <div className="space-y-1">
         <Label htmlFor="reset-password">New password</Label>
-        <Input
+        <PasswordInput
           id="reset-password"
-          type="password"
           autoComplete="new-password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -250,9 +249,8 @@ function ResetPassword({ student }: { student: Student }) {
 
       <div className="space-y-1">
         <Label htmlFor="reset-password-confirmation">Confirm new password</Label>
-        <Input
+        <PasswordInput
           id="reset-password-confirmation"
-          type="password"
           autoComplete="new-password"
           value={confirmation}
           onChange={(event) => setConfirmation(event.target.value)}

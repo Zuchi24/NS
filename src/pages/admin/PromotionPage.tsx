@@ -307,7 +307,7 @@ function Promotion({ target, sources }: { target: AcademicYear; sources: Academi
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 text-left text-gray-700">
+                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                     <th className="py-2 pr-4 font-semibold">Student</th>
                     <th className="py-2 pr-4 font-semibold">In {preview.from.name}</th>
                     <th className="py-2 pr-4 font-semibold">In {preview.to.name}</th>

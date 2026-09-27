@@ -69,7 +69,7 @@ export function RoadmapAdminPage() {
     null;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[400px_1fr] items-start">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[400px_1fr] items-start">
       <RoadmapPanel
         roadmaps={roadmaps}
         roadmap={roadmap}

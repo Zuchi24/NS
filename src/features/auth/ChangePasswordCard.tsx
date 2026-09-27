@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/services/api";
 import { changePassword } from "@/features/auth/authService";
@@ -109,9 +109,8 @@ export function ChangePasswordCard() {
     return (
       <div className="space-y-1">
         <Label htmlFor={id}>{label}</Label>
-        <Input
+        <PasswordInput
           id={id}
-          type="password"
           autoComplete={autoComplete}
           value={values[name]}
           onChange={set(name)}

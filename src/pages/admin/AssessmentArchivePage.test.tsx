@@ -326,6 +326,17 @@ describe("filtering", () => {
 
     await waitFor(() => expect(lastQuery()?.taken).toBeUndefined());
   });
+
+  it("keeps the topic filter inside a narrow screen, however long a topic's name", async () => {
+    await show();
+
+    const picker = screen.getByLabelText("Topic");
+
+    // Layout is not measured in jsdom. A native select is as wide as its
+    // longest option, which once pushed this one past a phone-width screen.
+    expect(picker).toHaveClass("max-w-full");
+    expect(picker.parentElement).toHaveClass("min-w-0", "max-w-full");
+  });
 });
 
 describe("paging", () => {
