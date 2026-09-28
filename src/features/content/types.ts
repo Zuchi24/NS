@@ -163,9 +163,11 @@ export type SimulationConfig =
   | MotherboardLabelsConfig;
 
 /**
- * What the motherboard labeling page is given: which board, and which of its
- * marks to label, in the order they are numbered. The marks are opaque ids
- * (m1, m2, ...); the names that answer them stay on the server.
+ * What the motherboard labeling page is given: which board, which of its marks
+ * to label, in the order they are numbered, and whether the names are typed or
+ * dragged. The marks are opaque ids (m1, m2, ...); which name answers which
+ * stays on the server. A drag board's chips are sent, sorted — right and
+ * wrong names together, with nothing to say which mark each belongs to.
  *
  * Wire data, read field by field by parseMotherboardLabelsConfig() rather than
  * trusted on this type's say-so.
@@ -173,6 +175,8 @@ export type SimulationConfig =
 export interface MotherboardLabelsConfig {
   board: string;
   labels: { id: string }[];
+  mode?: "type" | "drag";
+  choices?: string[];
   /** Never set; declared so the shapes stay one union to read a field off. */
   model?: undefined;
   components?: never;

@@ -33,7 +33,70 @@ describe("a motherboard labeling config", () => {
     expect(parseMotherboardLabelsConfig(config)).toBeNull();
   });
 
-  it("offers the whole board for practice", () => {
-    expect(practiceSetup().regions).toHaveLength(10);
+  it("is typed on, with no chips, when the config does not say otherwise", () => {
+    const setup = parseMotherboardLabelsConfig({ board: "atx-basic-v1", labels: [{ id: "m3" }] });
+
+    expect(setup?.mode).toBe("type");
+    expect(setup?.choices).toEqual([]);
+  });
+
+  it("ignores chips sent to a board that is typed on", () => {
+    const setup = parseMotherboardLabelsConfig({
+      board: "atx-basic-v1",
+      mode: "type",
+      labels: [{ id: "m3" }],
+      choices: ["CPU socket"],
+    });
+
+    expect(setup?.choices).toEqual([]);
+  });
+
+  it("offers the ten larger parts for practice, typed on", () => {
+    const setup = practiceSetup();
+
+    expect(setup.regions.map((region) => region.id)).toEqual(["m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8", "m9", "m10"]);
+    expect(setup.mode).toBe("type");
+    expect(setup.choices).toEqual([]);
+  });
+});
+
+describe("a drag board's config", () => {
+  const drag = (extra: Record<string, unknown>) => ({
+    board: "atx-basic-v1",
+    mode: "drag",
+    labels: [{ id: "m3" }, { id: "m1" }],
+    ...extra,
+  });
+
+  it("keeps its chips in the order the server sent them", () => {
+    const setup = parseMotherboardLabelsConfig(drag({ choices: ["Chipset", "CPU socket", "RAM slots"] }));
+
+    expect(setup?.mode).toBe("drag");
+    expect(setup?.choices).toEqual(["Chipset", "CPU socket", "RAM slots"]);
+    expect(setup?.regions.map((region) => region.id)).toEqual(["m3", "m1"]);
+  });
+
+  it("marks the smaller parts too", () => {
+    const setup = parseMotherboardLabelsConfig({
+      board: "atx-basic-v1",
+      mode: "drag",
+      labels: ["m11", "m12", "m13", "m14", "m15", "m16"].map((id) => ({ id })),
+      choices: ["a", "b", "c", "d", "e", "f"],
+    });
+
+    expect(setup?.regions).toHaveLength(6);
+  });
+
+  it.each([
+    ["a mode it does not know", { mode: "pick" }],
+    ["no chips", { choices: undefined }],
+    ["chips that are not a list", { choices: "CPU socket" }],
+    ["fewer chips than marks", { choices: ["CPU socket"] }],
+    ["a chip that is not text", { choices: ["CPU socket", 42] }],
+    ["a blank chip", { choices: ["CPU socket", "  "] }],
+    ["the same chip twice", { choices: ["CPU socket", "CPU socket", "RAM slots"] }],
+    ["a chip too long to send", { choices: ["CPU socket", "x".repeat(65)] }],
+  ])("refuses %s", (_what, extra) => {
+    expect(parseMotherboardLabelsConfig(drag({ choices: ["CPU socket", "RAM slots"], ...extra }))).toBeNull();
   });
 });

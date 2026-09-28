@@ -6,6 +6,7 @@ import {
   LABEL_HEIGHT,
   LABEL_WIDTH,
   leaderStart,
+  markedBeside,
   toPercent,
   type Box,
 } from "./board";
@@ -34,9 +35,9 @@ const contains = (outer: Box, x: number, y: number) =>
   x >= outer.x && x <= outer.x + outer.width && y >= outer.y && y <= outer.y + outer.height;
 
 describe("the atx-basic-v1 board", () => {
-  it("marks all ten parts, by opaque ids only", () => {
+  it("marks all sixteen parts, by opaque ids only", () => {
     expect(Object.keys(ATX_BASIC_V1.regions).sort()).toEqual(
-      ["m1", "m10", "m2", "m3", "m4", "m5", "m6", "m7", "m8", "m9"],
+      ["m1", "m10", "m11", "m12", "m13", "m14", "m15", "m16", "m2", "m3", "m4", "m5", "m6", "m7", "m8", "m9"],
     );
 
     for (const region of regions) {
@@ -86,6 +87,56 @@ describe("the atx-basic-v1 board", () => {
     expect(gap).toBeGreaterThanOrEqual(LABEL_HEIGHT + 20);
   });
 
+  // The largest a marker is drawn: on the cropped board.
+  const MARKER = 16;
+
+  const circleMeetsBox = (c: { x: number; y: number }, r: number, box: Box) => {
+    const nx = Math.min(Math.max(c.x, box.x), box.x + box.width);
+    const ny = Math.min(Math.max(c.y, box.y), box.y + box.height);
+
+    return Math.hypot(c.x - nx, c.y - ny) < r;
+  };
+
+  it("keeps every marker in the cropped view, and a marker set beside its part whole", () => {
+    const { x, y, width, height } = ATX_BASIC_V1.crop;
+
+    for (const region of regions) {
+      const { x: mx, y: my } = region.marker;
+      // m6 sits on the board's very edge, so its marker may be cut by the crop.
+      const r = markedBeside(region) ? MARKER : 0;
+
+      expect(mx - r >= x && mx + r <= x + width && my - r >= y && my + r <= y + height, region.id).toBe(true);
+    }
+  });
+
+  it("sets a small part's marker beside it, where it covers no marked part", () => {
+    const beside = regions.filter(markedBeside);
+
+    expect(beside.map((region) => region.id)).toEqual(["m12", "m13", "m14", "m15", "m16"]);
+
+    for (const region of beside) {
+      for (const other of regions) {
+        expect(circleMeetsBox(region.marker, MARKER, other.bounds), `${region.id} marker on ${other.id}`).toBe(false);
+      }
+    }
+  });
+
+  it.each([
+    ["the ten larger parts", ["m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8", "m9", "m10"]],
+    ["the six smaller parts", ["m11", "m12", "m13", "m14", "m15", "m16"]],
+  ])("never stacks one marker on another among %s", (_set, ids) => {
+    // The sets a board is marked in. A marker from one set may sit near a
+    // part of the other, but the two are never marked at once.
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = ATX_BASIC_V1.regions[ids[i]].marker;
+        const b = ATX_BASIC_V1.regions[ids[j]].marker;
+
+        expect(Math.hypot(a.x - b.x, a.y - b.y), `${ids[i]}/${ids[j]}`).toBeGreaterThanOrEqual(MARKER * 2);
+      }
+    }
+  });
+
   it("starts each leader line on the side of its box that faces the board", () => {
     for (const region of regions) {
       const start = leaderStart(region);
@@ -128,6 +179,9 @@ describe("what a student can read about a part", () => {
     "cpu", "processor", "ram", "dimm", "memory", "pcie", "pci", "express", "sata", "cmos", "bios",
     "rtc", "cr2032", "coin", "cell", "m.2", "nvme", "ssd", "i/o", "io ", "rear", "back panel", "panel",
     "atx", "24", "8-pin", "pin", "lga", "usb", "ethernet", "audio", "graphics",
+    // The smaller parts.
+    "vrm", "regulator", "voltage", "uefi", "firmware", "flash", "rom", "chip", "codec", "sound",
+    "lan", "network", "nic", "controller", "header", "fan", "front", "cooler",
   ];
 
   // Whole words only: "frame" is not "ram".

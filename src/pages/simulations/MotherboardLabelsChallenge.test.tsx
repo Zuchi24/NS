@@ -222,6 +222,201 @@ describe("the labeling page's two layouts", () => {
   });
 });
 
+const dragChallenge = {
+  ...challenge,
+  config: {
+    board: "atx-basic-v1",
+    mode: "drag",
+    labels: [{ id: "m3" }, { id: "m1" }, { id: "m8" }],
+    choices: ["Chipset", "CPU socket", "PCIe x16 slot", "RAM slots"],
+  },
+} as unknown as Challenge;
+
+function openDragBoard() {
+  vi.mocked(content.fetchAttempt).mockResolvedValue({ attempt: marked(false, []), challenge: dragChallenge, topology: null });
+
+  return open();
+}
+
+const bank = () => screen.getByRole("group", { name: "Names to place" });
+const chip = (name: string) => within(bank()).getByRole("button", { name });
+const chipsInBank = () => within(bank()).queryAllByRole("button").map((button) => button.textContent);
+const slot = (n: number) => screen.getByRole("button", { name: new RegExp(`^Component ${n}(,|:)`) });
+
+describe("a drag board", () => {
+  it("offers its names as chips and a slot for every mark, and no boxes to type in", async () => {
+    openDragBoard();
+    await screen.findByRole("group", { name: "Names to place" });
+
+    expect(chipsInBank()).toEqual(["Chipset", "CPU socket", "PCIe x16 slot", "RAM slots"]);
+    expect([1, 2, 3].map((n) => slot(n).getAttribute("aria-label"))).toEqual([
+      "Component 1, empty",
+      "Component 2, empty",
+      "Component 3, empty",
+    ]);
+    expect([1, 2, 3].map((n) => slot(n).getAttribute("data-mark"))).toEqual(["m3", "m1", "m8"]);
+    expect(screen.queryAllByRole("textbox")).toHaveLength(0);
+  });
+
+  it("describes each slot's part without naming it", async () => {
+    openDragBoard();
+    await screen.findByRole("group", { name: "Names to place" });
+
+    for (const n of [1, 2, 3]) {
+      const description = document.getElementById(slot(n).getAttribute("aria-describedby")!)!.textContent!;
+
+      expect(description.length).toBeGreaterThan(10);
+      expect(description.toLowerCase()).not.toMatch(/socket|slot|cpu|\bram\b|pcie/);
+    }
+  });
+
+  it("puts a picked-up chip down on the slot chosen next", async () => {
+    openDragBoard();
+    await screen.findByRole("group", { name: "Names to place" });
+
+    fireEvent.click(chip("CPU socket"));
+    expect(chip("CPU socket").getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(slot(1));
+
+    expect(slot(1).getAttribute("aria-label")).toBe("Component 1: CPU socket");
+    expect(chipsInBank()).toEqual(["Chipset", "PCIe x16 slot", "RAM slots"]);
+    expect(screen.getByRole("status").textContent).toBe("CPU socket placed on Component 1.");
+  });
+
+  it("swaps two placed chips, and sends a covered chip back to the names", async () => {
+    openDragBoard();
+    await screen.findByRole("group", { name: "Names to place" });
+
+    fireEvent.click(chip("RAM slots"));
+    fireEvent.click(slot(1));
+    fireEvent.click(chip("CPU socket"));
+    fireEvent.click(slot(2));
+
+    // Picked up off slot 2 and put on slot 1: the two trade places.
+    fireEvent.click(slot(2));
+    fireEvent.click(slot(1));
+
+    expect(slot(1).getAttribute("aria-label")).toBe("Component 1: CPU socket");
+    expect(slot(2).getAttribute("aria-label")).toBe("Component 2: RAM slots");
+
+    // A chip from the names put on a full slot sends the one there back.
+    fireEvent.click(chip("Chipset"));
+    fireEvent.click(slot(2));
+
+    expect(slot(2).getAttribute("aria-label")).toBe("Component 2: Chipset");
+    expect(chipsInBank()).toEqual(["PCIe x16 slot", "RAM slots"]);
+  });
+
+  it("takes a chip off its slot, back to the names", async () => {
+    openDragBoard();
+    await screen.findByRole("group", { name: "Names to place" });
+
+    fireEvent.click(chip("Chipset"));
+    fireEvent.click(slot(3));
+    fireEvent.click(screen.getByRole("button", { name: "Take Chipset off Component 3" }));
+
+    expect(slot(3).getAttribute("aria-label")).toBe("Component 3, empty");
+    expect(chipsInBank()).toEqual(["Chipset", "CPU socket", "PCIe x16 slot", "RAM slots"]);
+  });
+
+  it("lets Escape put a picked-up chip back down", async () => {
+    openDragBoard();
+    await screen.findByRole("group", { name: "Names to place" });
+
+    fireEvent.click(chip("Chipset"));
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => expect(chip("Chipset").getAttribute("aria-pressed")).toBe("false"));
+    fireEvent.click(slot(1));
+    expect(slot(1).getAttribute("aria-label")).toBe("Component 1, empty");
+  });
+
+  it("moves a chip with a real drag and drop", async () => {
+    openDragBoard();
+    await screen.findByRole("group", { name: "Names to place" });
+
+    const dataTransfer = {
+      setData: vi.fn(),
+      getData: vi.fn(),
+      setDragImage: vi.fn(),
+      dropEffect: "move",
+      effectAllowed: "all",
+      types: [] as string[],
+      files: [],
+      items: [],
+    };
+
+    fireEvent.dragStart(chip("PCIe x16 slot"), { dataTransfer });
+    fireEvent.dragEnter(slot(3), { dataTransfer });
+    fireEvent.dragOver(slot(3), { dataTransfer });
+    fireEvent.drop(slot(3), { dataTransfer });
+
+    await waitFor(() => expect(slot(3).getAttribute("aria-label")).toBe("Component 3: PCIe x16 slot"));
+    expect(chipsInBank()).toEqual(["Chipset", "CPU socket", "RAM slots"]);
+  });
+
+  it("sends the chip on each mark, an empty slot as blank", async () => {
+    vi.mocked(content.submitSimulation).mockResolvedValue(marked(false, [["Component 1", true], ["Component 2", false], ["Component 3", true]]));
+    openDragBoard();
+    await screen.findByRole("group", { name: "Names to place" });
+
+    fireEvent.click(chip("CPU socket"));
+    fireEvent.click(slot(1));
+    fireEvent.click(chip("PCIe x16 slot"));
+    fireEvent.click(slot(3));
+    fireEvent.click(screen.getByRole("button", { name: /check labels/i }));
+
+    await waitFor(() => expect(content.submitSimulation).toHaveBeenCalledTimes(1));
+    expect(content.submitSimulation).toHaveBeenCalledWith(5, {
+      labels: { m3: "CPU socket", m1: "", m8: "PCIe x16 slot" },
+    });
+
+    // The result says which, never what.
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Component 2")).toBeTruthy();
+    expect(dialog.textContent!.toLowerCase()).not.toContain("ram slots");
+  });
+
+  it("starts another attempt to try again, with every chip back among the names", async () => {
+    vi.mocked(content.submitSimulation).mockResolvedValue(marked(false, [["Component 1", false], ["Component 2", false], ["Component 3", false]]));
+    vi.mocked(content.startAttempt).mockResolvedValue({ ...marked(false, []), id: 6, status: "in_progress" } as Attempt);
+    openDragBoard();
+    await screen.findByRole("group", { name: "Names to place" });
+
+    fireEvent.click(chip("Chipset"));
+    fireEvent.click(slot(1));
+    fireEvent.click(screen.getByRole("button", { name: /check labels/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /try again/i }));
+
+    await waitFor(() => expect(content.fetchAttempt).toHaveBeenLastCalledWith(6));
+    await waitFor(() => expect(slot(1).getAttribute("aria-label")).toBe("Component 1, empty"));
+    expect(chipsInBank()).toEqual(["Chipset", "CPU socket", "PCIe x16 slot", "RAM slots"]);
+  });
+
+  it("puts its slots around the board with leader lines when the window is wide", async () => {
+    windowIsWide(true);
+    const { container } = openDragBoard();
+    await screen.findByRole("group", { name: "Names to place" });
+
+    expect(container.querySelector('[data-layout="wide"]')).toBeTruthy();
+    expect(container.querySelectorAll("[data-leader]")).toHaveLength(3);
+    expect(container.querySelectorAll("[data-label-box] [data-drop-slot]")).toHaveLength(3);
+  });
+
+  it("refuses to draw a drag board with no chip for every mark", async () => {
+    vi.mocked(content.fetchAttempt).mockResolvedValue({
+      attempt: marked(false, []),
+      challenge: { ...dragChallenge, config: { ...(dragChallenge.config as object), choices: ["Chipset"] } } as unknown as Challenge,
+      topology: null,
+    });
+    open();
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Names to place" })).toBeNull();
+  });
+});
+
 describe("the route to the labeling page", () => {
   it("is where the catalogue sends a motherboard_labels challenge", async () => {
     const { challengeRoute } = await import("@/features/content/contentService");

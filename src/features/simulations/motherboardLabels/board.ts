@@ -29,8 +29,14 @@ export type LabelSide = "above" | "below" | "left" | "right";
 
 export interface BoardRegion {
   id: string;
-  /** Where a marker sits and a leader line ends. */
+  /** A point on the part itself. */
   anchor: Point;
+  /**
+   * Where the numbered marker sits and a leader line ends. On the part, for a
+   * part big enough to show around it; beside it, for one the marker would
+   * cover — the page then outlines the part and points the marker at it.
+   */
+  marker: Point;
   /** The part's extent on the drawing. */
   bounds: Box;
   labelSide: LabelSide;
@@ -62,10 +68,16 @@ function region(
   labelSide: LabelSide,
   labelAt: Point,
   description: string,
+  marker: Point = anchor,
 ): BoardRegion {
   const [x1, x2, y1, y2] = bounds;
 
-  return { id, anchor, bounds: { x: x1, y: y1, width: x2 - x1, height: y2 - y1 }, labelSide, labelAt, description };
+  return { id, anchor, marker, bounds: { x: x1, y: y1, width: x2 - x1, height: y2 - y1 }, labelSide, labelAt, description };
+}
+
+/** Whether a region's marker sits beside its part rather than on it. */
+export function markedBeside(region: BoardRegion): boolean {
+  return region.marker.x !== region.anchor.x || region.marker.y !== region.anchor.y;
 }
 
 /**
@@ -100,6 +112,31 @@ export const ATX_BASIC_V1: BoardDefinition = {
         "A small white block with two rows of square holes, top-left corner"),
       region("m10", { x: 360, y: 492 }, [360, 596, 480, 504], "left", { x: 140, y: 520 },
         "A small black block with a dashed outline and a round post beside it, just below the long silver-rimmed strip"),
+      // The smaller parts. Their boxes use the room the first ten leave free —
+      // a second row above the board and one below, and the ends of the rows
+      // and columns —
+      // so no two boxes on this board ever overlap, whichever parts are marked.
+      // All but the first are smaller than a marker, so theirs sits beside them.
+      region("m11", { x: 495, y: 212 }, [410, 580, 196, 228], "above", { x: 495, y: 30 },
+        "A long dark grooved block along the top of the square gold grid, with a row of small dark squares under it"),
+      region("m12", { x: 474, y: 540 }, [458, 490, 528, 552], "below", { x: 474, y: 770 },
+        "A small black rectangle with short silver legs along its two long sides, left of the round silver disc",
+        { x: 474, y: 570 }),
+      region("m13", { x: 317, y: 569 }, [302, 332, 554, 584], "left", { x: 140, y: 700 },
+        "A small black square with silver legs on every side, in the bottom-left corner",
+        { x: 350, y: 570 }),
+      // Right behind the largest opening in the strip on the left edge, where
+      // the chip it names sits on a real board. Its leader crosses that strip
+      // through the gap under the largest opening, not through an opening.
+      region("m14", { x: 374, y: 292 }, [358, 390, 276, 308], "left", { x: 140, y: 348 },
+        "A black square with silver legs on every side, just inside the strip of openings on the left edge, level with its largest opening",
+        { x: 374, y: 332 }),
+      region("m15", { x: 727, y: 618 }, [700, 754, 610, 626], "below", { x: 980, y: 712 },
+        "A black block with two rows of gold dots on the bottom edge, the left one of a pair",
+        { x: 727, y: 594 }),
+      region("m16", { x: 757, y: 173 }, [742, 772, 167, 179], "above", { x: 910, y: 90 },
+        "A thin black strip with four gold dots in a row on the top edge, right of the four tall strips",
+        { x: 792, y: 172 }),
     ].map((r) => [r.id, r]),
   ),
 };

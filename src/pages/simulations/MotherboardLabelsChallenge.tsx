@@ -1,25 +1,39 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
 import { ArrowLeft, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { SubmissionResultsDialog } from "@/components/common/SubmissionResultsDialog";
 import { useChallengeAttempt } from "@/features/content/useChallengeAttempt";
-import { LabelingBoard } from "@/features/simulations/motherboardLabels/LabelingBoard";
+import { LabelingBoard, TypedField } from "@/features/simulations/motherboardLabels/LabelingBoard";
+import { ChipBank, DropSlot } from "@/features/simulations/motherboardLabels/dragLabels";
 import {
   parseMotherboardLabelsConfig,
   practiceSetup,
 } from "@/features/simulations/motherboardLabels/config";
+import {
+  clearSlot,
+  placeChip,
+  slotOf,
+  unplaced,
+  type Placement,
+} from "@/features/simulations/motherboardLabels/placement";
 import { useWideLayout } from "@/features/simulations/motherboardLabels/useWideLayout";
 
 /**
- * Label the Motherboard: type the name of each numbered part of a drawn board.
+ * Label the Motherboard: name each numbered part of a drawn board, by typing
+ * the name or by dropping a name chip on it, as the challenge says.
  *
  * Opened from the catalogue with `?attempt=`, the challenge decides which parts
- * are marked and the server grades what was typed — the page never knows the
- * answers, so it never judges them. On its own it is free practice on the
- * whole board, with nothing to submit.
+ * are marked, how they are named, and the server grades the names — the page
+ * never knows which name belongs where, so it never judges them. On its own it
+ * is free practice on the board, typed on, with nothing to submit.
+ *
+ * Both modes keep the same record of mark → name and submit it the same way,
+ * so a drag board is graded exactly as a typed one.
  */
 export function MotherboardLabelsChallenge() {
   const navigate = useNavigate();
@@ -31,23 +45,148 @@ export function MotherboardLabelsChallenge() {
     [attempt.isGraded, attempt.challenge],
   );
 
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Placement>({});
+  // The chip picked up to be put down with a click or tap; null when none is.
+  const [held, setHeld] = useState<string | null>(null);
+  // What the last move did, for a screen reader.
+  const [announcement, setAnnouncement] = useState("");
 
-  // A retry is a fresh attempt, and starts from empty boxes.
+  // A retry is a fresh attempt, and starts from an empty board.
   useEffect(() => {
     setAnswers({});
+    setHeld(null);
+    setAnnouncement("");
   }, [attempt.attemptId]);
+
+  const number = useCallback(
+    (id: string) => (setup ? setup.regions.findIndex((region) => region.id === id) + 1 : 0),
+    [setup],
+  );
+
+  const type = useCallback((id: string, value: string) => {
+    setAnswers((current) => ({ ...current, [id]: value }));
+  }, []);
+
+  const place = useCallback(
+    (chip: string, id: string) => {
+      setAnswers((current) => placeChip(current, chip, id));
+      setHeld(null);
+      setAnnouncement(`${chip} placed on Component ${number(id)}.`);
+    },
+    [number],
+  );
+
+  const clear = useCallback(
+    (id: string) => {
+      const chip = answers[id];
+
+      setAnswers((current) => clearSlot(current, id));
+      setHeld(null);
+      if (chip !== undefined) setAnnouncement(`${chip} taken off Component ${number(id)}.`);
+    },
+    [answers, number],
+  );
+
+  // A chip dropped back among the names. One that never left them is left alone.
+  const returnChip = useCallback(
+    (chip: string) => {
+      const id = slotOf(answers, chip);
+
+      setHeld(null);
+      if (id === null) return;
+
+      setAnswers((current) => clearSlot(current, id));
+      setAnnouncement(`${chip} is back with the names.`);
+    },
+    [answers],
+  );
+
+  // Picking up the chip already held puts it down again.
+  const pick = useCallback(
+    (chip: string) => {
+      const next = held === chip ? null : chip;
+
+      setHeld(next);
+      setAnnouncement(next === null ? "" : `Picked up ${chip}. Choose a component to put it on.`);
+    },
+    [held],
+  );
+
+  // Escape puts a picked-up chip back down where it was.
+  useEffect(() => {
+    if (held === null) return;
+
+    const release = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setHeld(null);
+    };
+
+    window.addEventListener("keydown", release);
+
+    return () => window.removeEventListener("keydown", release);
+  }, [held]);
 
   const submit = () => {
     if (!setup) return;
 
-    // Every marked part is sent, a blank box as blank: it is graded as unanswered.
+    // Every marked part is sent, an empty one as blank: it is graded as unanswered.
     const labels = Object.fromEntries(setup.regions.map((region) => [region.id, answers[region.id] ?? ""]));
 
     void attempt.submit({ labels });
   };
 
   const unavailable = attempt.isGraded && !attempt.loading && attempt.challenge !== null && setup === null;
+  const dragging = setup?.mode === "drag";
+  const layout = wide ? "wide" : "narrow";
+
+  const board = setup && (
+    <>
+      {dragging && (
+        <div className="mb-4">
+          <ChipBank
+            chips={unplaced(setup.choices, answers)}
+            held={held}
+            onPick={pick}
+            onReturn={returnChip}
+            disabled={attempt.submitting}
+          />
+        </div>
+      )}
+
+      <LabelingBoard
+        key={attempt.attemptId ?? "practice"}
+        setup={setup}
+        layout={layout}
+        field={(region, n, where) =>
+          dragging ? (
+            <DropSlot
+              id={region.id}
+              number={n}
+              chip={answers[region.id]}
+              held={held}
+              onPlace={place}
+              onPick={pick}
+              onClear={clear}
+              disabled={attempt.submitting}
+              compact={where === "wide"}
+            />
+          ) : (
+            <TypedField
+              id={region.id}
+              number={n}
+              value={answers[region.id] ?? ""}
+              onChange={type}
+              disabled={attempt.submitting}
+              place={where}
+            />
+          )
+        }
+      />
+
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
+    </>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50" style={{ fontFamily: "Roboto, sans-serif" }}>
@@ -90,19 +229,14 @@ export function MotherboardLabelsChallenge() {
                 }}
               >
                 <p className="mb-4 text-sm text-gray-600">
-                  Type the name of each numbered part in its box.
+                  {dragging
+                    ? "Drag each name onto the numbered part it belongs to, or select a name and then a part. Not every name is used."
+                    : "Type the name of each numbered part in its box."}
                   {!attempt.isGraded &&
                     " This is practice: open the challenge from the catalogue to have your labels checked."}
                 </p>
 
-                <LabelingBoard
-                  key={attempt.attemptId ?? "practice"}
-                  setup={setup}
-                  answers={answers}
-                  onChange={(id, value) => setAnswers((current) => ({ ...current, [id]: value }))}
-                  layout={wide ? "wide" : "narrow"}
-                  disabled={attempt.submitting}
-                />
+                {dragging ? <DndProvider backend={HTML5Backend}>{board}</DndProvider> : board}
 
                 <div className="mt-6 flex justify-end">
                   <Button type="submit" disabled={!attempt.isGraded || attempt.submitting}>
