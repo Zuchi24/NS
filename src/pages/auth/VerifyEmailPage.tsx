@@ -204,26 +204,26 @@ export function VerifyEmailPage() {
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
       <div
-        className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(37,99,235,0.14),transparent_45%),radial-gradient(circle_at_85%_80%,rgba(79,70,229,0.12),transparent_45%)]"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(13,148,136,0.12),transparent_45%),radial-gradient(circle_at_85%_80%,rgba(249,115,22,0.06),transparent_45%)]"
         aria-hidden="true"
       />
 
-      <main className="w-full max-w-md relative z-10 bg-white rounded-3xl shadow-2xl shadow-blue-900/10 border border-slate-200/70 p-6 sm:p-10 space-y-8">
+      <main className="w-full max-w-md relative z-10 bg-white rounded-3xl shadow-2xl shadow-slate-900/10 border border-slate-200/70 p-6 sm:p-10 space-y-8">
         <div className="text-center space-y-3">
           <div className="flex items-center justify-center">
             <BrandLogo className="h-9" />
           </div>
 
-          <div className="mx-auto w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center">
-            <MailCheck className="w-7 h-7 text-blue-600" aria-hidden="true" />
+          <div className="mx-auto w-14 h-14 rounded-full bg-accent flex items-center justify-center">
+            <MailCheck className="w-7 h-7 text-primary" aria-hidden="true" />
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">Verify your email</h1>
-          <p className="text-gray-600">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Verify your email</h1>
+          <p className="text-muted-foreground">
             {codeSent ? "We sent a verification code to" : "We'll send a verification code to"}
-            <span className="block font-semibold text-gray-900 break-all">{user.email}</span>
+            <span className="block font-semibold text-foreground break-all">{user.email}</span>
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             Enter the {CODE_LENGTH}-digit code from the email.
             {!codeSent && " Already have one? Enter it below, or send a new one."}
           </p>
@@ -234,8 +234,8 @@ export function VerifyEmailPage() {
             <p
               className={cn(
                 "rounded-xl border px-4 py-3 text-sm",
-                shown.tone === "success" && "border-green-200 bg-green-50 text-green-800",
-                shown.tone === "info" && "border-blue-200 bg-blue-50 text-blue-800",
+                shown.tone === "success" && "border-success/25 bg-success/10 text-success",
+                shown.tone === "info" && "border-info/25 bg-info/10 text-info",
                 shown.tone === "error" && "border-red-200 bg-red-50 text-red-800",
               )}
             >
@@ -246,7 +246,7 @@ export function VerifyEmailPage() {
 
         <form onSubmit={submit} className="space-y-5" noValidate>
           <div className="space-y-2">
-            <Label htmlFor={codeId} className="text-gray-700">
+            <Label htmlFor={codeId} className="text-foreground">
               Verification code
             </Label>
             <Input
@@ -267,10 +267,10 @@ export function VerifyEmailPage() {
               }}
               aria-invalid={codeError ? true : undefined}
               aria-describedby={codeError ? codeErrorId : undefined}
-              className="h-12 rounded-xl border-slate-200 bg-slate-50 text-center text-2xl font-semibold tracking-[0.5em] tabular-nums focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+              className="h-12 rounded-xl border-input bg-slate-50 text-center text-2xl font-semibold tracking-[0.5em] tabular-nums focus:bg-white focus-visible:border-ring focus-visible:ring-ring/25"
             />
             {codeError && (
-              <p id={codeErrorId} className="text-sm text-red-600">
+              <p id={codeErrorId} className="text-sm text-destructive">
                 {codeError}
               </p>
             )}
@@ -279,7 +279,7 @@ export function VerifyEmailPage() {
           <Button
             type="submit"
             disabled={verifying || verifyWait > 0}
-            className="w-full h-11 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-md shadow-blue-600/20"
+            className="w-full h-11 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-md shadow-primary/20"
           >
             <ShieldCheck className="w-4 h-4" aria-hidden="true" />
             {verifying
@@ -291,7 +291,7 @@ export function VerifyEmailPage() {
         </form>
 
         <div className="space-y-3 text-center">
-          <p className="text-sm text-gray-600">{codeSent ? "Didn't receive it?" : "Need a code?"}</p>
+          <p className="text-sm text-muted-foreground">{codeSent ? "Didn't receive it?" : "Need a code?"}</p>
           <Button
             type="button"
             variant="outline"
@@ -311,7 +311,7 @@ export function VerifyEmailPage() {
           <button
             type="button"
             onClick={signOut}
-            className="inline-flex items-center gap-1.5 rounded-md text-sm text-gray-500 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+            className="inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <LogOut className="w-4 h-4" aria-hidden="true" />
             Sign out and use a different account

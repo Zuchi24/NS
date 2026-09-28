@@ -125,14 +125,14 @@ export function SignUpPage() {
             <div className="flex md:hidden items-center justify-center mb-4">
               <BrandLogo className="h-10" />
             </div>
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900">Create Account</h2>
-            <p className="text-gray-600">Join NetSim to start learning</p>
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">Create Account</h2>
+            <p className="text-muted-foreground">Join NetSim to start learning</p>
           </div>
 
           {/* Sign Up Form */}
           <form onSubmit={handleSignUp} className="space-y-4">
             <div className="space-y-2">
-              <Label className="text-gray-700">Full Name</Label>
+              <Label className="text-foreground">Full Name</Label>
               <div className="grid grid-cols-4 lg:grid-cols-8 gap-3">
                 {/* First Name - wider */}
                 <div className="col-span-3">
@@ -141,7 +141,7 @@ export function SignUpPage() {
                     placeholder="First Name"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+                    className="h-11 rounded-xl border-input bg-slate-50 focus:bg-white focus-visible:border-ring focus-visible:ring-ring/25"
                   />
                 </div>
                 {/* Middle Initial - smaller */}
@@ -152,7 +152,7 @@ export function SignUpPage() {
                     maxLength={1}
                     value={middleInitial}
                     onChange={(e) => setMiddleInitial(e.target.value)}
-                    className="h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+                    className="h-11 rounded-xl border-input bg-slate-50 focus:bg-white focus-visible:border-ring focus-visible:ring-ring/25"
                   />
                 </div>
                 {/* Last Name - wider */}
@@ -162,7 +162,7 @@ export function SignUpPage() {
                     placeholder="Last Name"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+                    className="h-11 rounded-xl border-input bg-slate-50 focus:bg-white focus-visible:border-ring focus-visible:ring-ring/25"
                   />
                 </div>
                 {/* Name Extension - smaller */}
@@ -173,42 +173,42 @@ export function SignUpPage() {
                     maxLength={5}
                     value={nameExtension}
                     onChange={(e) => setNameExtension(e.target.value)}
-                    className="h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+                    className="h-11 rounded-xl border-input bg-slate-50 focus:bg-white focus-visible:border-ring focus-visible:ring-ring/25"
                   />
                 </div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="studentId" className="text-gray-700">
+              <Label htmlFor="studentId" className="text-foreground">
                 Student ID{" "}
-                <span className="text-gray-400 text-xs">(required)</span>
+                <span className="text-muted-foreground text-xs">(required)</span>
               </Label>
               <div className="relative">
-                <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none z-10" />
                 <Input
                   id="studentId"
                   type="text"
                   placeholder="202*******"
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value)}
-                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+                  className="pl-10 h-11 rounded-xl border-input bg-slate-50 focus:bg-white focus-visible:border-ring focus-visible:ring-ring/25"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="sectionId" className="text-gray-700">
+              <Label htmlFor="sectionId" className="text-foreground">
                 Year Level and Section
               </Label>
               <div className="relative">
-                <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none z-10" />
                 <select
                   id="sectionId"
                   value={sectionId}
                   onChange={(e) => setSectionId(e.target.value)}
                   disabled={sectionsError || yearLevels.length === 0}
-                  className="w-full pl-10 h-11 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                  className="w-full pl-10 h-11 rounded-xl border border-input bg-slate-50 text-sm focus:bg-white focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                 >
                   <option value="">
                     {sectionsError
@@ -231,7 +231,7 @@ export function SignUpPage() {
                 </select>
               </div>
               {sectionsError && (
-                <p className="text-xs text-red-600">
+                <p className="text-xs text-destructive">
                   We could not load the section list. Refresh the page to try
                   again.
                 </p>
@@ -239,57 +239,57 @@ export function SignUpPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700">
+              <Label htmlFor="email" className="text-foreground">
                 Email
               </Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none z-10" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="user@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+                  className="pl-10 h-11 rounded-xl border-input bg-slate-50 focus:bg-white focus-visible:border-ring focus-visible:ring-ring/25"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-700">
+              <Label htmlFor="password" className="text-foreground">
                 Password
               </Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none z-10" />
                 <PasswordInput
                   id="password"
                   placeholder="Minimum 8 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+                  className="pl-10 h-11 rounded-xl border-input bg-slate-50 focus:bg-white focus-visible:border-ring focus-visible:ring-ring/25"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-gray-700">
+              <Label htmlFor="confirmPassword" className="text-foreground">
                 Confirm Password
               </Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none z-10" />
                 <PasswordInput
                   id="confirmPassword"
                   placeholder="Re-enter password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+                  className="pl-10 h-11 rounded-xl border-input bg-slate-50 focus:bg-white focus-visible:border-ring focus-visible:ring-ring/25"
                 />
               </div>
             </div>
 
             <Button
               type="submit"
-              className="w-full h-11 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-md shadow-blue-600/20 mt-6"
+              className="w-full h-11 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-md shadow-primary/20 mt-6"
               disabled={loading}
             >
               {loading ? (
@@ -307,11 +307,11 @@ export function SignUpPage() {
           </form>
 
           {/* Login Link */}
-          <div className="text-center text-sm text-gray-600 border-t pt-6">
+          <div className="text-center text-sm text-muted-foreground border-t pt-6">
             Already have an account?{" "}
             <Link
               to="/login"
-              className="text-blue-600 font-semibold hover:text-blue-700"
+              className="text-primary font-semibold hover:text-brand-teal-dark"
             >
               Sign In
             </Link>
@@ -321,7 +321,7 @@ export function SignUpPage() {
           <div className="text-center pt-2">
             <Link
               to="/"
-              className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="inline-flex items-center gap-2 text-sm text-primary hover:text-brand-teal-dark font-medium"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Home

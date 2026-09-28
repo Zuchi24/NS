@@ -62,8 +62,8 @@ export function LoginPage() {
               <BrandLogo className="h-10" />
             </div>
 
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900">Welcome Back</h2>
-            <p className="text-gray-600">Sign in to continue your learning</p>
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">Welcome Back</h2>
+            <p className="text-muted-foreground">Sign in to continue your learning</p>
             {/* There was a Student/Admin toggle here. It only restyled itself:
                 the account's own role decides what you can open, so choosing
                 "Admin" on a student account signed you in as the student you
@@ -74,35 +74,35 @@ export function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-5">
             {/* Email */}
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700">
+              <Label htmlFor="email" className="text-foreground">
                 Email
               </Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none z-10" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="gfdfdd@university.edu"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+                  className="pl-10 h-11 rounded-xl border-input bg-slate-50 focus:bg-white focus-visible:border-ring focus-visible:ring-ring/25"
                 />
               </div>
             </div>
 
             {/* Password */}
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-700">
+              <Label htmlFor="password" className="text-foreground">
                 Password
               </Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none z-10" />
                 <PasswordInput
                   id="password"
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+                  className="pl-10 h-11 rounded-xl border-input bg-slate-50 focus:bg-white focus-visible:border-ring focus-visible:ring-ring/25"
                 />
               </div>
             </div>
@@ -116,7 +116,7 @@ export function LoginPage() {
                 checked={rememberMe}
                 onCheckedChange={(checked) => setRememberMe(checked as boolean)}
               />
-              <Label htmlFor="remember" className="text-sm text-gray-600">
+              <Label htmlFor="remember" className="text-sm text-muted-foreground">
                 Keep me signed in on this device
               </Label>
             </div>
@@ -124,7 +124,7 @@ export function LoginPage() {
             {/* Submit */}
             <Button
               type="submit"
-              className="w-full h-11 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-md shadow-blue-600/20"
+              className="w-full h-11 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-md shadow-primary/20"
               disabled={loading}
             >
               {loading ? (
@@ -142,9 +142,9 @@ export function LoginPage() {
           </form>
 
           {/* Signup */}
-          <div className="text-center text-sm text-gray-600 border-t pt-6">
+          <div className="text-center text-sm text-muted-foreground border-t pt-6">
             Don't have an account?{" "}
-            <Link to="/signup" className="text-blue-600 font-semibold">
+            <Link to="/signup" className="text-primary font-semibold hover:text-brand-teal-dark">
               Sign Up
             </Link>
           </div>
@@ -153,7 +153,7 @@ export function LoginPage() {
           <div className="text-center pt-2">
             <Link
               to="/"
-              className="inline-flex items-center gap-2 text-sm text-blue-600 font-medium"
+              className="inline-flex items-center gap-2 text-sm text-primary hover:text-brand-teal-dark font-medium"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Home

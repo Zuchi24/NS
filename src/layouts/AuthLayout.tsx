@@ -20,13 +20,13 @@ export function AuthLayout() {
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
       <div
-        className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(37,99,235,0.14),transparent_45%),radial-gradient(circle_at_85%_80%,rgba(79,70,229,0.12),transparent_45%)]"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(13,148,136,0.12),transparent_45%),radial-gradient(circle_at_85%_80%,rgba(249,115,22,0.06),transparent_45%)]"
         aria-hidden="true"
       />
 
       <div
         className={cn(
-          "w-full max-w-4xl relative z-10 bg-white rounded-3xl shadow-2xl shadow-blue-900/10 border border-slate-200/70 overflow-hidden",
+          "w-full max-w-4xl relative z-10 bg-white rounded-3xl shadow-2xl shadow-slate-900/10 border border-slate-200/70 overflow-hidden",
           "flex flex-col md:flex-row",
           onSignUp && "md:flex-row-reverse",
         )}
@@ -36,7 +36,7 @@ export function AuthLayout() {
           key={`panel-${onSignUp ? "signup" : "login"}`}
           className={cn(
             "hidden md:flex md:w-[42%] shrink-0 relative flex-col justify-between p-10 text-white overflow-hidden",
-            "bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700",
+            "bg-brand-teal-dark",
             "motion-safe:animate-in motion-safe:fade-in motion-safe:duration-500",
             onSignUp
               ? "motion-safe:slide-in-from-right-8"
@@ -55,10 +55,12 @@ export function AuthLayout() {
           </div>
 
           <div className="relative space-y-4">
+            {/* The logo's orange, once: a short trace above the greeting. */}
+            <div className="h-1 w-10 rounded-full bg-brand-orange" aria-hidden="true" />
             <h1 className="text-3xl font-bold leading-tight">
               {onSignUp ? "Welcome back!" : "Hello, learner!"}
             </h1>
-            <p className="text-blue-100 text-sm leading-relaxed">
+            <p className="text-brand-teal-light text-sm leading-relaxed">
               {onSignUp
                 ? "Already have an account? Sign in to pick up your roadmap, assessments and challenges where you left off."
                 : "New to NetSim? Create an account to start the networking roadmap, hands-on simulations and challenges."}
@@ -67,8 +69,8 @@ export function AuthLayout() {
               to={onSignUp ? "/login" : "/signup"}
               className={cn(
                 "inline-flex items-center gap-2 rounded-full border border-white/70 px-6 py-2.5 text-sm font-semibold",
-                "transition-colors hover:bg-white hover:text-blue-700",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-700",
+                "transition-colors hover:bg-white hover:text-brand-teal-dark",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-teal-dark",
               )}
             >
               {onSignUp ? "Sign In" : "Sign Up"}
@@ -76,7 +78,7 @@ export function AuthLayout() {
             </Link>
           </div>
 
-          <p className="relative text-xs text-blue-200">
+          <p className="relative text-xs text-brand-teal-light/80">
             Learn networking by building it.
           </p>
         </aside>
