@@ -88,8 +88,8 @@ function DraggableComponent({ component, onRotate, isNext, isLocked }: Draggable
         isDisabled 
           ? "bg-gray-50 border-gray-200 cursor-not-allowed opacity-60" 
           : isNext
-            ? "bg-blue-50 border-blue-400 hover:border-blue-500 hover:shadow-md"
-            : "bg-white border-gray-200 hover:border-blue-400 hover:shadow-md"
+            ? "bg-accent border-primary hover:shadow-sm"
+            : "bg-white border-border hover:border-brand-teal/50 hover:shadow-sm"
       } ${isDragging ? "opacity-50" : ""}`}
     >
       <div className="flex items-center gap-3">
@@ -101,7 +101,7 @@ function DraggableComponent({ component, onRotate, isNext, isLocked }: Draggable
 <div className="flex-1">
           <div className="text-sm font-medium text-gray-900">{component.name}</div>
           {isNext && (
-            <div className="text-xs text-blue-600 font-medium flex items-center gap-1">
+            <div className="text-xs text-primary font-semibold flex items-center gap-1">
               <Unlock className="w-3 h-3" />
               Next: Install this
             </div>
@@ -115,7 +115,7 @@ function DraggableComponent({ component, onRotate, isNext, isLocked }: Draggable
         </div>
         <button
           onClick={() => onRotate(component.id)}
-          className="p-1 hover:bg-gray-100 rounded transition-colors"
+          className="p-1 hover:bg-muted rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           title="Rotate"
           disabled={isDisabled}
         >
@@ -433,7 +433,7 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="min-h-screen bg-gray-50" style={{ fontFamily: 'Roboto, sans-serif' }}>
+      <div className="min-h-screen bg-muted" style={{ fontFamily: 'Roboto, sans-serif' }}>
         <div className="max-w-[1600px] mx-auto px-6 py-6">
           {/* Header */}
           <div className="mb-6">
@@ -441,29 +441,32 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
               variant="ghost"
               size="sm"
               onClick={() => navigate("/challenges")}
-              className="mb-4 text-gray-600 hover:text-gray-900"
+              className="mb-4 text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Challenges
             </Button>
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-1">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 border-l-4 border-brand-teal pl-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
+                  NetSim · PC assembly
+                </p>
+                <h1 className="text-2xl font-semibold text-foreground mb-1">
                   {attempt.challenge?.title ?? "Assemble a System Unit"}
                 </h1>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   {attempt.challenge?.description ??
                     "Drag and drop components to assemble a complete computer system"}
                 </p>
               </div>
               <div className="text-right">
-                <div className="text-sm text-gray-600">Progress</div>
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Progress</div>
+                <div className="text-2xl font-semibold text-primary tabular-nums">
                   {placedCount}/{totalCount}
                 </div>
-                <div className="mt-1 h-1.5 w-32 rounded-full bg-gray-200 overflow-hidden">
+                <div className="mt-1 h-1.5 w-32 rounded-full bg-border overflow-hidden">
                   <div
-                    className="h-full bg-blue-600 transition-all duration-300"
+                    className="h-full bg-primary transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -475,7 +478,7 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
           <div className="grid grid-cols-12 gap-6">
             {/* Left Panel - Components */}
             <div className="col-span-3">
-              <Card className="border border-gray-200 shadow-sm">
+              <Card className="border border-border shadow-sm">
                 <CardContent className="p-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-4">
                     Components ({totalCount})
@@ -512,7 +515,7 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
 
             {/* Center Panel - Workspace */}
             <div className="col-span-6">
-              <Card className="border border-gray-200 shadow-sm">
+              <Card className="border border-border shadow-sm">
                 <CardContent className="p-6">
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-gray-900">System Unit Case</h3>
@@ -529,7 +532,7 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
 
             {/* Right Panel - Checklist */}
             <div className="col-span-3">
-              <Card className="border border-gray-200 shadow-sm mb-4">
+              <Card className="border border-border shadow-sm mb-4">
                 <CardContent className="p-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-4">
                     Assembly Checklist
@@ -554,14 +557,14 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
                 </CardContent>
               </Card>
 
-              <Card className="border border-gray-200 shadow-sm mb-4">
+              <Card className="border border-border shadow-sm mb-4">
                 <CardContent className="p-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">System Status</h3>
                   <div
                     className={`flex items-center gap-2 p-3 rounded-lg ${
                       placedCount === totalCount
-                        ? "bg-green-50 text-green-700"
-                        : "bg-orange-50 text-orange-700"
+                        ? "border border-success/25 bg-success/10 text-success"
+                        : "border border-warning/25 bg-warning/10 text-warning"
                     }`}
                   >
                     {placedCount === totalCount ? (
@@ -579,7 +582,7 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
                 </CardContent>
               </Card>
 
-              <Card className="border border-gray-200 shadow-sm">
+              <Card className="border border-border shadow-sm">
                 <CardContent className="p-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">Controls Guide</h3>
                   <div className="space-y-2 text-xs text-gray-600">
@@ -593,7 +596,7 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
               <div className="mt-4 space-y-2">
                 <Button
                   onClick={checkAssembly}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  className="w-full"
                   disabled={placedCount !== totalCount}
                 >
                   Check Assembly
@@ -601,7 +604,7 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
                 <Button
                   onClick={resetChallenge}
                   variant="outline"
-                  className="w-full border-gray-300 text-gray-700"
+                  className="w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
                 >
                   Reset
                 </Button>
@@ -619,22 +622,22 @@ const handleDrop = (componentId: ComponentType, dropX: number, dropY: number) =>
         />
 
         {showSuccess && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <Card className="w-96 border-2 border-green-500">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card className="w-96 border border-border border-t-4 border-t-success shadow-md">
               <CardContent className="p-8 text-center">
-                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Trophy className="w-12 h-12 text-green-600" />
+                <div className="w-20 h-20 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trophy className="w-12 h-12 text-success" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                <h2 className="text-2xl font-semibold text-foreground mb-2">
                   Challenge Complete!
                 </h2>
-                <p className="text-gray-600 mb-6">
+                <p className="text-muted-foreground mb-6">
                   You successfully assembled the computer system unit!
                 </p>
                 <div className="space-y-2">
                   <Button
                     onClick={() => navigate("/challenges")}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    className="w-full"
                   >
                     Back to Challenges
                   </Button>
@@ -856,7 +859,7 @@ function WorkspaceArea({ components, onDrop, order }: WorkspaceAreaProps) {
       ref={drop}
       id="drop-area"
       className={`relative w-full rounded-xl border-4 ${
-        isOver ? "border-blue-400" : "border-gray-700"
+        isOver ? "border-brand-teal" : "border-gray-700"
       } overflow-hidden transition-colors`}
       style={{ aspectRatio: `${DESIGN_WIDTH} / ${DESIGN_HEIGHT}` }}
     >

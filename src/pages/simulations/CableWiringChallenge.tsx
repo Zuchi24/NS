@@ -217,7 +217,7 @@ function PinSlot({
         ref={drop}
         onDoubleClick={() => wire && onClear(wire.id)}
         className={`w-11 h-24 rounded-lg border-2 border-dashed flex items-center justify-center transition-all ${
-          isOver ? "border-blue-500 bg-blue-50 scale-105" : "border-gray-300 bg-gray-50"
+          isOver ? "border-primary bg-accent scale-105" : "border-gray-300 bg-gray-50"
         } ${verdict === "correct" ? "border-green-500 border-solid bg-green-50" : ""} ${
           verdict === "wrong" ? "border-red-400 border-solid bg-red-50" : ""
         }`}
@@ -801,7 +801,7 @@ function CableWiringBench() {
   }, [attempt.attemptId, reset]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-muted">
       <SubmissionResultsDialog
         results={attempt.results}
         passed={attempt.passed}
@@ -818,12 +818,12 @@ function CableWiringBench() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-green-600" />
+              <CheckCircle2 className="w-5 h-5 text-success" />
               All eight pins pass
             </DialogTitle>
           </DialogHeader>
 
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Every pin has continuity and the wires are in {standard} order — this
             is a good {cableKind === "straight" ? "straight-through" : cableKind}{" "}
             cable, ready to use.
@@ -862,23 +862,31 @@ function CableWiringBench() {
           variant="ghost"
           size="sm"
           onClick={() => navigate("/challenges")}
-          className="mb-3 text-gray-600 hover:text-gray-900"
+          className="mb-3 text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Challenges
         </Button>
 
         <div className="flex items-start justify-between gap-6 mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+          <div className="min-w-0 border-l-4 border-brand-teal pl-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
+              NetSim · Cable termination
+            </p>
+            <h1 className="text-2xl font-semibold text-foreground">
               {attempt.challenge?.title ?? "Terminate an RJ45 cable"}
             </h1>
-            <p className="text-sm text-gray-600 max-w-2xl mt-1">
+            <p className="text-sm text-muted-foreground max-w-2xl mt-1">
               {attempt.challenge?.description ??
                 "Make a patch lead from bare cable: cut, strip, sort, crimp and test."}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={reset}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={reset}
+            className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+          >
             <RotateCcw className="w-4 h-4 mr-2" />
             Start over
           </Button>
@@ -891,10 +899,10 @@ function CableWiringBench() {
               key={entry.id}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                 entry.id === step
-                  ? "bg-blue-600 text-white border-blue-600"
+                  ? "bg-primary text-primary-foreground border-primary"
                   : entry.id < step
-                    ? "bg-green-50 text-green-700 border-green-200"
-                    : "bg-white text-gray-400 border-gray-200"
+                    ? "bg-success/10 text-success border-success/25"
+                    : "bg-white text-muted-foreground border-border"
               }`}
             >
               {entry.id < step ? (
@@ -908,18 +916,18 @@ function CableWiringBench() {
         </div>
 
         <div className="grid lg:grid-cols-4 gap-4">
-          <Card className="lg:col-span-3 border-gray-200">
+          <Card className="lg:col-span-3 border-border">
             <CardContent className="p-6">
-              <div className="mb-3">
-                <h2 className="font-bold text-gray-900">
-                  Step {step}: {current.title}
+              <div className="mb-3 rounded-lg border-l-4 border-info bg-info/10 px-3 py-2">
+                <h2 className="font-semibold text-foreground">
+                  <span className="text-info">Step {step}:</span> {current.title}
                 </h2>
-                <p className="text-sm text-gray-600">{current.instruction}</p>
+                <p className="text-sm text-muted-foreground">{current.instruction}</p>
               </div>
 
               {/* The bench. The pointer is whatever tool is in hand. */}
               <div
-                className="bg-white rounded-xl border border-gray-200 p-3"
+                className="bg-white rounded-xl border border-border p-3"
                 style={{ cursor: cursorFor(tool) }}
               >
                 <Bench
@@ -956,10 +964,11 @@ function CableWiringBench() {
                             setStandard(option);
                             setChecked(false);
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
+                          aria-pressed={standard === option}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
                             standard === option
-                              ? "bg-blue-600 text-white border-blue-600"
-                              : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-white text-gray-600 border-border hover:border-brand-teal/50"
                           }`}
                         >
                           {option}
@@ -1001,7 +1010,7 @@ function CableWiringBench() {
                   </div>
 
                   {loose.length > 0 && (
-                    <div className="border-t border-gray-200 pt-3">
+                    <div className="border-t border-border pt-3">
                       <p className="text-xs font-semibold text-gray-500 mb-2">
                         Loose wires — drag them into the pins
                       </p>
@@ -1025,9 +1034,9 @@ function CableWiringBench() {
 
           {/* Toolbox */}
           <div className="space-y-4">
-            <Card className="border-gray-200">
+            <Card className="border-border">
               <CardContent className="p-4">
-                <h3 className="font-bold text-gray-900 mb-1 text-sm">Toolbox</h3>
+                <h3 className="font-semibold text-foreground mb-1 text-sm">Toolbox</h3>
                 <p className="text-[11px] text-gray-500 mb-3">
                   Pick one up, then use it on the cable.
                 </p>
@@ -1037,11 +1046,12 @@ function CableWiringBench() {
                     <button
                       key={entry.id}
                       onClick={() => setTool(tool === entry.id ? null : entry.id)}
-                      className={`rounded-lg border-2 p-3 flex flex-col items-center gap-1.5 transition-all ${
+                      aria-pressed={tool === entry.id}
+                      className={`rounded-lg border-2 p-3 flex flex-col items-center gap-1.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                         tool === entry.id
-                          ? "border-blue-500 bg-blue-50 scale-105"
-                          : "border-gray-200 bg-white hover:border-blue-300"
-                      } ${current.tool === entry.id ? "ring-2 ring-blue-200" : ""}`}
+                          ? "border-primary bg-accent scale-105"
+                          : "border-border bg-white hover:border-brand-teal/50"
+                      } ${current.tool === entry.id ? "ring-2 ring-brand-orange/50" : ""}`}
                       style={{ cursor: cursorFor(entry.id) }}
                     >
                       <span
@@ -1077,9 +1087,9 @@ function CableWiringBench() {
 
             {/* The tester's own readout, once there is one. */}
             {pinResults.some(Boolean) && (
-              <Card className="border-gray-200">
+              <Card className="border-border">
                 <CardContent className="p-4">
-                  <h3 className="font-bold text-gray-900 mb-2 text-sm">Tester</h3>
+                  <h3 className="font-semibold text-foreground mb-2 text-sm">Tester</h3>
                   <ul className="space-y-1">
                     {pinResults.map((result, index) => (
                       <li
@@ -1108,7 +1118,7 @@ function CableWiringBench() {
             )}
 
             {!attempt.isGraded && (
-              <p className="text-[11px] text-gray-400 px-1">
+              <p className="text-[11px] text-muted-foreground px-1">
                 Practice mode — open this from Challenges to have it marked.
               </p>
             )}
