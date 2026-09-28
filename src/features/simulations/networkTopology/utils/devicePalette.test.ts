@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import { isPlaceable, paletteEndDevices } from "./devicePalette";
 import { DEVICE_CATEGORIES } from "../data/deviceCategories";
@@ -37,5 +39,20 @@ describe("the device library itself", () => {
     expect(DEVICE_CATEGORIES.endDevices.items.map((item) => item.family)).toEqual(
       ["pc", "laptop", "server", "printer", "smartphone"],
     );
+  });
+});
+
+describe("the library's PC and server", () => {
+  const icon = (family: string) => DEVICE_CATEGORIES.endDevices.items.find((item) => item.family === family)!.icon;
+
+  // lucide's Computer and Server are both two stacked boxes; side by side in
+  // the library the two could not be told apart without their names.
+  it("are drawn differently: a monitor and tower, and a rack", () => {
+    const pc = renderToStaticMarkup(createElement(icon("pc")));
+    const server = renderToStaticMarkup(createElement(icon("server")));
+
+    expect(pc).not.toEqual(server);
+    expect(pc).not.toContain("lucide-computer");
+    expect(server).not.toContain("lucide-server");
   });
 });

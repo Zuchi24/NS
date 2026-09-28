@@ -102,32 +102,24 @@ export function getDevicePorts(device: Device): Port[] {
 
   /*
    * HUB
+   *
+   * One under each of the hub's lights (DeviceIcon), in the gap between its
+   * body and its name, rather than on top of them — where they hid the lights.
+   * Offsets from the card's top-left: the lights' centres are at 27, 42 and 57
+   * across, so the 12px dots start 6px before each; the body ends at 54 down,
+   * the dots run from 58 to 70, and the name starts at 78.
    */
 
   if (device.type.includes("hub")) {
-    return [
-      {
-        id: `${device.id}-port1`,
-        deviceId: device.id,
-        x: baseX - 15,
-        y: baseY,
-        label: "Port1",
-      },
-      {
-        id: `${device.id}-port2`,
-        deviceId: device.id,
-        x: baseX,
-        y: baseY,
-        label: "Port2",
-      },
-      {
-        id: `${device.id}-port3`,
-        deviceId: device.id,
-        x: baseX + 15,
-        y: baseY,
-        label: "Port3",
-      },
-    ];
+    const columns = [device.x + 21, device.x + 36, device.x + 51];
+
+    return [1, 2, 3].map((n) => ({
+      id: `${device.id}-port${n}`,
+      deviceId: device.id,
+      x: columns[n - 1],
+      y: device.y + 58,
+      label: `Port${n}`,
+    }));
   }
 
   return [];

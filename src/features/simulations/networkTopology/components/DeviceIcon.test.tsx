@@ -82,6 +82,29 @@ describe("a router's lights", () => {
   });
 });
 
+describe("a hub's lights", () => {
+  it("are laid out like its dots: one row, Port1 to Port3 left to right", () => {
+    const ports = getDevicePorts(device("hub-generic"));
+    const leds = drawWith("hub-generic", []);
+
+    const byPosition = [...ports].sort((a, b) => a.x - b.x).map((port) => port.label);
+    const drawn = leds.map((led) => led.getAttribute("data-port"));
+
+    expect(drawn).toEqual(byPosition);
+    expect(drawn).toEqual(["Port1", "Port2", "Port3"]);
+    expect(new Set(leds.map((led) => led.parentElement)).size).toBe(1);
+  });
+
+  it.each([0, 1, 2])("lights the light above dot %i, and only it, for that dot's port", (i) => {
+    const port = getDevicePorts(device("hub-generic"))[i];
+    const leds = drawWith("hub-generic", [port]);
+
+    expect(leds.map((led) => led.getAttribute("data-lit"))).toEqual(
+      [0, 1, 2].map((j) => String(j === i)),
+    );
+  });
+});
+
 it("lights nothing in the palette, where a device has no ports yet", () => {
   render(<DeviceIcon type="switch-2960" />);
 

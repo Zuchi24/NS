@@ -181,12 +181,15 @@ export function DeviceIcon({
 
   /*
    * HUB
+   *
+   * Port1 to Port3, left to right, each straight above its dot
+   * (getDevicePorts): the ends of the row and its middle, 15px apart.
    */
 
   if (type.includes("hub")) {
     return (
       <div className="w-16 h-16 flex flex-col items-center justify-center">
-        <div className="w-14 h-6 bg-gray-700 border-2 border-gray-800 rounded flex items-center justify-around px-1">
+        <div className="w-14 h-6 bg-gray-700 border-2 border-gray-800 rounded flex items-center justify-between px-2">
           <PortLed port="Port1" lit={lit("Port1")} />
           <PortLed port="Port2" lit={lit("Port2")} />
           <PortLed port="Port3" lit={lit("Port3")} />

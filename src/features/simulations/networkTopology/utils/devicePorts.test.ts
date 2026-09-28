@@ -54,3 +54,59 @@ describe("a switch's ports", () => {
     });
   });
 });
+
+/**
+ * Where a hub's ports are drawn: one under each of its three lights, in the
+ * gap between its body and its name. The hub's body is a 56 x 24 box centred
+ * in the 64px icon (14 to 70 across, 30 to 54 down); its lights, 6px wide,
+ * are centred at 27, 42 and 57 across, 39 to 45 down; its name starts at 78.
+ */
+
+const aHub = { id: "H1", type: "hub-generic", x: at.x, y: at.y } as Device;
+
+const HUB_BODY_BOTTOM = 54;
+const HUB_NAME_TOP = 78;
+const HUB_LIGHT_CENTRES = [27, 42, 57];
+const CARD_WIDTH = 84;
+
+describe("a hub's ports", () => {
+  const ports = getDevicePorts(aHub);
+
+  it("are Port1 to Port3, in order", () => {
+    expect(ports.map((port) => port.label)).toEqual(["Port1", "Port2", "Port3"]);
+    expect(ports.map((port) => port.id)).toEqual(["H1-port1", "H1-port2", "H1-port3"]);
+  });
+
+  it("sit under the hub's body, never over its lights, and above its name", () => {
+    for (const port of ports) {
+      expect(port.y - at.y).toBeGreaterThan(HUB_BODY_BOTTOM);
+      expect(port.y - at.y + DOT).toBeLessThan(HUB_NAME_TOP);
+    }
+  });
+
+  it("each sit straight under their own light, left to right", () => {
+    expect(ports.map((port) => port.x - at.x + DOT / 2)).toEqual(HUB_LIGHT_CENTRES);
+  });
+
+  it("are one row that does not touch, inside the card", () => {
+    expect(new Set(ports.map((port) => port.y)).size).toBe(1);
+
+    for (let i = 1; i < ports.length; i++) {
+      expect(ports[i].x - ports[i - 1].x).toBeGreaterThan(DOT);
+    }
+
+    for (const port of ports) {
+      expect(port.x - at.x).toBeGreaterThanOrEqual(0);
+      expect(port.x - at.x + DOT).toBeLessThanOrEqual(CARD_WIDTH);
+    }
+  });
+
+  it("move with the hub", () => {
+    const moved = getDevicePorts({ ...aHub, x: at.x + 50, y: at.y - 30 });
+
+    moved.forEach((port, i) => {
+      expect(port.x - ports[i].x).toBe(50);
+      expect(port.y - ports[i].y).toBe(-30);
+    });
+  });
+});
