@@ -48,19 +48,19 @@ export function SubmissionResultsDialog({
           <DialogTitle className="flex items-center gap-2">
             {passed ? (
               <>
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                <CheckCircle2 className="w-5 h-5 text-success" />
                 Challenge passed
               </>
             ) : (
               <>
-                <XCircle className="w-5 h-5 text-orange-500" />
+                <XCircle className="w-5 h-5 text-warning" />
                 Not quite yet
               </>
             )}
           </DialogTitle>
         </DialogHeader>
 
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           {passed
             ? "Every requirement is met. Nice work."
             : "Your work is saved. Here is what the challenge asked for:"}
@@ -74,21 +74,21 @@ export function SubmissionResultsDialog({
               key={index}
               className={`flex items-start gap-2 rounded-lg border p-3 text-sm ${
                 result.passed
-                  ? "border-green-200 bg-green-50 text-green-900"
-                  : "border-orange-200 bg-orange-50 text-orange-900"
+                  ? "border-success/25 bg-success/10 text-success"
+                  : "border-warning/25 bg-warning/10 text-warning"
               }`}
             >
               {result.passed ? (
-                <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-600" />
+                <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-success" />
               ) : (
-                <XCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-orange-500" />
+                <XCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-warning" />
               )}
               <span>{result.requirement}</span>
             </li>
           ))}
 
           {results?.length === 0 && (
-            <li className="text-sm text-gray-500">
+            <li className="text-sm text-muted-foreground">
               This challenge has no set requirements.
             </li>
           )}

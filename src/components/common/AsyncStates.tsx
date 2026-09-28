@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 /** Shown while a page's first request is in flight. */
 export function LoadingState({ label }: { label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-20 text-gray-500">
-      <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+    <div className="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
+      <Loader2 className="w-6 h-6 animate-spin text-primary" />
       <p className="text-sm">{label}</p>
     </div>
   );
@@ -27,10 +27,10 @@ export function ErrorState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-      <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center">
-        <AlertTriangle className="w-6 h-6 text-red-500" />
+      <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center">
+        <AlertTriangle className="w-6 h-6 text-destructive" />
       </div>
-      <p className="text-sm text-gray-700 max-w-md">{message}</p>
+      <p className="text-sm text-foreground max-w-md">{message}</p>
       <Button variant="outline" onClick={onRetry} className="mt-1">
         {retryLabel}
       </Button>
@@ -48,8 +48,8 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-20 text-center">
-      <p className="text-base font-semibold text-gray-900">{title}</p>
-      <p className="text-sm text-gray-600 max-w-md">{description}</p>
+      <p className="text-base font-semibold text-foreground">{title}</p>
+      <p className="text-sm text-muted-foreground max-w-md">{description}</p>
     </div>
   );
 }

@@ -43,8 +43,8 @@ function PasswordInput({
         disabled={disabled}
         className={cn(
           "absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex size-7 items-center justify-center rounded-md",
-          "text-gray-400 transition-colors hover:text-gray-700 hover:bg-gray-100",
-          "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60",
+          "text-muted-foreground transition-colors hover:text-foreground hover:bg-muted",
+          "outline-none focus-visible:ring-2 focus-visible:ring-ring",
           "disabled:pointer-events-none disabled:opacity-50",
         )}
       >
