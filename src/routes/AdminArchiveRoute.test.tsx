@@ -161,6 +161,8 @@ describe("the archive's addresses", () => {
     mountAt(path);
 
     expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+    // The heading can land a tick before the page's effect asks for the list.
+    await waitFor(() => expect(assessments.fetchArchivedAssessments).toHaveBeenCalled());
     expect(vi.mocked(assessments.fetchArchivedAssessments).mock.calls[0][0].type).toBe(type);
     expect(routerErrorScreen()).toBeNull();
   });
