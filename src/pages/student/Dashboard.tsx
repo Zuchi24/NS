@@ -33,7 +33,7 @@ const RECENT_LIMIT = 5;
  */
 const STATUS_STYLE: Record<ActivityStatus, string> = {
   complete: "text-green-600",
-  in_progress: "text-orange-600",
+  in_progress: "text-info",
 };
 
 export function Dashboard() {
@@ -82,12 +82,12 @@ export function Dashboard() {
                 <div className="flex items-start justify-between">
                   <div className="space-y-2">
                     <p className="text-sm text-gray-600">In Progress</p>
-                    <p className="text-3xl font-bold text-orange-600">
+                    <p className="text-3xl font-bold text-info">
                       {data.challengesInProgress}
                     </p>
                   </div>
-                  <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-orange-600" />
+                  <div className="w-12 h-12 bg-info/10 rounded-xl flex items-center justify-center">
+                    <Clock className="w-6 h-6 text-info" />
                   </div>
                 </div>
               </CardContent>
@@ -100,7 +100,7 @@ export function Dashboard() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-gray-600">Overall Progress</p>
-                    <p className="text-2xl font-bold text-purple-600 tabular-nums">
+                    <p className="text-2xl font-bold text-primary tabular-nums">
                       {data.challengesPassed}/{data.challengesTotal}
                     </p>
                   </div>
@@ -120,10 +120,10 @@ export function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Workspace */}
             <Link to="/workspace">
-              <Card className="border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all cursor-pointer">
+              <Card className="border-2 border-gray-200 hover:border-brand-teal/50 hover:shadow-lg transition-all cursor-pointer">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
+                    <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
                       <Wrench className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -137,10 +137,10 @@ export function Dashboard() {
 
             {/* Challenges */}
             <Link to="/challenges">
-              <Card className="border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all cursor-pointer">
+              <Card className="border-2 border-gray-200 hover:border-brand-teal/50 hover:shadow-lg transition-all cursor-pointer">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
+                    <div className="w-12 h-12 bg-brand-orange rounded-xl flex items-center justify-center">
                       <Target className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -156,10 +156,10 @@ export function Dashboard() {
 
             {/* Roadmap */}
             <Link to="/roadmap">
-              <Card className="border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all cursor-pointer">
+              <Card className="border-2 border-gray-200 hover:border-brand-teal/50 hover:shadow-lg transition-all cursor-pointer">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+                    <div className="w-12 h-12 bg-brand-teal-dark rounded-xl flex items-center justify-center">
                       <Map className="w-6 h-6 text-white" />
                     </div>
                     <div>
