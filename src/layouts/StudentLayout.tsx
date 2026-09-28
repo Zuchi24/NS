@@ -88,9 +88,9 @@ function NavLinks({
             aria-current={current ? "page" : undefined}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
               current
-                ? "bg-blue-50 text-blue-600 font-medium shadow-[inset_3px_0_0_var(--color-blue-600)]"
+                ? "bg-accent text-accent-foreground font-medium shadow-[inset_3px_0_0_var(--color-brand-teal)]"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
             )}
           >
@@ -164,9 +164,9 @@ export function StudentLayout() {
       aria-current={isUnder(location.pathname, "/profile") ? "page" : undefined}
       className={cn(
         "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
         isUnder(location.pathname, "/profile")
-          ? "bg-blue-50 text-blue-600 font-medium shadow-[inset_3px_0_0_var(--color-blue-600)]"
+          ? "bg-accent text-accent-foreground font-medium shadow-[inset_3px_0_0_var(--color-brand-teal)]"
           : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
       )}
     >
@@ -217,7 +217,7 @@ export function StudentLayout() {
             dimmed page rather than as part of it.
           */}
           <div
-            className="fixed inset-0 z-50 bg-gray-900/50"
+            className="fixed inset-0 z-50 bg-slate-900/50"
             // The backdrop repeats what the close button and Escape already do,
             // so it is not the only way out and needs no name of its own.
             aria-hidden="true"
@@ -227,15 +227,15 @@ export function StudentLayout() {
             role="dialog"
             aria-modal="true"
             aria-label="Navigation"
-            className="fixed inset-y-0 left-0 z-[60] w-72 max-w-[85vw] bg-white border-r border-gray-200 flex flex-col shadow-xl"
+            className="fixed inset-y-0 left-0 z-[60] w-72 max-w-[85vw] bg-white border-r border-slate-200 flex flex-col shadow-xl"
           >
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between gap-2">
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between gap-2">
               <Brand onNavigate={() => setMenuOpen(false)} />
               <button
                 type="button"
                 onClick={() => setMenuOpen(false)}
                 aria-label="Close navigation"
-                className="p-2 -mr-2 rounded-lg text-gray-600 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="p-2 -mr-2 rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -269,7 +269,7 @@ export function StudentLayout() {
                 onClick={() => setMenuOpen(true)}
                 aria-label="Open navigation"
                 aria-expanded={menuOpen}
-                className="md:hidden p-2 -ml-2 rounded-lg text-gray-700 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="md:hidden p-2 -ml-2 rounded-lg text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Menu className="w-6 h-6" />
               </button>
@@ -280,18 +280,18 @@ export function StudentLayout() {
 
             <Link
               to="/profile"
-              className="flex items-center gap-3 rounded-lg px-1.5 py-1 hover:bg-slate-100 transition-colors min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="flex items-center gap-3 rounded-lg px-1.5 py-1 hover:bg-slate-100 transition-colors min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {/* The name is the first thing to go when the row is tight. */}
               <div className="text-right hidden sm:block min-w-0">
-                <div className="font-semibold text-gray-900 text-sm truncate">
+                <div className="font-semibold text-foreground text-sm truncate">
                   {user?.name ?? "Student"}
                 </div>
-                <div className="text-xs text-gray-500 capitalize">
+                <div className="text-xs text-muted-foreground capitalize">
                   {user?.role ?? "student"}
                 </div>
               </div>
-              <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 bg-brand-teal-dark rounded-full flex items-center justify-center shrink-0">
                 <User className="w-5 h-5 text-white" />
               </div>
             </Link>
