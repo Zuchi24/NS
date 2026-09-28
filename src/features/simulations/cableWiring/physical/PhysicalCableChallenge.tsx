@@ -153,14 +153,15 @@ export function PhysicalCableChallenge({
       <div className="mx-auto max-w-[1500px] px-4 py-3">
         {/* ---- Scenario header ---- */}
         <header className="mb-2 flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 border-l-4 border-brand-teal pl-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">NetSim · Cable termination</p>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold">{title}</h1>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800">
+              <h1 className="text-lg font-semibold text-foreground">{title}</h1>
+              <span className="rounded-full border border-brand-teal/30 bg-accent px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-accent-foreground">
                 {difficulty}
               </span>
             </div>
-            <p className="text-sm text-slate-600">{description ?? "Terminate the cable."}</p>
+            <p className="text-sm text-muted-foreground">{description ?? "Terminate the cable."}</p>
             {goals.length > 0 && (
               <ul aria-label="Objectives" className="list-disc pl-5 text-sm text-slate-600">
                 {goals.map((goal) => (
@@ -185,14 +186,14 @@ export function PhysicalCableChallenge({
                     setControlsState(DEFAULT_CONTROLS);
                     setConfirmingReset(false);
                   }}
-                  className="rounded-md bg-rose-600 px-2.5 py-1 font-semibold text-white hover:bg-rose-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+                  className="rounded-md bg-destructive px-2.5 py-1 font-semibold text-destructive-foreground hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
                 >
                   Yes, reset
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmingReset(false)}
-                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Keep working
                 </button>
@@ -201,7 +202,7 @@ export function PhysicalCableChallenge({
               <button
                 type="button"
                 onClick={() => setConfirmingReset(true)}
-                className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Reset bench
               </button>
@@ -286,7 +287,7 @@ export function PhysicalCableChallenge({
                       type="button"
                       aria-pressed={selectedEnd === id}
                       onClick={() => selectEnd(id)}
-                      className="rounded px-3 py-1 text-sm font-semibold text-slate-600 aria-pressed:bg-white aria-pressed:text-slate-900 aria-pressed:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                      className="rounded px-3 py-1 text-sm font-semibold text-slate-600 aria-pressed:bg-white aria-pressed:text-slate-900 aria-pressed:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       End {id}
                     </button>
@@ -303,16 +304,16 @@ export function PhysicalCableChallenge({
                         type="button"
                         aria-pressed={tool === id}
                         onClick={() => setTool(id)}
-                        className={`relative rounded-md border px-2.5 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
+                        className={`relative rounded-md border px-2.5 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
                           tool === id
-                            ? "border-slate-900 bg-slate-900 text-white"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-400"
+                            ? "border-primary bg-primary font-semibold text-primary-foreground"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-brand-teal/50 hover:bg-accent/60"
                         }`}
                       >
                         {label}
                         {suggested && tool !== id && (
                           <>
-                            <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white" aria-hidden="true" />
+                            <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-brand-orange ring-2 ring-white" aria-hidden="true" />
                             <span className="sr-only"> (suggested)</span>
                           </>
                         )}

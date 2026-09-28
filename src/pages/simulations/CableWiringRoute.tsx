@@ -110,7 +110,7 @@ export function CableWiringRoute() {
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate("/challenges")}
-                className="text-gray-600 hover:text-gray-900"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Challenges

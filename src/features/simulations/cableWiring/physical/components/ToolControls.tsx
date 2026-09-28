@@ -95,7 +95,7 @@ export function ToolControls({ tool, endId, end, connections, scenario, assist, 
                   name="strip-slot"
                   checked={controls.slot === slot}
                   onChange={() => setControls({ slot })}
-                  className="accent-sky-600"
+                  className="accent-primary"
                 />
                 {label}
               </label>
@@ -126,7 +126,7 @@ export function ToolControls({ tool, endId, end, connections, scenario, assist, 
                 type="button"
                 aria-pressed={end.untwisted[pair]}
                 onClick={() => act({ type: "untwist", end: endId, pair })}
-                className="flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:border-slate-500 aria-pressed:border-emerald-400 aria-pressed:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:border-slate-500 aria-pressed:border-emerald-400 aria-pressed:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="h-3 w-3 rounded-full" style={{ background: PAIR_PAINT[pair] }} aria-hidden="true" />
                 Untwist {PAIR_LABEL[pair]}
@@ -182,7 +182,7 @@ export function ToolControls({ tool, endId, end, connections, scenario, assist, 
                   name="plug-orientation"
                   checked={controls.orientation === orientation}
                   onChange={() => setControls({ orientation })}
-                  className="accent-sky-600"
+                  className="accent-primary"
                 />
                 {orientation === "contacts-up" ? "Contacts up" : "Contacts down"}
               </label>
@@ -313,7 +313,7 @@ function ActionButton({
   variant?: "primary" | "secondary" | "active";
 }) {
   const look = {
-    primary: "bg-slate-900 text-white hover:bg-slate-800",
+    primary: "bg-primary text-primary-foreground hover:bg-primary/90",
     secondary: "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50",
     active: "border border-emerald-500 bg-emerald-50 text-emerald-900",
   }[variant];
@@ -323,7 +323,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1 ${look}`}
+      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${look}`}
     >
       {children}
     </button>
@@ -361,7 +361,7 @@ function Slider({
         step={1}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="w-36 accent-sky-600"
+        className="w-36 accent-primary"
       />
       <output htmlFor={id} className={`${display ? "min-w-14" : "w-14"} text-right font-mono text-sm tabular-nums text-slate-900`}>
         {display ?? `${value} mm`}

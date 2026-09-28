@@ -48,7 +48,7 @@ export const HandInPanel = memo(function HandInPanel({
   const closed = submitting || submitted;
 
   return (
-    <section aria-labelledby="handin-heading" className="rounded-lg border border-slate-200 bg-white p-3">
+    <section aria-labelledby="handin-heading" className="rounded-lg border border-slate-200 border-t-4 border-t-brand-teal bg-white p-3">
       <div className="flex items-center justify-between gap-2">
         <h2 id="handin-heading" className="text-sm font-semibold text-slate-800">
           Hand in
@@ -57,7 +57,7 @@ export const HandInPanel = memo(function HandInPanel({
           type="button"
           onClick={onHandIn}
           disabled={closed}
-          className="rounded-md bg-sky-700 px-3 py-1 text-sm font-semibold text-white hover:bg-sky-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300"
+          className="rounded-md bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300"
         >
           {submitting ? "SENDING…" : submitted ? "HANDED IN" : "HAND IN"}
         </button>
@@ -65,7 +65,7 @@ export const HandInPanel = memo(function HandInPanel({
 
       {reading ? (
         <div className="mt-2 space-y-1.5 text-xs">
-          <p className="rounded bg-sky-50 px-2 py-1 text-sky-900">
+          <p className="rounded bg-info/10 px-2 py-1 text-info">
             {!wired ? (
               <>
                 Preview only — nothing has been submitted and no mark is given here. When hand-in is connected, the
@@ -79,7 +79,7 @@ export const HandInPanel = memo(function HandInPanel({
               <>This is the record that is sent to be marked. No mark is given here.</>
             )}
           </p>
-          {stale && <p className="rounded bg-amber-50 px-2 py-0.5 text-amber-800">The cable has changed since — hand in again to refresh.</p>}
+          {stale && <p className="rounded bg-warning/10 px-2 py-0.5 text-warning">The cable has changed since — hand in again to refresh.</p>}
           <ul className="space-y-0.5 text-slate-700" data-testid="handin-summary">
             {(["A", "B"] as const).map((end) => (
               <li key={end}>

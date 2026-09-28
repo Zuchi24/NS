@@ -32,7 +32,7 @@ export function PlugTray({ remaining, total, picked, onPick, onPutBack }: Props)
               type="button"
               onClick={onPick}
               aria-label="Pick up a plug"
-              className="flex h-9 w-7 items-end justify-center rounded-md border border-sky-400 bg-sky-100 pb-1 hover:bg-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+              className="flex h-9 w-7 items-end justify-center rounded-md border border-sky-400 bg-sky-100 pb-1 hover:bg-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <PlugGlyph />
             </button>
@@ -54,10 +54,14 @@ export function PlugTray({ remaining, total, picked, onPick, onPutBack }: Props)
       {!picked && remaining > 0 && <p className="mt-1 text-[11px] text-slate-500">Click a plug to pick it up.</p>}
 
       {picked && (
-        <div className="mt-2 flex items-center gap-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900 ring-1 ring-amber-300">
+        <div className="mt-2 flex items-center gap-2 rounded-md border-l-4 border-brand-orange bg-brand-orange-light px-2 py-1 text-xs text-brand-orange-dark ring-1 ring-brand-orange/40">
           <PlugGlyph />
-          <span>Plug in hand</span>
-          <button type="button" onClick={onPutBack} className="ml-auto underline underline-offset-2">
+          <span className="font-semibold">Plug in hand</span>
+          <button
+            type="button"
+            onClick={onPutBack}
+            className="ml-auto rounded underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
             put back
           </button>
         </div>

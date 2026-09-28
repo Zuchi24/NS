@@ -44,8 +44,8 @@ export function StageRail({ cable, selectedEnd, onSelectEnd, instruction, instru
                 aria-pressed={active}
                 data-testid={`stage-${id}`}
                 data-terminated={done}
-                className={`flex w-full items-baseline gap-2 rounded-lg border px-3 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
-                  active ? "border-amber-400 bg-amber-50" : "border-slate-200 bg-slate-50 hover:border-slate-400"
+                className={`flex w-full items-baseline gap-2 rounded-lg border px-3 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  active ? "border-primary bg-accent ring-1 ring-primary" : "border-slate-200 bg-slate-50 hover:border-brand-teal/50"
                 }`}
               >
                 <span className="text-sm font-semibold text-slate-900">{endLabel(id)}</span>
@@ -62,8 +62,8 @@ export function StageRail({ cable, selectedEnd, onSelectEnd, instruction, instru
       </ul>
 
       {instruction && (
-        <p className="mt-2 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-900 ring-1 ring-sky-200" data-testid="hint">
-          <span className="font-semibold">
+        <p className="mt-2 rounded-lg border-l-4 border-info bg-info/10 px-3 py-2 text-sm text-foreground ring-1 ring-info/20" data-testid="hint">
+          <span className="font-semibold text-info">
             {instructionEnd === null ? "Next · " : `Next on ${endPhrase(instructionEnd)} · `}
           </span>
           {instruction}
