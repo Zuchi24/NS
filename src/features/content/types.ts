@@ -107,7 +107,7 @@ export interface Roadmap {
 }
 
 /** Which simulator a challenge runs in, and therefore how it is graded. */
-export type ChallengeKind = "topology" | "assembly" | "cable_wiring";
+export type ChallengeKind = "topology" | "assembly" | "cable_wiring" | "motherboard_labels";
 
 /**
  * What a guided simulator is given: the assembly's build order, or the legacy
@@ -157,7 +157,30 @@ export interface PhysicalSimulationConfig {
  * graded on `rj45_cable` gets the physical config; everything else, including
  * the legacy `rj45_order` wiring, gets the guided one.
  */
-export type SimulationConfig = GuidedSimulationConfig | PhysicalSimulationConfig;
+export type SimulationConfig =
+  | GuidedSimulationConfig
+  | PhysicalSimulationConfig
+  | MotherboardLabelsConfig;
+
+/**
+ * What the motherboard labeling page is given: which board, and which of its
+ * marks to label, in the order they are numbered. The marks are opaque ids
+ * (m1, m2, ...); the names that answer them stay on the server.
+ *
+ * Wire data, read field by field by parseMotherboardLabelsConfig() rather than
+ * trusted on this type's say-so.
+ */
+export interface MotherboardLabelsConfig {
+  board: string;
+  labels: { id: string }[];
+  /** Never set; declared so the shapes stay one union to read a field off. */
+  model?: undefined;
+  components?: never;
+  standard?: never;
+  cable?: never;
+  scenario?: never;
+  assist?: never;
+}
 
 /** How hard a challenge is, as its author judged it. */
 export type Difficulty = "beginner" | "intermediate" | "advanced";

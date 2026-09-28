@@ -60,6 +60,7 @@ const EXPECTED_PATHS = [
   "/workspace",
   "/challenge/cable-wiring",
   "/challenge/computer-assembly",
+  "/challenge/motherboard-labels",
   // Admin. "/admin" is the layout's own mount point rather than a page — it
   // has no index route, so it is listed for completeness, not as a destination.
   "/instructor-review",

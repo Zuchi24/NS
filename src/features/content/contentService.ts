@@ -443,6 +443,7 @@ export function challengeRoute(challenge: Challenge, attemptId: number): string 
     topology: "/workspace",
     assembly: "/challenge/computer-assembly",
     cable_wiring: "/challenge/cable-wiring",
+    motherboard_labels: "/challenge/motherboard-labels",
   }[challenge.kind];
 
   return `${page}?attempt=${attemptId}`;

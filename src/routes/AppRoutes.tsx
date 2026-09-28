@@ -164,6 +164,13 @@ export const routes: RouteObject[] = [
         }),
       },
       {
+        path: "/challenge/motherboard-labels",
+        lazy: async () => ({
+          Component: (await import("@/pages/simulations/MotherboardLabelsChallenge"))
+            .MotherboardLabelsChallenge,
+        }),
+      },
+      {
         path: "/topic/:topicId",
         lazy: async () => ({
           Component: (await import("@/pages/student/TopicDetailsPage")).TopicDetailsPage,
