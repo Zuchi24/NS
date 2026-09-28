@@ -270,7 +270,7 @@ export function SubtopicDetailsPage() {
         {/* Where this section sits, said before its own title: the roadmap,
             then the topic. Without it a section page is a page about something
             with no indication of what it is part of. */}
-        <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 mb-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">
           {roadmapTitle && <span>{roadmapTitle} · </span>}
           {parent.title}
         </p>
@@ -291,7 +291,7 @@ export function SubtopicDetailsPage() {
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {subtopic.description && (
-            <Card className="border border-gray-200 shadow-sm bg-gradient-to-br from-blue-50 to-white">
+            <Card className="border border-gray-200 shadow-sm bg-gradient-to-br from-accent to-white">
               <CardContent className="p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-3">
                   Overview
@@ -356,7 +356,7 @@ export function SubtopicDetailsPage() {
           <Card className="border border-gray-200 shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <Layers className="w-5 h-5 text-blue-600" aria-hidden="true" />
+                <Layers className="w-5 h-5 text-primary" aria-hidden="true" />
                 In this topic
               </h2>
 
@@ -372,7 +372,7 @@ export function SubtopicDetailsPage() {
                       {isCurrent ? (
                         <span
                           aria-current="page"
-                          className="flex gap-2 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-800"
+                          className="flex gap-2 rounded-lg bg-accent border border-brand-teal/30 px-3 py-2 text-sm font-semibold text-accent-foreground"
                         >
                           <span className="tabular-nums shrink-0">
                             {position + 1}.
@@ -401,7 +401,7 @@ export function SubtopicDetailsPage() {
                           type="button"
                           onClick={() => goTo(sibling)}
                           aria-label={`Open ${sibling.title}`}
-                          className="flex w-full gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                          className="flex w-full gap-2 rounded-lg border border-transparent px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           <span className="tabular-nums shrink-0 text-gray-400">
                             {position + 1}.

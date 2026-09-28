@@ -153,7 +153,7 @@ export function TopicDetailsPage() {
       <div className="mb-6">
         {backToRoadmap}
         {roadmapTitle && (
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 mb-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1">
             {roadmapTitle}
           </p>
         )}
@@ -172,7 +172,7 @@ export function TopicDetailsPage() {
           )}
 
           {topic.description && (
-            <Card className="border border-gray-200 shadow-sm bg-gradient-to-br from-blue-50 to-white">
+            <Card className="border border-gray-200 shadow-sm bg-gradient-to-br from-accent to-white">
               <CardContent className="p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-3">
                   Overview
@@ -219,10 +219,10 @@ export function TopicDetailsPage() {
         </div>
 
         <div className="lg:col-span-1 space-y-6">
-          <Card className="border-2 border-blue-300 shadow-sm bg-gradient-to-br from-blue-50 to-white">
+          <Card className="border-2 border-brand-teal/50 shadow-sm bg-gradient-to-br from-accent to-white">
             <CardContent className="p-5">
               <h3 className="text-lg font-bold text-gray-900 mb-3">
-                <Play className="w-5 h-5 inline mr-2 text-blue-600" />
+                <Play className="w-5 h-5 inline mr-2 text-primary" />
                 Watch Tutorial
               </h3>
 

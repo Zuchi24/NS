@@ -334,7 +334,7 @@ function AssessmentHeading({
     <Card className="border border-gray-200 shadow-sm">
       <CardContent className="p-6 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex text-xs font-medium rounded px-1.5 py-0.5 border text-blue-700 bg-blue-50 border-blue-200">
+          <span className="inline-flex text-xs font-medium rounded px-1.5 py-0.5 border text-accent-foreground bg-accent border-brand-teal/30">
             {STUDENT_ASSESSMENT_TYPE_LABELS[assessment.type]}
           </span>
           {version !== null && (
@@ -788,7 +788,7 @@ function QuestionStep({
             className="h-2 w-full overflow-hidden rounded-full bg-gray-200"
           >
             <div
-              className="h-full rounded-full bg-blue-600 transition-[width]"
+              className="h-full rounded-full bg-primary transition-[width]"
               style={{ width: `${(number / total) * 100}%` }}
             />
           </div>
@@ -827,9 +827,9 @@ function QuestionStep({
               return (
                 <label
                   key={choice.id}
-                  className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3.5 text-base cursor-pointer transition-colors focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 ${
+                  className={`flex items-center gap-3 rounded-lg border-2 px-4 py-3.5 text-base cursor-pointer transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${
                     checked
-                      ? "border-blue-600 bg-blue-50 text-gray-900"
+                      ? "border-primary bg-accent text-foreground"
                       : "border-gray-200 bg-white text-gray-800 hover:border-gray-300 hover:bg-gray-50"
                   }`}
                 >
@@ -845,7 +845,7 @@ function QuestionStep({
                     aria-hidden="true"
                     className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-sm font-semibold ${
                       checked
-                        ? "border-blue-600 bg-blue-600 text-white"
+                        ? "border-primary bg-primary text-primary-foreground"
                         : "border-gray-300 bg-gray-50 text-gray-600"
                     }`}
                   >

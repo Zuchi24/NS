@@ -20,7 +20,7 @@ export const SUBTOPIC_STATUS_LABEL: Record<SubtopicStatus, string> = {
 /** The chip each standing is drawn as: the same three colours in both places. */
 export const SUBTOPIC_STATUS_STYLE: Record<SubtopicStatus, string> = {
   completed: "text-emerald-700 bg-emerald-50 border-emerald-200",
-  available: "text-blue-700 bg-blue-50 border-blue-200",
+  available: "text-info bg-info/10 border-info/25",
   locked: "text-gray-600 bg-gray-100 border-gray-200",
 };
 

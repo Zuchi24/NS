@@ -156,8 +156,8 @@ export function ChallengePage() {
       label: "Challenges",
       value: rows.length,
       icon: Target,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
+      color: "text-primary",
+      bgColor: "bg-accent",
     },
     {
       label: "Passed",
@@ -170,15 +170,15 @@ export function ChallengePage() {
       label: "In Progress",
       value: inProgressCount,
       icon: Clock,
-      color: "text-orange-600",
-      bgColor: "bg-orange-50",
+      color: "text-info",
+      bgColor: "bg-info/10",
     },
     {
       label: "Keep Trying",
       value: attemptedCount,
       icon: RotateCcw,
-      color: "text-purple-600",
-      bgColor: "bg-purple-50",
+      color: "text-warning",
+      bgColor: "bg-warning/10",
     },
   ];
 
@@ -236,7 +236,7 @@ export function ChallengePage() {
     <div className="max-w-7xl mx-auto space-y-8">
       <div>
         <div className="flex items-center gap-3 mb-2">
-          <Target className="w-8 h-8 text-blue-600" />
+          <Target className="w-8 h-8 text-primary" />
           <h1 className="text-3xl font-bold text-gray-900">
             Challenge-Based Learning
           </h1>
@@ -280,8 +280,8 @@ export function ChallengePage() {
             aria-pressed={activeLevel === "all"}
             className={`px-4 py-2 rounded-lg border text-sm font-semibold transition-all ${
               activeLevel === "all"
-                ? "bg-blue-600 text-white border-blue-600"
-                : "bg-white text-gray-700 border-gray-200 hover:border-blue-300"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-white text-gray-700 border-gray-200 hover:border-brand-teal/50"
             }`}
           >
             All Challenges
@@ -325,7 +325,7 @@ export function ChallengePage() {
             onClick={() => setActiveFilter(filter)}
             className={`px-4 py-2 text-sm font-medium transition-all ${
               activeFilter === filter
-                ? "text-blue-600 border-b-2 border-blue-600"
+                ? "text-primary border-b-2 border-primary"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
@@ -384,11 +384,11 @@ export function ChallengePage() {
             return (
               <Card
                 key={row.challenge.id}
-                className="border border-gray-200 shadow-sm transition-all hover:shadow-md hover:border-blue-200"
+                className="border border-gray-200 shadow-sm transition-all hover:shadow-md hover:border-brand-teal/30"
               >
                 <CardContent className="p-6">
                   <div className="flex gap-6">
-                    <div className="w-16 h-16 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <div className="w-16 h-16 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
                       <Target className="w-8 h-8 text-white" />
                     </div>
 
@@ -408,12 +408,12 @@ export function ChallengePage() {
                             </div>
                           )}
                           {isInProgress && (
-                            <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-semibold">
+                            <span className="bg-info/10 text-info px-3 py-1 rounded-full text-xs font-semibold">
                               In Progress
                             </span>
                           )}
                           {isAttempted && (
-                            <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-semibold">
+                            <span className="bg-warning/10 text-warning px-3 py-1 rounded-full text-xs font-semibold">
                               {row.unmet === null
                                 ? "Not passed yet"
                                 : `${row.unmet} requirement${row.unmet === 1 ? "" : "s"} to go`}
@@ -441,10 +441,10 @@ export function ChallengePage() {
                           variant={isPassed || isLocked ? "outline" : "default"}
                           className={
                             isPassed
-                              ? "h-10 px-6 border-blue-600 text-blue-600 hover:bg-blue-50"
+                              ? "h-10 px-6 border-primary text-primary hover:bg-accent"
                               : isLocked
                                 ? "h-10 px-6"
-                                : "h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white"
+                                : "h-10 px-6 bg-primary hover:bg-primary/90 text-primary-foreground"
                           }
                         >
                           {isLocked ? (
@@ -478,10 +478,10 @@ export function ChallengePage() {
         </div>
       )}
 
-      <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white shadow-sm">
+      <Card className="border-2 border-brand-teal/30 bg-gradient-to-r from-accent to-white shadow-sm">
         <CardContent className="p-6">
           <div className="flex items-center gap-6">
-            <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <div className="w-16 h-16 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
               <Trophy className="w-9 h-9 text-white" />
             </div>
             <div className="flex-1">
@@ -493,7 +493,7 @@ export function ChallengePage() {
               </p>
             </div>
             <div className="text-right">
-              <div className="text-3xl font-bold text-blue-600 tabular-nums">
+              <div className="text-3xl font-bold text-primary tabular-nums">
                 {passedCount}/{rows.length}
               </div>
               <div className="text-xs text-gray-600 mb-2">Passed</div>

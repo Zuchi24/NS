@@ -214,7 +214,7 @@ function RoadmapPath({
   return (
     <section aria-labelledby={headingId}>
       <div className="flex flex-col items-start xl:items-center gap-2 mb-6 lg:mb-8">
-        <span className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-2 text-white shadow-md">
+        <span className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-primary-foreground shadow-md">
           <Route className="w-4 h-4 shrink-0" aria-hidden="true" />
           <h2
             id={headingId}
@@ -244,7 +244,7 @@ function RoadmapPath({
             to whatever ends the path. */}
         <span
           aria-hidden="true"
-          className="absolute top-0 bottom-0 left-5 xl:left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-gradient-to-b from-blue-300 via-blue-200 to-blue-100"
+          className="absolute top-0 bottom-0 left-5 xl:left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-gradient-to-b from-brand-teal/50 via-brand-teal/30 to-brand-teal/10"
         />
 
         <ol className="space-y-6 lg:space-y-8">
@@ -269,12 +269,12 @@ function RoadmapPath({
                 not. */}
             <span
               aria-hidden="true"
-              className="absolute top-8 left-5 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border-2 border-dashed border-blue-300 bg-white xl:left-1/2"
+              className="absolute top-8 left-5 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border-2 border-dashed border-brand-teal/50 bg-white xl:left-1/2"
             >
               {remaining > 0 ? (
-                <ChevronDown className="w-4 h-4 text-blue-500" />
+                <ChevronDown className="w-4 h-4 text-brand-teal" />
               ) : (
-                <ChevronUp className="w-4 h-4 text-blue-500" />
+                <ChevronUp className="w-4 h-4 text-brand-teal" />
               )}
             </span>
 
@@ -284,7 +284,7 @@ function RoadmapPath({
                   <Button
                     variant="outline"
                     onClick={onShowMore}
-                    className="bg-white border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+                    className="bg-white border-brand-teal/50 text-primary hover:bg-accent hover:text-accent-foreground"
                   >
                     Show {next} More Topic{next === 1 ? "" : "s"}
                   </Button>
@@ -406,12 +406,12 @@ function TopicNode({
             the card is centred in its row, so the arm and node are too. */}
         <span
           aria-hidden="true"
-          className={`absolute top-8 left-5 h-0.5 w-7 -translate-y-1/2 bg-blue-200 lg:top-1/2 xl:w-8 ${
+          className={`absolute top-8 left-5 h-0.5 w-7 -translate-y-1/2 bg-brand-teal/30 lg:top-1/2 xl:w-8 ${
             cardOnLeft ? "xl:left-auto xl:right-1/2" : "xl:left-1/2"
           }`}
         />
 
-        <span className="absolute top-8 left-5 z-10 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-blue-500 bg-white text-xs font-bold text-blue-700 shadow-sm lg:top-1/2 xl:left-1/2">
+        <span className="absolute top-8 left-5 z-10 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-brand-teal bg-white text-xs font-bold text-primary shadow-sm lg:top-1/2 xl:left-1/2">
           {position}
         </span>
 
@@ -422,9 +422,9 @@ function TopicNode({
                 type="button"
                 onClick={onOpen}
                 aria-label={`Open ${topic.title}`}
-                className="group w-full min-w-0 text-left bg-white rounded-xl border-2 border-blue-200 shadow-sm p-5 transition-all hover:border-blue-400 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="group w-full min-w-0 text-left bg-white rounded-xl border-2 border-brand-teal/30 shadow-sm p-5 transition-all hover:border-brand-teal/70 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <h3 className="text-base sm:text-lg font-bold text-gray-900 group-hover:text-blue-700 break-words">
+                <h3 className="text-base sm:text-lg font-bold text-foreground group-hover:text-primary break-words">
                   {topic.title}
                 </h3>
 
@@ -570,21 +570,21 @@ function TopicSections({
    * trunk does this job instead.
    */
   const stem = cardOnLeft
-    ? "hidden lg:block absolute top-1/2 -left-6 h-0.5 w-6 -translate-y-1/2 bg-blue-200 xl:left-auto xl:-right-6"
-    : "hidden lg:block absolute top-1/2 -left-6 h-0.5 w-6 -translate-y-1/2 bg-blue-200";
+    ? "hidden lg:block absolute top-1/2 -left-6 h-0.5 w-6 -translate-y-1/2 bg-brand-teal/30 xl:left-auto xl:-right-6"
+    : "hidden lg:block absolute top-1/2 -left-6 h-0.5 w-6 -translate-y-1/2 bg-brand-teal/30";
 
   const trunkX = cardOnLeft
-    ? "absolute w-0.5 bg-blue-200 -left-5 xl:left-auto xl:-right-5"
-    : "absolute w-0.5 bg-blue-200 -left-5";
+    ? "absolute w-0.5 bg-brand-teal/30 -left-5 xl:left-auto xl:-right-5"
+    : "absolute w-0.5 bg-brand-teal/30 -left-5";
 
   const arm = cardOnLeft
-    ? "absolute top-6 -left-5 h-0.5 w-5 -translate-y-1/2 bg-blue-200 lg:top-1/2 xl:left-auto xl:-right-5"
-    : "absolute top-6 -left-5 h-0.5 w-5 -translate-y-1/2 bg-blue-200 lg:top-1/2";
+    ? "absolute top-6 -left-5 h-0.5 w-5 -translate-y-1/2 bg-brand-teal/30 lg:top-1/2 xl:left-auto xl:-right-5"
+    : "absolute top-6 -left-5 h-0.5 w-5 -translate-y-1/2 bg-brand-teal/30 lg:top-1/2";
 
   // The junction, drawn on the trunk: the spine's own node, three sizes down.
   const joint = cardOnLeft
-    ? "absolute top-6 -left-5 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-blue-300 bg-white lg:top-1/2 xl:left-auto xl:-right-5"
-    : "absolute top-6 -left-5 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-blue-300 bg-white lg:top-1/2";
+    ? "absolute top-6 -left-5 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-brand-teal/50 bg-white lg:top-1/2 xl:left-auto xl:-right-5"
+    : "absolute top-6 -left-5 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-brand-teal/50 bg-white lg:top-1/2";
 
   // Level with the section cards it heads: indented with them when stacked,
   // flush with them once they stand beside the card.
@@ -653,10 +653,10 @@ function TopicSections({
                    * that is the server's.
                    */
                   aria-label={labelWithStatus(`Open ${section.title}`, section.status)}
-                  className="group block w-full text-left rounded-lg border border-blue-100 bg-blue-50/40 px-3 py-2.5 transition-all hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  className="group block w-full text-left rounded-lg border border-brand-teal/20 bg-accent/60 px-3 py-2.5 transition-all hover:border-brand-teal/50 hover:bg-accent hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-semibold text-blue-600 tabular-nums">
+                    <p className="text-[11px] font-semibold text-primary tabular-nums">
                       {position}.{index + 1}
                     </p>
 
@@ -670,7 +670,7 @@ function TopicSections({
                   </div>
 
                   <p
-                    className={`mt-0.5 text-sm font-semibold break-words group-hover:text-blue-700 ${
+                    className={`mt-0.5 text-sm font-semibold break-words group-hover:text-primary ${
                       section.status === "locked" ? "text-gray-500" : "text-gray-800"
                     }`}
                   >
