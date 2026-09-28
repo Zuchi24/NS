@@ -137,7 +137,7 @@ export function AdminSidebar({
               type="button"
               onClick={onClose}
               aria-label="Close navigation"
-              className="md:hidden p-2 -mr-2 rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="md:hidden p-2 -mr-2 rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="w-5 h-5" />
             </button>
@@ -150,9 +150,9 @@ export function AdminSidebar({
               key={item.name}
               onClick={() => navigate(item.path)}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isActive(item.path)
-                  ? 'bg-blue-50 text-blue-600 shadow-[inset_3px_0_0_var(--color-blue-600)]'
+                  ? 'bg-accent text-accent-foreground shadow-[inset_3px_0_0_var(--color-brand-teal)]'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               )}
             >
@@ -170,9 +170,9 @@ export function AdminSidebar({
               }}
               aria-expanded={isArchiveExpanded}
               className={cn(
-                'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 inArchive
-                  ? 'bg-blue-50 text-blue-600 shadow-[inset_3px_0_0_var(--color-blue-600)]'
+                  ? 'bg-accent text-accent-foreground shadow-[inset_3px_0_0_var(--color-brand-teal)]'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               )}
             >
@@ -196,9 +196,9 @@ export function AdminSidebar({
                       onClick={() => navigate(item.path)}
                       aria-current={location.pathname === item.path ? 'page' : undefined}
                       className={cn(
-                        'w-full flex items-center px-3 py-1.5 rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                        'w-full flex items-center px-3 py-1.5 rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                         location.pathname === item.path
-                          ? 'text-blue-600 font-medium bg-blue-50/50'
+                          ? 'text-accent-foreground font-medium bg-accent/60'
                           : 'text-gray-500 hover:bg-slate-100 hover:text-slate-800'
                       )}
                     >
@@ -219,9 +219,9 @@ export function AdminSidebar({
               }}
               aria-expanded={isAcademicExpanded}
               className={cn(
-                'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 inAcademic
-                  ? 'bg-blue-50 text-blue-600 shadow-[inset_3px_0_0_var(--color-blue-600)]'
+                  ? 'bg-accent text-accent-foreground shadow-[inset_3px_0_0_var(--color-brand-teal)]'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               )}
             >
@@ -240,9 +240,9 @@ export function AdminSidebar({
                     onClick={() => navigate(item.path)}
                     aria-current={isActive(item.path) ? 'page' : undefined}
                     className={cn(
-                      'w-full flex items-center px-3 py-1.5 rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                      'w-full flex items-center px-3 py-1.5 rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       isActive(item.path)
-                        ? 'text-blue-600 font-medium bg-blue-50/50'
+                        ? 'text-accent-foreground font-medium bg-accent/60'
                         : 'text-gray-500 hover:bg-slate-100 hover:text-slate-800'
                     )}
                   >
@@ -261,9 +261,9 @@ export function AdminSidebar({
                 if (!isStudentsExpanded) navigate('/admin/students');
               }}
               className={cn(
-                'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isActive('/admin/students')
-                  ? 'bg-blue-50 text-blue-600 shadow-[inset_3px_0_0_var(--color-blue-600)]'
+                  ? 'bg-accent text-accent-foreground shadow-[inset_3px_0_0_var(--color-brand-teal)]'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               )}
             >
@@ -281,9 +281,9 @@ export function AdminSidebar({
                     <button
                       onClick={() => handleYearClick(year.id)}
                       className={cn(
-                        'w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                        'w-full flex items-center justify-between px-3 py-1.5 rounded-md text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                         location.pathname.startsWith(`/admin/students/${year.id}`)
-                          ? 'text-blue-600 bg-blue-50/50'
+                          ? 'text-accent-foreground bg-accent/60'
                           : 'text-gray-500 hover:bg-slate-100 hover:text-slate-800'
                       )}
                     >
@@ -307,11 +307,11 @@ export function AdminSidebar({
                               navigate(`/admin/students/${year.id}/${section.id}`)
                             }
                             className={cn(
-                              'w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                              'w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                               location.pathname.startsWith(
                                 `/admin/students/${year.id}/${section.id}`
                               )
-                                ? 'text-blue-600 font-medium'
+                                ? 'text-accent-foreground font-medium'
                                 : 'text-gray-500 hover:text-gray-800'
                             )}
                           >
@@ -330,9 +330,9 @@ export function AdminSidebar({
           <button
             onClick={() => navigate('/admin/profile')}
             className={cn(
-              'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium mt-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+              'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium mt-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               isActive('/admin/profile')
-                ? 'bg-blue-50 text-blue-600 shadow-[inset_3px_0_0_var(--color-blue-600)]'
+                ? 'bg-accent text-accent-foreground shadow-[inset_3px_0_0_var(--color-brand-teal)]'
                 : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
             )}
           >

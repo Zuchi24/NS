@@ -29,7 +29,7 @@ export function AdminHeader({ title, menuOpen = false, onOpenMenu }: HeaderProps
             onClick={onOpenMenu}
             aria-label="Open navigation"
             aria-expanded={menuOpen}
-            className="md:hidden p-2 -ml-2 rounded-lg text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="md:hidden p-2 -ml-2 rounded-lg text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -40,7 +40,7 @@ export function AdminHeader({ title, menuOpen = false, onOpenMenu }: HeaderProps
       {user && (
         <Link
           to="/admin/profile"
-          className="flex items-center gap-3 rounded-lg px-1.5 py-1 hover:bg-slate-100 transition-colors min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="flex items-center gap-3 rounded-lg px-1.5 py-1 hover:bg-slate-100 transition-colors min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="sr-only sm:hidden">Profile</span>
           <div className="text-right hidden sm:block min-w-0">
@@ -48,7 +48,7 @@ export function AdminHeader({ title, menuOpen = false, onOpenMenu }: HeaderProps
             <div className="text-xs text-slate-500 capitalize">{user.role}</div>
           </div>
           <div
-            className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-sm font-semibold flex items-center justify-center shrink-0"
+            className="w-9 h-9 rounded-full bg-brand-teal-dark text-white text-sm font-semibold flex items-center justify-center shrink-0"
             aria-hidden="true"
           >
             {initials(user.name)}

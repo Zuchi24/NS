@@ -271,7 +271,7 @@ describe("the sidebar's Archive group", () => {
 
     const archive = screen.getByRole("button", { name: "Archive" });
     expect(archive).toHaveAttribute("aria-expanded", "true");
-    expect(archive.className).toContain("text-blue-600");
+    expect(archive.className).toContain("text-accent-foreground");
     expect(archiveGroup().getByText("Test")).toBeInTheDocument();
     expect(archiveGroup().getByRole("button", { name: "Post-Test" })).toHaveAttribute("aria-current", "page");
     expect(archiveGroup().getByRole("button", { name: "Pre-Test" })).not.toHaveAttribute("aria-current");
