@@ -1,44 +1,76 @@
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * The NetSim palette, taken from the logo (public/NetSim_Logo).
+ *
+ * Teal carries the brand and every interaction; orange is a rare accent; slate
+ * neutrals hold the rest. The logo's own teal (#0D9488) and orange (#F97316)
+ * are too light to carry text, so the UI uses deeper tones of each for that
+ * and keeps the logo colours for graphics, rails and focus rings.
+ *
+ * --accent is shadcn's subtle hover/selection tint (menus, ghost buttons,
+ * skeletons), not the orange: the brand orange has its own tokens below.
+ * Simulation colours — wires, cable types, link lights — are not tokens and
+ * are not themed: they mean something.
+ */
 :root {
   --font-size: 16px;
   --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
+  --foreground: #0f172a;
   --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #2563eb;
-  --primary-foreground: oklch(1 0 0);
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  /* Deep teal: white text on it passes AA, at rest and on its /90 hover. */
+  --primary: #0d6e66;
+  --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #0f172a;
   --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #eff6ff;
-  --accent-foreground: #1d4ed8;
+  --muted-foreground: #5b6b80;
+  --accent: #f0fdfa;
+  --accent-foreground: #115e59;
   --destructive: #d4183d;
   --destructive-foreground: #ffffff;
   --border: #e2e8f0;
-  --input: #d8dee8;
+  /* A control's outline, dark enough to see (3:1 on white). */
+  --input: #8494a7;
   --input-background: #ffffff;
   --switch-background: #cbced4;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: #3b82f6;
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --ring: #0d9488;
+  --chart-1: #0d9488;
+  --chart-2: #ea580c;
+  --chart-3: #475569;
+  --chart-4: #0284c7;
+  --chart-5: #d97706;
   --radius: 0.75rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #2563eb;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #0d6e66;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0fdfa;
+  --sidebar-accent-foreground: #115e59;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #0d9488;
+
+  /* The logo's colours. The base teal and orange are for graphics, rails
+   * and icons, never small text; the -dark tones are the text-safe ones. */
+  --brand-teal: #0d9488;
+  --brand-teal-dark: #134e4a;
+  --brand-teal-light: #ccfbf1;
+  --brand-orange: #f97316;
+  --brand-orange-dark: #c2410c;
+  --brand-orange-light: #fff7ed;
+
+  /* What a state means. Each stays readable as text on its own /10 tint. */
+  --success: #166534;
+  --success-foreground: #ffffff;
+  --warning: #92400e;
+  --warning-foreground: #ffffff;
+  --info: #0369a1;
+  --info-foreground: #ffffff;
 }
 
 .dark {
@@ -117,6 +149,18 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-teal-dark: var(--brand-teal-dark);
+  --color-brand-teal-light: var(--brand-teal-light);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-orange-dark: var(--brand-orange-dark);
+  --color-brand-orange-light: var(--brand-orange-light);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
 }
 
 @layer base {
