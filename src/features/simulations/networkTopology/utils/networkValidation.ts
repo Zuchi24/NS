@@ -193,19 +193,25 @@ export const isCableValid = (
    *
    * End Device <-> Switch
    * Switch <-> Switch
+   *
+   * A hub is cabled exactly as a switch is, so wherever a switch may go, a
+   * hub may too: End Device <-> Hub, Hub <-> Switch, Hub <-> Hub.
    */
 
   if (
     connection.cableType ===
     "copper-straight"
   ) {
+    const isSwitchLike = (type: string) =>
+      type === "switch" || type === "hub";
+
     return (
       (sourceType === "end" &&
-        targetType === "switch") ||
-      (sourceType === "switch" &&
+        isSwitchLike(targetType)) ||
+      (isSwitchLike(sourceType) &&
         targetType === "end") ||
-      (sourceType === "switch" &&
-        targetType === "switch")
+      (isSwitchLike(sourceType) &&
+        isSwitchLike(targetType))
     );
   }
 

@@ -19,8 +19,9 @@ import type { Connection, Device } from "../types";
  *
  * Cable types are not decorative here. `isCableValid`, which the canvas already
  * uses to colour a connection, says a straight-through joins an end device to a
- * switch and a cross-over joins two end devices; the router families it does
- * not carry at all. The router limitation is the existing rule, not a new one.
+ * switch (or a hub, cabled as a switch is) and a cross-over joins two end
+ * devices; the router families it does not carry at all. The router limitation
+ * is the existing rule, not a new one.
  */
 
 function pc(id: string, x: number, y: number): Device {
@@ -29,6 +30,10 @@ function pc(id: string, x: number, y: number): Device {
 
 function sw(id: string, x: number, y: number): Device {
   return { id, type: "switch-2960", family: "switch", label: id, x, y };
+}
+
+function hub(id: string, x: number, y: number): Device {
+  return { id, type: "hub-generic", family: "hub", label: id, x, y };
 }
 
 /**
@@ -126,6 +131,33 @@ describe("PC1 ── Switch1 ── Switch2 ── PC2", () => {
 
     expect(path?.deviceIds).toEqual(["PC1", "Switch1", "Switch2", "PC2"]);
     expect(path?.hops.map((hop) => hop.connectionId)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("PC1 ── Hub ── PC2", () => {
+  const pc1 = pc("PC1", 0, 0);
+  const h1 = hub("Hub", 300, 0);
+  const pc2 = pc("PC2", 600, 0);
+
+  const wires = [
+    cable("a", pc1, h1, "copper-straight", 0, 0),
+    cable("b", h1, pc2, "copper-straight", 1, 0),
+  ];
+
+  it("goes through the hub, as it would a switch", () => {
+    const path = findPacketPath([pc1, h1, pc2], wires, "PC1", "PC2");
+
+    expect(path?.deviceIds).toEqual(["PC1", "Hub", "PC2"]);
+    expect(path?.hops).toEqual([
+      { connectionId: "a", fromDeviceId: "PC1", toDeviceId: "Hub" },
+      { connectionId: "b", fromDeviceId: "Hub", toDeviceId: "PC2" },
+    ]);
+  });
+
+  it("refuses a cross-over into the hub, as it would into a switch", () => {
+    const crossed = [wires[0], cable("b", h1, pc2, "copper-crossover", 1, 0)];
+
+    expect(findPacketPath([pc1, h1, pc2], crossed, "PC1", "PC2")).toBeNull();
   });
 });
 
