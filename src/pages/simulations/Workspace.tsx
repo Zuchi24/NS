@@ -66,6 +66,7 @@ import {
   isConsoleLink,
   consoleTargets,
   getConnectionValidity,
+  getConnectionLinkUp,
 } from "@/features/simulations/networkTopology/utils/networkValidation";
 import { DraggableDevice } from "@/features/simulations/networkTopology/components/DraggableDevice";
 import { PlacedDevice } from "@/features/simulations/networkTopology/components/PlacedDevice";
@@ -375,9 +376,11 @@ function WorkspaceCanvas() {
 
     return ports.reduce(
       (acc, port) => {
+        // Lit when its link is up — a router's uplink included, though no
+        // packet crosses a router (getConnectionValidity, below).
         acc[port.id] = connections.some(
           (connection) =>
-            getConnectionValidity(connection, devices) &&
+            getConnectionLinkUp(connection, devices) &&
             (
               (
                 connection.from ===

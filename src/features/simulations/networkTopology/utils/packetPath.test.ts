@@ -17,11 +17,11 @@ import type { Connection, Device } from "../types";
  * that a packet goes *through* what is between two PCs — if a switch is in the
  * middle, the switch is on the route.
  *
- * Cable types are not decorative here. `isCableValid`, which the canvas already
- * uses to colour a connection, says a straight-through joins an end device to a
- * switch (or a hub, cabled as a switch is) and a cross-over joins two end
- * devices; the router families it does not carry at all. The router limitation
- * is the existing rule, not a new one.
+ * Cable types are not decorative here. `isCableValid` follows the cable bench:
+ * a straight-through joins an end device to a switch or hub, a cross-over joins
+ * like to like (two end devices, or switches and hubs), and fibre joins two
+ * switches. A router's uplink comes up (isLinkUp) but no packet crosses it:
+ * routing is not implemented, and that is the existing limitation.
  */
 
 function pc(id: string, x: number, y: number): Device {
@@ -34,6 +34,10 @@ function sw(id: string, x: number, y: number): Device {
 
 function hub(id: string, x: number, y: number): Device {
   return { id, type: "hub-generic", family: "hub", label: id, x, y };
+}
+
+function router(id: string, x: number, y: number): Device {
+  return { id, type: "router-1941", family: "router", label: id, x, y };
 }
 
 /**
@@ -121,8 +125,8 @@ describe("PC1 ── Switch1 ── Switch2 ── PC2", () => {
 
   const wires = [
     cable("a", pc1, s1, "copper-straight", 0, 0),
-    // Switch to switch is a straight-through under the existing rules.
-    cable("b", s1, s2, "copper-straight", 1, 0),
+    // Switch to switch is like to like: a cross-over.
+    cable("b", s1, s2, "copper-crossover", 1, 0),
     cable("c", s2, pc2, "copper-straight", 1, 0),
   ];
 
@@ -131,6 +135,70 @@ describe("PC1 ── Switch1 ── Switch2 ── PC2", () => {
 
     expect(path?.deviceIds).toEqual(["PC1", "Switch1", "Switch2", "PC2"]);
     expect(path?.hops.map((hop) => hop.connectionId)).toEqual(["a", "b", "c"]);
+  });
+
+  it("does not cross a straight-through between the switches", () => {
+    const straight = [wires[0], cable("b", s1, s2, "copper-straight", 1, 0), wires[2]];
+
+    expect(findPacketPath([pc1, s1, s2, pc2], straight, "PC1", "PC2")).toBeNull();
+  });
+});
+
+describe("PC1 ── Switch1 ══ fibre ══ Switch2 ── PC2", () => {
+  const pc1 = pc("PC1", 0, 0);
+  const s1 = sw("Switch1", 200, 0);
+  const s2 = sw("Switch2", 400, 0);
+  const pc2 = pc("PC2", 600, 0);
+
+  const wires = [
+    cable("a", pc1, s1, "copper-straight", 0, 0),
+    cable("b", s1, s2, "fiber", 1, 0),
+    cable("c", s2, pc2, "copper-straight", 1, 0),
+  ];
+
+  it("crosses the fibre between the buildings", () => {
+    const path = findPacketPath([pc1, s1, s2, pc2], wires, "PC1", "PC2");
+
+    expect(path?.deviceIds).toEqual(["PC1", "Switch1", "Switch2", "PC2"]);
+    expect(path?.hops.map((hop) => hop.connectionId)).toEqual(["a", "b", "c"]);
+  });
+
+  it("crosses fibre only between switches: not from a PC", () => {
+    const pcOnFibre = [cable("a", pc1, s1, "fiber", 0, 0), wires[1], wires[2]];
+
+    expect(findPacketPath([pc1, s1, s2, pc2], pcOnFibre, "PC1", "PC2")).toBeNull();
+  });
+
+  it("crosses fibre only between switches: not to a hub", () => {
+    const h = hub("Hub", 400, 0);
+    const toHub = [wires[0], cable("b", s1, h, "fiber", 1, 0), cable("c", h, pc2, "copper-straight", 1, 0)];
+
+    expect(findPacketPath([pc1, s1, h, pc2], toHub, "PC1", "PC2")).toBeNull();
+  });
+});
+
+describe("a router, uplinked but not routing", () => {
+  const pc1 = pc("PC1", 0, 0);
+  const s1 = sw("Switch1", 200, 0);
+  const r1 = router("Router", 400, 0);
+  const s2 = sw("Switch2", 600, 0);
+  const pc2 = pc("PC2", 800, 0);
+
+  it("is not crossed between two switches, though both its uplinks are up", () => {
+    const wires = [
+      cable("a", pc1, s1, "copper-straight", 0, 0),
+      cable("b", s1, r1, "copper-straight", 1, 0),
+      cable("c", r1, s2, "copper-straight", 1, 0),
+      cable("d", s2, pc2, "copper-straight", 1, 0),
+    ];
+
+    expect(findPacketPath([pc1, s1, r1, s2, pc2], wires, "PC1", "PC2")).toBeNull();
+  });
+
+  it("is not reached from a switch either", () => {
+    const wires = [cable("a", pc1, s1, "copper-straight", 0, 0), cable("b", s1, r1, "copper-straight", 1, 0)];
+
+    expect(findPacketPath([pc1, s1, r1], wires, "PC1", "Router")).toBeNull();
   });
 });
 

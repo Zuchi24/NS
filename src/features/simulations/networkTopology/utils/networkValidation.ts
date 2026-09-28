@@ -173,8 +173,22 @@ export const isEndDevice = (device: Device) => {
 
 /* =========================================================
    CABLE VALIDATION
+
+   The copper rules are the cable bench's (its written contract):
+   auto-MDIX is off, so an end device's port (MDI) meets a switch
+   or hub port (MDIX) on a straight-through, and two ports of the
+   same kind meet on a cross-over.
    ========================================================= */
 
+/** A switch or a hub: the devices whose ports are MDIX. */
+const isSwitchLike = (type: string) =>
+  type === "switch" || type === "hub";
+
+/**
+ * Whether a packet may cross this cable. The rule the packet route is built
+ * from (packetPath), so a router — which does not route yet — is never
+ * crossed, even when its link is up (isLinkUp).
+ */
 export const isCableValid = (
   connection: Connection,
   source: Device,
@@ -189,36 +203,29 @@ export const isCableValid = (
   );
 
   /*
-   * Straight-through
+   * Straight-through: MDI to MDIX
    *
    * End Device <-> Switch
-   * Switch <-> Switch
-   *
-   * A hub is cabled exactly as a switch is, so wherever a switch may go, a
-   * hub may too: End Device <-> Hub, Hub <-> Switch, Hub <-> Hub.
+   * End Device <-> Hub
    */
 
   if (
     connection.cableType ===
     "copper-straight"
   ) {
-    const isSwitchLike = (type: string) =>
-      type === "switch" || type === "hub";
-
     return (
       (sourceType === "end" &&
         isSwitchLike(targetType)) ||
       (isSwitchLike(sourceType) &&
-        targetType === "end") ||
-      (isSwitchLike(sourceType) &&
-        isSwitchLike(targetType))
+        targetType === "end")
     );
   }
 
   /*
-   * Crossover
+   * Crossover: like to like
    *
    * End Device <-> End Device
+   * Switch <-> Switch, Switch <-> Hub, Hub <-> Hub
    */
 
   if (
@@ -226,17 +233,61 @@ export const isCableValid = (
     "copper-crossover"
   ) {
     return (
-      sourceType === "end" &&
-      targetType === "end"
+      (sourceType === "end" &&
+        targetType === "end") ||
+      (isSwitchLike(sourceType) &&
+        isSwitchLike(targetType))
     );
   }
 
   /*
-   * Fiber and console are currently
-   * not considered valid for simulation.
+   * Fiber
+   *
+   * Switch <-> Switch, and nothing else: the one run the lessons
+   * teach, between buildings.
+   */
+
+  if (connection.cableType === "fiber") {
+    return (
+      sourceType === "switch" &&
+      targetType === "switch"
+    );
+  }
+
+  /*
+   * Console is management access, never a data link
+   * (isConsoleLink).
    */
 
   return false;
+};
+
+/**
+ * Whether this cable brings a link up: the ports at both ends light, whether
+ * or not a packet may cross it.
+ *
+ * Every cable a packet may cross is up. So is a router's straight-through
+ * uplink to a switch — the gateway the lessons have a student wire — though
+ * no packet crosses a router until routing exists (deliverability). No other
+ * router link is up: which cable it would take is not decided.
+ */
+export const isLinkUp = (
+  connection: Connection,
+  source: Device,
+  target: Device
+) => {
+  if (isCableValid(connection, source, target)) {
+    return true;
+  }
+
+  const sourceType = getDeviceCategory(source.type);
+  const targetType = getDeviceCategory(target.type);
+
+  return (
+    connection.cableType === "copper-straight" &&
+    ((sourceType === "router" && targetType === "switch") ||
+      (sourceType === "switch" && targetType === "router"))
+  );
 };
 
 /**
@@ -320,6 +371,25 @@ export const getConnectionValidity = (
     source &&
       target &&
       isCableValid(
+        connection,
+        source,
+        target
+      )
+  );
+};
+
+/** isLinkUp, for a connection looked up among the canvas's devices. */
+export const getConnectionLinkUp = (
+  connection: Connection,
+  devices: Device[]
+) => {
+  const source = devices.find((d) => d.id === connection.from);
+  const target = devices.find((d) => d.id === connection.to);
+
+  return Boolean(
+    source &&
+      target &&
+      isLinkUp(
         connection,
         source,
         target

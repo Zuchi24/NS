@@ -142,7 +142,8 @@ describe("more than one switch", () => {
   const devices = [pc1, s1, s2, pc2];
   const wires = [
     cable("a", pc1, s1, "copper-straight", 0, 0),
-    cable("b", s1, s2, "copper-straight", 1, 0),
+    // Like to like: a cross-over between the switches.
+    cable("b", s1, s2, "copper-crossover", 1, 0),
     cable("c", s2, pc2, "copper-straight", 1, 0),
   ];
 
@@ -219,6 +220,35 @@ describe("different networks", () => {
 
     expect(result.ok).toBe(false);
     expect(!result.ok && result.reason).toBe("different-subnet");
+  });
+
+  it("still fails with a router uplinked to the switch, since nothing routes yet", () => {
+    // The router's uplink is up — its port lights — but a link being up is
+    // not routing, and routing is not implemented.
+    const gateway = { id: "Router", type: "router-1941", family: "router", label: "Router", x: 400, y: 0 };
+    const uplinked = [...wires, cable("u", sw, gateway, "copper-straight", 2, 0)];
+
+    const result = evaluateDelivery([pc1, sw, pc2, gateway], uplinked, "PC1", "PC2");
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.reason).toBe("different-subnet");
+    expect(!result.ok && result.message).toContain("no router is available");
+  });
+});
+
+describe("a router between two PCs", () => {
+  it("does not carry their traffic, since nothing routes yet", () => {
+    const pc1 = host("PC1", "192.168.1.10");
+    const pc2 = host("PC2", "192.168.1.20");
+    const r1 = { id: "Router", type: "router-1941", family: "router", label: "Router", x: 200, y: 0 };
+
+    for (const cableType of ["copper-straight", "copper-crossover"] as const) {
+      const wires = [cable("a", pc1, r1, cableType, 0, 0), cable("b", r1, pc2, cableType, 1, 0)];
+      const result = evaluateDelivery([pc1, r1, pc2], wires, "PC1", "PC2");
+
+      expect(result.ok).toBe(false);
+      expect(!result.ok && result.reason).toBe("no-path");
+    }
   });
 });
 
