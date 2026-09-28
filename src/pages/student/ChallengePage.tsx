@@ -444,7 +444,7 @@ export function ChallengePage() {
                               ? "h-10 px-6 border-primary text-primary hover:bg-accent"
                               : isLocked
                                 ? "h-10 px-6"
-                                : "h-10 px-6 bg-primary hover:bg-primary/90 text-primary-foreground"
+                                : "h-10 px-6 bg-primary hover:bg-primary-hover text-primary-foreground"
                           }
                         >
                           {isLocked ? (

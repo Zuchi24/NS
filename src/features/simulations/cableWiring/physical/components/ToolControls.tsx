@@ -313,7 +313,7 @@ function ActionButton({
   variant?: "primary" | "secondary" | "active";
 }) {
   const look = {
-    primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+    primary: "bg-primary text-primary-foreground hover:bg-primary-hover",
     secondary: "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50",
     active: "border border-emerald-500 bg-emerald-50 text-emerald-900",
   }[variant];

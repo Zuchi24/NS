@@ -24,6 +24,8 @@
   /* Deep teal: white text on it passes AA, at rest and on its /90 hover. */
   --primary: #0d6e66;
   --primary-foreground: #ffffff;
+  /* A step darker, so a pressed-looking hover never loses contrast. */
+  --primary-hover: #0b5d56;
   --secondary: #f1f5f9;
   --secondary-foreground: #0f172a;
   --muted: #f1f5f9;
@@ -63,6 +65,8 @@
   --brand-orange: #f97316;
   --brand-orange-dark: #c2410c;
   --brand-orange-light: #fff7ed;
+  /* The logo's S shading: hover for anything drawn in the -dark orange. */
+  --brand-orange-hover: #9a3412;
 
   /* What a state means. Each stays readable as text on its own /10 tint. */
   --success: #166534;
@@ -119,6 +123,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -155,6 +160,7 @@
   --color-brand-orange: var(--brand-orange);
   --color-brand-orange-dark: var(--brand-orange-dark);
   --color-brand-orange-light: var(--brand-orange-light);
+  --color-brand-orange-hover: var(--brand-orange-hover);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);

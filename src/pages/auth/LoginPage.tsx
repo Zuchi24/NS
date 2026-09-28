@@ -124,7 +124,7 @@ export function LoginPage() {
             {/* Submit */}
             <Button
               type="submit"
-              className="w-full h-11 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-md shadow-primary/20"
+              className="w-full h-11 rounded-full bg-primary hover:bg-primary-hover text-primary-foreground font-semibold shadow-md shadow-primary/20"
               disabled={loading}
             >
               {loading ? (

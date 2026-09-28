@@ -279,7 +279,7 @@ export function VerifyEmailPage() {
           <Button
             type="submit"
             disabled={verifying || verifyWait > 0}
-            className="w-full h-11 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-md shadow-primary/20"
+            className="w-full h-11 rounded-full bg-primary hover:bg-primary-hover text-primary-foreground font-semibold shadow-md shadow-primary/20"
           >
             <ShieldCheck className="w-4 h-4" aria-hidden="true" />
             {verifying
