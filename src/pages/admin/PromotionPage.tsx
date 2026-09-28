@@ -42,7 +42,7 @@ import { InlineConfirm } from "./academic/InlineConfirm";
  */
 
 const selectClass =
-  "h-9 rounded-md border border-gray-300 bg-white px-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  "h-9 rounded-md border border-input bg-white px-2 text-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring";
 
 /** "" is undecided, "none" is not placed this year, otherwise a section id. */
 type Choice = string;
@@ -388,7 +388,7 @@ function Promotion({ target, sources }: { target: AcademicYear; sources: Academi
               </div>
 
               {checkedNow && checked && (
-                <div role="status" aria-label="Dry run" className="rounded-md border border-blue-200 bg-blue-50/50 p-3 text-sm text-gray-800 space-y-1">
+                <div role="status" aria-label="Dry run" className="rounded-md border border-info/25 bg-info/10 p-3 text-sm text-gray-800 space-y-1">
                   <p>
                     The check found nothing wrong. Committing would place{" "}
                     {checked.outcome.created.length}, leave {checked.outcome.notPlaced.length} not placed,

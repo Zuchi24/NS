@@ -113,7 +113,7 @@ export function AcademicYearsPage() {
                 <CardContent className="p-4 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <CalendarRange className="w-5 h-5 text-blue-600" aria-hidden="true" />
+                      <CalendarRange className="w-5 h-5 text-primary" aria-hidden="true" />
                       <div>
                         <p className="font-semibold text-gray-900">{year.name}</p>
                         <p className="text-xs text-gray-500">
@@ -245,7 +245,7 @@ function YearForm({
   };
 
   return (
-    <Card className="border-blue-200">
+    <Card className="border-brand-teal/30">
       <CardHeader>
         <CardTitle className="text-base">
           {year ? `Edit ${year.name}` : "New academic year"}

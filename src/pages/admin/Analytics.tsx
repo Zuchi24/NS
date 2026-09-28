@@ -67,8 +67,8 @@ export function Analytics() {
       value: submissions > 0 ? `${Math.round((passed / submissions) * 100)}%` : "—",
       note: `${passed} of ${submissions} submissions`,
       icon: BarChart3,
-      color: "text-blue-600",
-      bgColor: "bg-blue-100",
+      color: "text-primary",
+      bgColor: "bg-accent",
     },
     {
       label: "Students attempting",
@@ -86,8 +86,8 @@ export function Analytics() {
           ? "no completed attempts to measure yet"
           : `over ${timed.length} challenge${timed.length === 1 ? "" : "s"} with submissions`,
       icon: Clock,
-      color: "text-purple-600",
-      bgColor: "bg-purple-100",
+      color: "text-brand-orange-dark",
+      bgColor: "bg-brand-orange-light",
     },
   ];
 
@@ -154,7 +154,7 @@ export function Analytics() {
                       <span className="text-gray-600">
                         {minutes(challenge.averageMinutes)}
                       </span>
-                      <span className="font-semibold text-blue-600">
+                      <span className="font-semibold text-primary">
                         {challenge.submissions === 0
                           ? "No submissions"
                           : `${challenge.passRate}% of submissions`}

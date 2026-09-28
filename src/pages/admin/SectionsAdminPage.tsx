@@ -31,7 +31,7 @@ import { InlineConfirm, messageOf } from "./academic/InlineConfirm";
  * closed year's sections are only read.
  */
 const selectClass =
-  "h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  "h-10 rounded-md border border-input bg-white px-3 text-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring";
 
 export function SectionsAdminPage() {
   const [params, setParams] = useSearchParams();
@@ -304,7 +304,7 @@ function NewSectionForm({
   };
 
   return (
-    <Card className="border-blue-200">
+    <Card className="border-brand-teal/30">
       <CardContent className="p-4">
         <form onSubmit={save} className="grid gap-4 md:grid-cols-3">
           <div className="space-y-1">

@@ -124,7 +124,7 @@ export function TopicMaterialsPanel({
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div>
           <CardTitle className="text-lg flex items-center gap-2">
-            <FileText className="w-5 h-5 text-blue-600" />
+            <FileText className="w-5 h-5 text-primary" />
             Learning materials
           </CardTitle>
           <p className="text-sm text-gray-600 mt-2">{OWNER_CAPTION[owner]}</p>
@@ -395,7 +395,7 @@ function MaterialForm({
     <form
       onSubmit={submit}
       aria-label={isNew ? "Add material" : "Edit material"}
-      className="rounded-md border border-blue-200 bg-blue-50/40 p-4 space-y-4"
+      className="rounded-md border border-brand-teal/30 bg-accent/60 p-4 space-y-4"
     >
       <MaterialFields
         idPrefix="material"

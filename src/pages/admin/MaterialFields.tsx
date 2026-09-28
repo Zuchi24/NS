@@ -80,7 +80,7 @@ export function MaterialFields({
           id={`${idPrefix}-kind`}
           value={draft.kind}
           onChange={(e) => onChange("kind", e.target.value as MaterialKind)}
-          className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full h-10 rounded-md border border-input bg-white px-3 text-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
         >
           {/* Exactly the kinds the API accepts; there is no "other". */}
           {MATERIAL_KINDS.map((kind) => (

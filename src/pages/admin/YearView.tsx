@@ -84,7 +84,7 @@ export function YearView() {
             key={section.id}
             className={`border-gray-200 transition-all ${
               section.isActive
-                ? "hover:border-blue-400 hover:shadow-lg"
+                ? "hover:border-brand-teal/70 hover:shadow-lg"
                 : "bg-gray-50"
             }`}
           >
@@ -101,12 +101,12 @@ export function YearView() {
               >
                 <div
                   className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 ${
-                    section.isActive ? "bg-blue-100" : "bg-gray-200"
+                    section.isActive ? "bg-accent" : "bg-gray-200"
                   }`}
                 >
                   <Users
                     className={`w-8 h-8 ${
-                      section.isActive ? "text-blue-600" : "text-gray-500"
+                      section.isActive ? "text-primary" : "text-gray-500"
                     }`}
                   />
                 </div>

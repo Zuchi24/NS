@@ -240,7 +240,7 @@ export function TopicAssessmentsPanel({
     <Card className="border-gray-200">
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
-          <ClipboardList className="w-5 h-5 text-blue-600" aria-hidden="true" />
+          <ClipboardList className="w-5 h-5 text-primary" aria-hidden="true" />
           Assessments
         </CardTitle>
         <p className="text-sm text-gray-600 mt-2">

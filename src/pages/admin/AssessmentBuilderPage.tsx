@@ -312,7 +312,7 @@ function AssessmentHeader({
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div className="space-y-2 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium rounded px-1.5 py-0.5 border text-blue-700 bg-blue-50 border-blue-200">
+            <span className="text-xs font-medium rounded px-1.5 py-0.5 border text-accent-foreground bg-accent border-brand-teal/30">
               {ASSESSMENT_TYPE_LABELS[assessment.type]}
             </span>
             <span className="text-xs font-semibold rounded px-1.5 py-0.5 border text-gray-700 bg-white border-gray-200">
@@ -322,7 +322,7 @@ function AssessmentHeader({
           </div>
 
           <CardTitle className="text-lg flex items-center gap-2">
-            <ClipboardList className="w-5 h-5 text-blue-600" aria-hidden="true" />
+            <ClipboardList className="w-5 h-5 text-primary" aria-hidden="true" />
             {assessment.title}
           </CardTitle>
 
@@ -522,7 +522,7 @@ function ReleaseCard({
             className={`rounded-md border p-3 space-y-2 ${
               confirm.destructive
                 ? "border-red-200 bg-red-50/60"
-                : "border-blue-200 bg-blue-50/50"
+                : "border-brand-teal/30 bg-accent/60"
             }`}
           >
             <p className="text-xs text-gray-700">
@@ -656,7 +656,7 @@ function DetailsForm({
       onSubmit={submit}
       noValidate
       aria-label="Edit assessment details"
-      className="rounded-md border border-blue-200 bg-blue-50/40 p-4 space-y-4"
+      className="rounded-md border border-brand-teal/30 bg-accent/60 p-4 space-y-4"
     >
       <div className="space-y-2">
         <Label htmlFor="assessment-title">Title</Label>
@@ -1129,7 +1129,7 @@ function QuestionForm({
       onSubmit={submit}
       noValidate
       aria-label={isNew ? "Add question" : `Edit question ${number}`}
-      className="rounded-md border border-blue-200 bg-blue-50/40 p-4 space-y-4"
+      className="rounded-md border border-brand-teal/30 bg-accent/60 p-4 space-y-4"
     >
       <div className="space-y-2">
         <Label htmlFor={`${prefix}-prompt`}>Prompt</Label>
@@ -1178,7 +1178,7 @@ function QuestionForm({
                 timeLimitSeconds: e.target.value === "" ? null : Number(e.target.value),
               }))
             }
-            className="h-10 w-40 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="h-10 w-40 rounded-md border border-input bg-white px-3 text-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="">{timerOptionLabel(null)}</option>
             {QUESTION_TIMER_PRESETS.map((seconds) => (

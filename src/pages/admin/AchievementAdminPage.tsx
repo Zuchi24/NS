@@ -130,7 +130,7 @@ export function AchievementAdminPage() {
       <Card className="border-gray-200">
         <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
           <CardTitle className="text-lg flex items-center gap-2">
-            <Award className="w-5 h-5 text-blue-600" aria-hidden="true" />
+            <Award className="w-5 h-5 text-primary" aria-hidden="true" />
             Achievements
           </CardTitle>
 
@@ -354,7 +354,7 @@ function Confirm({
       role="alertdialog"
       aria-label={copy.question(pending.achievement.title)}
       className={`rounded-md border p-3 space-y-2 ${
-        destructive ? "border-red-200 bg-red-50/60" : "border-blue-200 bg-blue-50/50"
+        destructive ? "border-red-200 bg-red-50/60" : "border-brand-teal/30 bg-accent/60"
       }`}
     >
       <p className="text-xs text-gray-700">
@@ -473,7 +473,7 @@ function AchievementForm({
     <form
       onSubmit={submit}
       aria-label={isNew ? "Add achievement" : "Edit achievement"}
-      className="rounded-md border border-blue-200 bg-blue-50/40 p-4 space-y-4"
+      className="rounded-md border border-brand-teal/30 bg-accent/60 p-4 space-y-4"
     >
       {isNew && (
         <div className="space-y-2">
@@ -540,7 +540,7 @@ function AchievementForm({
           onChange={(e) =>
             set("type", e.target.value as AssignableAchievementType)
           }
-          className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+          className="w-full h-10 rounded-md border border-input bg-white px-3 text-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring disabled:bg-gray-100 disabled:text-gray-500"
         >
           {/* Only the rules still offered. roadmap_complete is history: rows
               carrying it still read, and nothing new is written against it. */}

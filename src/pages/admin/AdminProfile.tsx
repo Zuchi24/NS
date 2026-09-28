@@ -31,7 +31,7 @@ export function AdminProfile() {
       <Card className="border-gray-200">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <User className="w-5 h-5 text-blue-600" />
+            <User className="w-5 h-5 text-primary" />
             <CardTitle className="text-lg">Account</CardTitle>
           </div>
         </CardHeader>
@@ -62,7 +62,7 @@ export function AdminProfile() {
       <Card className="border-gray-200">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-blue-600" />
+            <Shield className="w-5 h-5 text-primary" />
             <CardTitle className="text-lg">Access</CardTitle>
           </div>
         </CardHeader>

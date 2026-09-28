@@ -208,7 +208,7 @@ export function RoadmapTopicsPanel({
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4 space-y-0">
         <div className="min-w-0 flex-[1_1_12rem]">
           <CardTitle className="text-lg flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-blue-600" />
+            <BookOpen className="w-5 h-5 text-primary" />
             Topics
           </CardTitle>
           <p className="text-sm text-gray-600 mt-2">
@@ -390,7 +390,7 @@ function TopicCard({
     <div
       className={`rounded-md border ${
         isExpanded
-          ? "border-blue-600 bg-blue-50/40"
+          ? "border-primary bg-accent/60"
           : "border-gray-200 bg-white"
       }`}
     >
@@ -508,7 +508,7 @@ function TopicCard({
             <Button
               size="sm"
               variant="ghost"
-              className="text-blue-700 hover:text-blue-800 hover:bg-blue-50"
+              className="text-primary hover:text-accent-foreground hover:bg-accent"
               aria-label={`Add subtopic to ${topic.title}`}
               disabled={busy}
               onClick={onAddSubtopic}
@@ -566,7 +566,7 @@ function TopicCard({
       {isExpanded && (
         <div
           id={contentId}
-          className="border-t border-blue-100 px-4 py-4 space-y-4 bg-white rounded-b-md"
+          className="border-t border-brand-teal/20 px-4 py-4 space-y-4 bg-white rounded-b-md"
         >
           {!isEditing && (
             <div className="space-y-3">
@@ -585,7 +585,7 @@ function TopicCard({
                     href={topic.videoUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-blue-600 hover:underline truncate"
+                    className="text-primary hover:underline truncate"
                   >
                     {topic.videoUrl}
                   </a>
@@ -810,7 +810,7 @@ function TopicEditForm({
     <form
       onSubmit={submit}
       aria-label="Edit topic"
-      className="rounded-md border border-blue-200 bg-blue-50/40 p-4 space-y-4"
+      className="rounded-md border border-brand-teal/30 bg-accent/60 p-4 space-y-4"
     >
       {wasAlreadyOver && (
         <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
@@ -1233,7 +1233,7 @@ function SubtopicTree({
               editingSubtopicId !== subtopic.id && (
                 <div
                   id={`subtopic-${subtopic.id}-materials`}
-                  className="ml-3 mt-2 mb-3 border-l-2 border-blue-200 pl-4"
+                  className="ml-3 mt-2 mb-3 border-l-2 border-brand-teal/30 pl-4"
                 >
                   <TopicMaterialsPanel topicId={subtopic.id} owner="section" />
                 </div>
@@ -1246,7 +1246,7 @@ function SubtopicTree({
         <Button
           size="sm"
           variant="ghost"
-          className="text-blue-700 hover:text-blue-800 hover:bg-blue-50 h-7 px-2"
+          className="text-primary hover:text-accent-foreground hover:bg-accent h-7 px-2"
           disabled={busy || moving}
           onClick={onAddSubtopic}
         >
@@ -1308,7 +1308,7 @@ function SubtopicRow({
     <div
       className={`rounded-md border px-3 py-2 ${
         isExpanded
-          ? "border-blue-300 bg-blue-50/50"
+          ? "border-brand-teal/50 bg-accent/60"
           : "border-gray-200 bg-gray-50/70"
       }`}
     >
@@ -1705,7 +1705,7 @@ function SubtopicEditForm({
     <form
       onSubmit={submit}
       aria-label="Edit subtopic"
-      className="rounded-md border border-blue-200 bg-blue-50/40 p-3 space-y-3"
+      className="rounded-md border border-brand-teal/30 bg-accent/60 p-3 space-y-3"
     >
       <SubtopicFields
         idPrefix="subtopic-edit"

@@ -194,7 +194,7 @@ function ArchiveOfType({ type }: { type: AssessmentType }) {
     <Card className="border-gray-200">
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
-          <Archive className="w-5 h-5 text-blue-600" aria-hidden="true" />
+          <Archive className="w-5 h-5 text-primary" aria-hidden="true" />
           {heading(type)}
         </CardTitle>
         <p className="text-sm text-gray-600 mt-2">
@@ -213,7 +213,7 @@ function ArchiveOfType({ type }: { type: AssessmentType }) {
               id="archive-topic"
               value={topicId ?? ""}
               onChange={(event) => setQuery({ topic: positiveInt(event.target.value) })}
-              className="h-10 min-w-64 max-w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="h-10 min-w-64 max-w-full rounded-md border border-input bg-white px-3 text-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
             >
               <option value="">All topics</option>
               {(topics.data ?? []).map((topic) => (
@@ -230,7 +230,7 @@ function ArchiveOfType({ type }: { type: AssessmentType }) {
               id="archive-taken"
               value={takenValue.value}
               onChange={(event) => setQuery({ taken: event.target.value })}
-              className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="h-10 rounded-md border border-input bg-white px-3 text-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
             >
               {TAKEN_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>

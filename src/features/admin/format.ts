@@ -5,8 +5,8 @@ import type { Standing } from "./types";
 
 const STANDING_CLASSES: Record<Standing, string> = {
   on_track: "bg-green-100 text-green-700",
-  progressing: "bg-blue-100 text-blue-700",
-  needs_support: "bg-orange-100 text-orange-700",
+  progressing: "bg-info/10 text-info",
+  needs_support: "bg-warning/10 text-warning",
   not_started: "bg-gray-100 text-gray-600",
 };
 

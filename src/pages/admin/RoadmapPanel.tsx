@@ -125,7 +125,7 @@ export function RoadmapPanel({
     <Card className="border-gray-200">
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4 space-y-0">
         <CardTitle className="text-lg flex items-center gap-2">
-          <Map className="w-5 h-5 text-blue-600" aria-hidden="true" />
+          <Map className="w-5 h-5 text-primary" aria-hidden="true" />
           Roadmap
           {roadmap &&
             (roadmap.isPublished ? <PublishedBadge /> : <DraftBadge />)}
@@ -156,7 +156,7 @@ export function RoadmapPanel({
                 id="roadmap-picker"
                 value={roadmap.id}
                 onChange={(event) => onSelect(Number(event.target.value))}
-                className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full h-10 rounded-md border border-input bg-white px-3 text-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
               >
                 {roadmaps.map((entry) => (
                   <option key={entry.id} value={entry.id}>
@@ -358,7 +358,7 @@ function RoadmapForm({
     <form
       onSubmit={submit}
       aria-label={isNew ? "Add roadmap" : "Edit roadmap"}
-      className="rounded-md border border-blue-200 bg-blue-50/40 p-4 space-y-4"
+      className="rounded-md border border-brand-teal/30 bg-accent/60 p-4 space-y-4"
     >
       <div className="space-y-2">
         <Label htmlFor="roadmap-title">Title</Label>

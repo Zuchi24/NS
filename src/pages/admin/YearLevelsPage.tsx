@@ -86,7 +86,7 @@ export function YearLevelsPage() {
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <GraduationCap className="w-5 h-5 text-blue-600" aria-hidden="true" />
+                    <GraduationCap className="w-5 h-5 text-primary" aria-hidden="true" />
                     <div>
                       <p className="font-semibold text-gray-900">{level.name}</p>
                       <p className="text-xs text-gray-500">
@@ -178,7 +178,7 @@ function LevelForm({
   };
 
   return (
-    <Card className="border-blue-200">
+    <Card className="border-brand-teal/30">
       <CardContent className="p-4">
         <form onSubmit={save} className="grid gap-4 md:grid-cols-3">
           <div className="space-y-1">

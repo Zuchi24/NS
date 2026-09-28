@@ -117,7 +117,7 @@ function MoveSection({
           aria-label="Section"
           value={choice}
           onChange={(event) => setChoice(event.target.value)}
-          className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full h-10 rounded-md border border-input bg-white px-3 text-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
         >
           <option value="">Choose a section…</option>
           {sections.map(({ yearLevel, section }) => (
@@ -352,7 +352,7 @@ export function StudentDetail() {
         <Card className="border-gray-200">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <User className="w-5 h-5 text-blue-600" />
+              <User className="w-5 h-5 text-primary" />
               Student Information
             </CardTitle>
           </CardHeader>
@@ -412,7 +412,7 @@ export function StudentDetail() {
         <Card className="border-gray-200">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
+              <TrendingUp className="w-5 h-5 text-primary" />
               Progress Summary
             </CardTitle>
           </CardHeader>
@@ -466,7 +466,7 @@ export function StudentDetail() {
       <Card className="border-gray-200">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
-            <GraduationCap className="w-5 h-5 text-blue-600" />
+            <GraduationCap className="w-5 h-5 text-primary" />
             Academic History
           </CardTitle>
           <p className="text-sm text-gray-600 mt-2">

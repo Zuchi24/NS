@@ -23,10 +23,10 @@ export function StudentsOverview() {
           <Card
             key={year.id}
             onClick={() => navigate(`/admin/students/${year.id}`)}
-            className="border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer"
+            className="border-gray-200 hover:border-brand-teal/70 hover:shadow-lg transition-all cursor-pointer"
           >
             <CardContent className="p-6 text-center">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+              <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-3">
                 <Users className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-1">

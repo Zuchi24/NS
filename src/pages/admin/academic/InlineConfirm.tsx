@@ -28,7 +28,7 @@ export function InlineConfirm({
       role="alertdialog"
       aria-label={question}
       className={`rounded-md border p-3 space-y-2 ${
-        destructive ? "border-red-200 bg-red-50/60" : "border-blue-200 bg-blue-50/50"
+        destructive ? "border-red-200 bg-red-50/60" : "border-brand-teal/30 bg-accent/60"
       }`}
     >
       <p className="text-xs text-gray-700">

@@ -160,7 +160,7 @@ export function StagedMaterials({
           Add material
         </Button>
       ) : (
-        <div className="space-y-4 rounded-md border border-blue-200 bg-blue-50/40 p-4">
+        <div className="space-y-4 rounded-md border border-brand-teal/30 bg-accent/60 p-4">
           <MaterialFields
             idPrefix={idPrefix}
             draft={draft}
