@@ -35,7 +35,7 @@ export function DraggableDevice({ device }: any) {
   return (
     <div
       ref={attach}
-      className={`p-2 bg-white border-2 border-gray-200 rounded-lg cursor-move hover:border-blue-400 hover:shadow-md transition-all ${
+      className={`p-2 bg-white border border-border rounded-lg cursor-move hover:border-brand-teal/60 hover:bg-accent/60 hover:shadow-sm transition-all ${
         isDragging ? "opacity-50" : ""
       }`}
     >

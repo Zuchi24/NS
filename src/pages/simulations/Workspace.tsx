@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ErrorState, LoadingState } from "@/components/common/AsyncStates";
 import { SubmissionResultsDialog } from "@/components/common/SubmissionResultsDialog";
+import { AttemptStatusBadge } from "@/components/common/AttemptStatusBadge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1053,7 +1054,7 @@ function WorkspaceCanvas() {
 
   return (
     <div
-      className="flex h-screen bg-gray-100"
+      className="flex h-screen bg-muted"
       style={{
         fontFamily:
           "Roboto, sans-serif",
@@ -1063,35 +1064,40 @@ function WorkspaceCanvas() {
           LEFT PANEL
           ===================================================== */}
 
-      <div className="w-64 bg-white border-r border-gray-300 flex flex-col shadow-lg">
-        <div className="p-4 border-b border-gray-300 bg-gradient-to-r from-blue-600 to-blue-700">
-          <h3 className="font-bold text-white">
+      <div className="w-64 bg-white border-r border-border flex flex-col">
+        <div className="px-4 py-3 border-b border-border border-l-4 border-l-brand-teal">
+          <h3 className="text-sm font-semibold text-foreground">
             Device Library
           </h3>
+          <p className="text-xs text-muted-foreground">
+            Drag onto the canvas
+          </p>
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-3">
           {/* END DEVICES */}
 
-          <div className="bg-blue-50 rounded-lg shadow-sm border border-blue-200">
+          <div className="bg-white rounded-lg border border-border">
             <button
+              type="button"
+              aria-expanded={!!expandedCategories.endDevices}
               onClick={() =>
                 toggleCategory(
                   "endDevices"
                 )
               }
-              className="w-full flex items-center justify-between p-3 hover:bg-blue-100 transition-colors rounded-lg"
+              className="w-full flex items-center justify-between p-3 hover:bg-muted transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="font-semibold text-blue-900 flex items-center gap-2">
-                <Monitor className="w-4 h-4" />
+              <span className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Monitor className="w-4 h-4 text-primary" />
 
                 End Devices
               </span>
 
               {expandedCategories.endDevices ? (
-                <ChevronDown className="w-4 h-4 text-blue-700" />
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-blue-700" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
               )}
             </button>
 
@@ -1111,25 +1117,27 @@ function WorkspaceCanvas() {
 
           {/* NETWORK DEVICES */}
 
-          <div className="bg-orange-50 rounded-lg shadow-sm border border-orange-200">
+          <div className="bg-white rounded-lg border border-border">
             <button
+              type="button"
+              aria-expanded={!!expandedCategories.networkDevices}
               onClick={() =>
                 toggleCategory(
                   "networkDevices"
                 )
               }
-              className="w-full flex items-center justify-between p-3 hover:bg-orange-100 transition-colors rounded-lg"
+              className="w-full flex items-center justify-between p-3 hover:bg-muted transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="font-semibold text-orange-900 flex items-center gap-2">
-                <Network className="w-4 h-4" />
+              <span className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Network className="w-4 h-4 text-primary" />
 
                 Network Devices
               </span>
 
               {expandedCategories.networkDevices ? (
-                <ChevronDown className="w-4 h-4 text-orange-700" />
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-orange-700" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
               )}
             </button>
 
@@ -1145,17 +1153,19 @@ function WorkspaceCanvas() {
                   ]) => (
                     <div
                       key={key}
-                      className="bg-white rounded border border-orange-200"
+                      className="bg-white rounded-md border border-border"
                     >
                       <button
+                        type="button"
+                        aria-expanded={!!expandedSubcategories[key]}
                         onClick={() =>
                           toggleSubcategory(
                             key
                           )
                         }
-                        className="w-full flex items-center justify-between p-2 hover:bg-orange-50 transition-colors text-sm"
+                        className="w-full flex items-center justify-between p-2 hover:bg-muted transition-colors text-sm rounded-md text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
-                        <span className="font-medium text-gray-800">
+                        <span className="font-medium text-foreground">
                           {
                             subcategory.name
                           }
@@ -1204,9 +1214,9 @@ function WorkspaceCanvas() {
       <div className="flex-1 flex flex-col">
         {/* TOOLBAR */}
 
-        <div className="bg-white border-b border-gray-300 p-3 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        <div className="bg-white border-b border-border px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               <Button
                 variant="ghost"
                 size="sm"
@@ -1219,15 +1229,22 @@ function WorkspaceCanvas() {
                 Back
               </Button>
 
-              <div className="h-6 w-px bg-gray-300" />
+              <div className="h-8 w-px bg-border" />
 
-              <div>
-                <h2 className="font-bold text-gray-900">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
+                  NetSim · {active ? "Topology challenge" : "Free play"}
+                </p>
+                <h2 className="font-semibold text-foreground truncate">
                   {active ? active.challenge.title : "Network Workspace"}
                 </h2>
                 {active && (
-                  <p className="text-xs text-gray-500">
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
                     Attempt #{active.attempt.id}
+                    <AttemptStatusBadge
+                      status={active.attempt.status}
+                      passed={active.attempt.passed}
+                    />
                   </p>
                 )}
               </div>
@@ -1264,6 +1281,7 @@ function WorkspaceCanvas() {
                 variant="outline"
                 size="sm"
                 onClick={handleClearAll}
+                className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
 
@@ -1353,7 +1371,7 @@ function WorkspaceCanvas() {
               {configKind(
                 getDeviceById(configuring)
               ) === "management" && (
-                <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded p-2">
+                <p className="text-xs text-muted-foreground bg-muted border border-border rounded-md p-2">
                   Optional. A management address lets you reach
                   the switch itself; it forwards traffic between
                   its ports either way. Leave blank for an
@@ -1434,8 +1452,8 @@ function WorkspaceCanvas() {
                     }
                     className={`h-9 text-sm ${
                       configErrors[field]
-                        ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                        : "border-blue-200 focus:border-blue-500 focus:ring-blue-500"
+                        ? "border-destructive focus:border-destructive focus:ring-destructive"
+                        : "focus:border-ring focus:ring-ring"
                     }`}
                     placeholder={
                       placeholder
@@ -1443,7 +1461,7 @@ function WorkspaceCanvas() {
                   />
 
                   {configErrors[field] && (
-                    <p className="text-xs text-red-600 mt-1">
+                    <p className="text-xs text-destructive mt-1">
                       {
                         configErrors[
                           field
@@ -1590,7 +1608,7 @@ function WorkspaceCanvas() {
                 </Select>
               </div>
 
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-muted-foreground">
                 Only configured devices can
                 be simulated. Straight-through
                 and crossover cables are
@@ -1908,8 +1926,8 @@ function WorkspaceCanvas() {
           {devices.length ===
             0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="text-center text-gray-400">
-                <p className="text-lg font-medium">
+              <div className="text-center text-muted-foreground rounded-xl border border-dashed border-border bg-white/80 px-8 py-6">
+                <p className="text-base font-semibold text-foreground">
                   Drag devices from
                   the left panel to
                   start
@@ -1931,17 +1949,20 @@ function WorkspaceCanvas() {
           RIGHT PANEL
           ===================================================== */}
 
-      <div className="w-72 bg-white border-l border-gray-300 flex flex-col shadow-lg">
+      <div className="w-72 bg-white border-l border-border flex flex-col">
         {/* CONNECTIONS */}
 
-        <div className="p-4 border-b border-gray-300 bg-gradient-to-r from-green-600 to-green-700">
-          <h3 className="font-bold text-white">
+        <div className="px-4 py-3 border-b border-border border-l-4 border-l-brand-teal">
+          <h3 className="text-sm font-semibold text-foreground">
             Connections
           </h3>
+          <p className="text-xs text-muted-foreground">
+            Double-click a cable to remove it
+          </p>
         </div>
 
-        <div className="p-3 border-b border-gray-300 bg-green-50">
-          <Label className="text-xs font-semibold text-gray-700 mb-2 block">
+        <div className="p-3 border-b border-border">
+          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 block">
             Cable Type
           </Label>
 
@@ -1961,11 +1982,13 @@ function WorkspaceCanvas() {
                         | "console"
                     )
                   }
-                  className={`w-full flex items-center gap-2 p-2 rounded border-2 transition-all ${
+                  type="button"
+                  aria-pressed={selectedCableType === cable.type}
+                  className={`w-full flex items-center gap-2 p-2 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     selectedCableType ===
                     cable.type
-                      ? "border-green-500 bg-green-100"
-                      : "border-gray-200 bg-white hover:border-green-300"
+                      ? "border-primary bg-accent ring-1 ring-primary"
+                      : "border-border bg-white hover:border-brand-teal/50 hover:bg-muted"
                   }`}
                 >
                   <div
@@ -1976,7 +1999,7 @@ function WorkspaceCanvas() {
                     }}
                   />
 
-                  <span className="text-xs font-medium text-gray-800">
+                  <span className="text-xs font-medium text-foreground">
                     {
                       cable.label
                     }
@@ -1992,15 +2015,15 @@ function WorkspaceCanvas() {
             ================================================= */}
 
         {selectedDeviceData && (
-          <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+          <div className="flex-1 overflow-y-auto p-4 bg-muted/60">
             <div className="mb-3">
-              <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full" />
+              <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <div className="w-2 h-2 bg-brand-teal rounded-full" />
 
                 Device Properties
               </h4>
 
-              <Card className="border border-blue-200 shadow-sm bg-white">
+              <Card className="border border-border shadow-sm bg-white">
                 <CardContent className="p-4 space-y-3">
                   {/* DEVICE NAME */}
 
@@ -2190,16 +2213,16 @@ function WorkspaceCanvas() {
             {connectingFrom &&
               connectingFrom.deviceId ===
                 selectedDeviceData.id && (
-                <div className="mt-3 p-3 bg-orange-100 border-2 border-orange-400 rounded-lg shadow-sm">
+                <div className="mt-3 p-3 bg-brand-orange-light border border-brand-orange/40 border-l-4 border-l-brand-orange rounded-lg">
                   <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 bg-orange-500 rounded-full mt-1.5 animate-pulse" />
+                    <div className="w-2 h-2 bg-brand-orange rounded-full mt-1.5 animate-pulse" />
 
                     <div className="flex-1">
-                      <p className="text-sm text-orange-900 font-semibold">
+                      <p className="text-sm text-brand-orange-dark font-semibold">
                         Connecting Mode
                       </p>
 
-                      <p className="text-xs text-orange-800 mt-1">
+                      <p className="text-xs text-foreground mt-1">
                         Port:{" "}
                         {
                           connectingFrom
@@ -2208,7 +2231,7 @@ function WorkspaceCanvas() {
                         }
                       </p>
 
-                      <p className="text-xs text-orange-700 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         Click a port on
                         another device to
                         complete the
@@ -2220,7 +2243,7 @@ function WorkspaceCanvas() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="w-full mt-3 border-orange-400 text-orange-800 hover:bg-orange-200"
+                    className="w-full mt-3 bg-white border-brand-orange/40 text-brand-orange-dark hover:bg-brand-orange/10 hover:text-brand-orange-dark"
                     onClick={() => {
                       setConnectingFrom(
                         null
@@ -2241,7 +2264,7 @@ function WorkspaceCanvas() {
         )}
 
         {!selectedDeviceData && (
-          <div className="flex-1 flex items-center justify-center p-4 text-center text-gray-400">
+          <div className="flex-1 flex items-center justify-center p-4 text-center text-muted-foreground">
             <p className="text-sm">
               Select a device to view
               properties

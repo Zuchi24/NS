@@ -68,9 +68,9 @@ export function PlacedDevice({
         onClick={onClick}
         className={`relative bg-white rounded-lg p-2 shadow-lg border-2 transition-all ${
           isSelected
-            ? "border-blue-500 ring-2 ring-blue-300"
+            ? "border-primary ring-2 ring-brand-teal/40"
             : isConnecting
-            ? "border-orange-500 ring-2 ring-orange-300"
+            ? "border-brand-orange ring-2 ring-brand-orange/40"
             : "border-gray-300"
         }`}
       >
@@ -114,7 +114,7 @@ export function PlacedDevice({
               e.stopPropagation();
               onConfigure?.(device);
             }}
-            className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-gray-300 shadow-sm flex items-center justify-center text-gray-600 hover:text-blue-700 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+            className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-gray-300 shadow-sm flex items-center justify-center text-gray-600 hover:text-primary hover:border-brand-teal/50 hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Settings2 className="w-3.5 h-3.5" />
           </button>
