@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
-import { LogOut, MailCheck, Network, Send, ShieldCheck } from "lucide-react";
+import { LogOut, MailCheck, Send, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { requestEmailVerificationCode } from "@/features/auth/authService";
 import { landingPath } from "@/features/auth/landing";
 import { useAuth } from "@/features/auth/useAuth";
 import { ApiError } from "@/services/api";
+import { BrandLogo } from "@/components/common/BrandLogo";
 
 const CODE_LENGTH = 6;
 const CODE_PATTERN = new RegExp(`^\\d{${CODE_LENGTH}}$`);
@@ -209,11 +210,8 @@ export function VerifyEmailPage() {
 
       <main className="w-full max-w-md relative z-10 bg-white rounded-3xl shadow-2xl shadow-blue-900/10 border border-slate-200/70 p-6 sm:p-10 space-y-8">
         <div className="text-center space-y-3">
-          <div className="flex items-center justify-center gap-2">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-              <Network className="w-6 h-6 text-white" aria-hidden="true" />
-            </div>
-            <span className="text-xl font-bold text-gray-900">NetSim</span>
+          <div className="flex items-center justify-center">
+            <BrandLogo className="h-9" />
           </div>
 
           <div className="mx-auto w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center">

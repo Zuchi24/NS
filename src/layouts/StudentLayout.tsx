@@ -10,11 +10,11 @@ import {
   LogOut,
   Menu,
   X,
-  Network,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/components/ui/utils";
 import { useAuth } from "@/features/auth/useAuth";
+import { BrandLogo } from "@/components/common/BrandLogo";
 
 /**
  * One destination in the student navigation.
@@ -111,10 +111,7 @@ function Brand({ onNavigate }: { onNavigate?: () => void }) {
       onClick={onNavigate}
       className="flex items-center gap-2 hover:opacity-80 transition-opacity"
     >
-      <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm shadow-blue-600/30">
-        <Network className="w-5 h-5 text-white" />
-      </div>
-      <span className="text-lg font-bold tracking-tight text-slate-900">NetSim</span>
+      <BrandLogo className="h-8" />
     </Link>
   );
 }
@@ -278,7 +275,7 @@ export function StudentLayout() {
               </button>
               {/* The brand is in the rail on desktop; on a phone the rail is
                   away, so it belongs here instead. */}
-              <span className="md:hidden font-bold text-gray-900">NetSim</span>
+              <BrandLogo className="md:hidden h-6" />
             </div>
 
             <Link

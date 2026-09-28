@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import {
-  Network,
   Mail,
   Lock,
   UserPlus,
@@ -18,6 +17,7 @@ import { useAuth } from "@/features/auth/useAuth";
 import { fetchSections } from "@/features/auth/authService";
 import { postSignInTarget } from "@/features/auth/landing";
 import type { YearLevelOptions } from "@/features/auth/types";
+import { BrandLogo } from "@/components/common/BrandLogo";
 
 export function SignUpPage() {
   const navigate = useNavigate();
@@ -122,11 +122,8 @@ export function SignUpPage() {
     <div className="space-y-6">
           {/* Logo */}
           <div className="text-center space-y-2">
-            <div className="flex md:hidden items-center justify-center gap-2 mb-4">
-              <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-                <Network className="w-7 h-7 text-white" />
-              </div>
-              <span className="text-2xl font-bold text-gray-900">NetSim</span>
+            <div className="flex md:hidden items-center justify-center mb-4">
+              <BrandLogo className="h-10" />
             </div>
             <h2 className="text-3xl font-bold tracking-tight text-gray-900">Create Account</h2>
             <p className="text-gray-600">Join NetSim to start learning</p>

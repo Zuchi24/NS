@@ -14,7 +14,6 @@ import {
   Archive,
   CalendarRange,
   ClipboardList,
-  Network,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,6 +22,7 @@ import { fetchCohorts } from '@/features/admin/adminService';
 import { useAuth } from '@/features/auth/useAuth';
 import { useAsync } from '@/services/useAsync';
 import { ARCHIVE_ADMIN_PATH, archiveAdminPath } from '@/features/assessments/assessmentPaths';
+import { BrandLogo } from '@/components/common/BrandLogo';
 
 /**
  * Where the sidebar can send an admin, exported so a test can hold these
@@ -127,12 +127,9 @@ export function AdminSidebar({
       <div className="p-5">
         <div className="flex items-center justify-between gap-2 mb-8 px-1">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm shadow-blue-600/30">
-              <Network className="w-5 h-5 text-white" />
-            </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-900 tracking-tight leading-tight">NetSim</h1>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Admin</p>
+              <BrandLogo className="h-8" />
+              <p className="mt-1 text-[11px] font-medium uppercase tracking-wider text-slate-400">Admin</p>
             </div>
           </div>
           {onClose && (

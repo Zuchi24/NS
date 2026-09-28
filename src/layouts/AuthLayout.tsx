@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation } from "react-router";
 import { Network, Cable, Monitor, Wifi, ArrowRight } from "lucide-react";
 import { cn } from "@/components/ui/utils";
+import { BrandLogo } from "@/components/common/BrandLogo";
 
 /**
  * Shared shell for /login and /signup: a split card with the brand panel on
@@ -49,11 +50,8 @@ export function AuthLayout() {
             <Wifi className="absolute -bottom-10 right-16 w-36 h-36" />
           </div>
 
-          <div className="relative flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-white/15 ring-1 ring-white/30 flex items-center justify-center">
-              <Network className="w-6 h-6" />
-            </div>
-            <span className="text-xl font-bold tracking-tight">NetSim</span>
+          <div className="relative">
+            <BrandLogo variant="dark" className="h-14" />
           </div>
 
           <div className="relative space-y-4">

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
-  Network,
   Mail,
   Lock,
   LogIn,
@@ -15,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/useAuth";
 import { postSignInTarget } from "@/features/auth/landing";
+import { BrandLogo } from "@/components/common/BrandLogo";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -58,11 +58,8 @@ export function LoginPage() {
     <div className="space-y-8">
           {/* Logo */}
           <div className="text-center space-y-2">
-            <div className="flex md:hidden items-center justify-center gap-2 mb-4">
-              <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-                <Network className="w-7 h-7 text-white" />
-              </div>
-              <span className="text-2xl font-bold text-gray-900">NetSim</span>
+            <div className="flex md:hidden items-center justify-center mb-4">
+              <BrandLogo className="h-10" />
             </div>
 
             <h2 className="text-3xl font-bold tracking-tight text-gray-900">Welcome Back</h2>

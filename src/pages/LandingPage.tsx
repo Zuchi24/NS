@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { BrandLogo } from "@/components/common/BrandLogo";
 
 const topologyNodeVariants = {
   primary: "bg-blue-600 text-white",
@@ -92,13 +93,8 @@ export function LandingPage() {
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-8xl mx-auto px-6 md:px-10">
           <div className="flex items-center justify-between h-14">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Network className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xl font-bold text-gray-900">
-                NetSim
-              </span>
+            <div className="flex items-center">
+              <BrandLogo className="h-8" />
             </div>
 
             <div className="hidden md:flex items-center gap-8">
@@ -554,13 +550,8 @@ export function LandingPage() {
               worst kind of dead link. */}
           <div className="grid md:grid-cols-2 gap-8">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Network className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-lg font-bold text-white">
-                  NetSim
-                </span>
+              <div className="flex items-center mb-4">
+                <BrandLogo variant="dark" className="h-12" />
               </div>
               <p className="text-sm">
                 Networking simulation platform for IT students
