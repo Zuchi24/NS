@@ -65,6 +65,7 @@ afterEach(cleanup);
 
 it("counts the busiest challenge, not the first one in the catalogue", async () => {
   vi.mocked(service.fetchAnalytics).mockResolvedValue({
+    totalStudents: 40,
     challenges: [
       // First in the catalogue, and the one the card used to report.
       challenge({ id: 1, title: "Assemble a working PC", studentsAttempted: 4 }),
@@ -82,7 +83,7 @@ it("counts the busiest challenge, not the first one in the catalogue", async () 
 });
 
 it("says nothing has been attempted rather than picking a number", async () => {
-  vi.mocked(service.fetchAnalytics).mockResolvedValue({ challenges: [] });
+  vi.mocked(service.fetchAnalytics).mockResolvedValue({ totalStudents: 0, challenges: [] });
 
   render(<Analytics />);
 
@@ -95,6 +96,7 @@ it("says nothing has been attempted rather than picking a number", async () => {
 
 it("holds when every challenge is equally busy", async () => {
   vi.mocked(service.fetchAnalytics).mockResolvedValue({
+    totalStudents: 40,
     challenges: [
       challenge({ id: 1, studentsAttempted: 7 }),
       challenge({ id: 2, studentsAttempted: 7 }),
@@ -107,4 +109,19 @@ it("holds when every challenge is equally busy", async () => {
 
   // The degenerate case the old code got right by accident, kept right.
   expect(cardValue("Students attempting")).toBe("7");
+});
+
+it("shows students passed out of every registered student, not those who attempted", async () => {
+  vi.mocked(service.fetchAnalytics).mockResolvedValue({
+    totalStudents: 25,
+    challenges: [
+      challenge({ id: 1, title: "Terminate a cable", studentsAttempted: 3, studentsPassed: 2 }),
+    ],
+  });
+
+  render(<Analytics />);
+
+  await screen.findByText("Challenge performance");
+
+  expect(screen.getByText(/2 \/ 25 students\s+passed/)).toBeTruthy();
 });

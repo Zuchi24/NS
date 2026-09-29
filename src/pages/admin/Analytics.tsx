@@ -17,7 +17,7 @@ export function Analytics() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
 
-  const { challenges } = data;
+  const { challenges, totalStudents } = data;
 
   /*
    * The busiest challenge, which is what the card below says this is.
@@ -148,8 +148,8 @@ export function Analytics() {
                     </div>
                     <div className="flex items-center gap-4 text-sm">
                       <span className="text-gray-600">
-                        {challenge.studentsPassed}/
-                        {challenge.studentsAttempted} students passed
+                        {challenge.studentsPassed} / {totalStudents} students
+                        passed
                       </span>
                       <span className="text-gray-600">
                         {minutes(challenge.averageMinutes)}

@@ -66,6 +66,8 @@ export interface ChallengePerformance {
 }
 
 export interface Analytics {
+  /** Students registered now: what each challenge's studentsPassed is out of. */
+  totalStudents: number;
   challenges: ChallengePerformance[];
 }
 

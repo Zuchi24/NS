@@ -233,10 +233,13 @@ export async function fetchOverview(academicYearId?: number): Promise<Overview> 
  */
 export async function fetchAnalytics(): Promise<Analytics> {
   const { data } = await api.get<{
-    data: { challenges: ApiChallengePerformance[] };
+    data: { total_students: number; challenges: ApiChallengePerformance[] };
   }>("/admin/analytics");
 
-  return { challenges: data.challenges.map(toChallengePerformance) };
+  return {
+    totalStudents: data.total_students,
+    challenges: data.challenges.map(toChallengePerformance),
+  };
 }
 
 /**
