@@ -209,7 +209,8 @@ describe("which archive it shows", () => {
 
     expect(text).toMatch(/read-only/);
     expect(text).toMatch(/student result on them is\s+kept/);
-    expect(text).toMatch(/eligible for the scheduled\s+purge 30 days/);
+    expect(text).toMatch(/eligible for the scheduled\s+purge 5 years/);
+    expect(text).toMatch(/a version students have taken is\s+kept for good/);
     expect(text).not.toMatch(/will be deleted/i);
   });
 });

@@ -36,7 +36,7 @@ import { AssessmentResultsPanel } from "./AssessmentResultsPanel";
  * Results, Restore and Delete all act on that id and never on "the pre-test".
  *
  * Nothing here deletes on its own. The scheduled purge (a server job) may
- * remove an untaken version 30 days after it was archived, and the page only
+ * remove an untaken version 5 years after it was archived, and the page only
  * says whether it is eligible. Delete is an author's explicit act, offered only
  * on untaken versions, and sent with `expected: "archived"` so a version
  * another author has restored since is refused rather than removed.
@@ -200,7 +200,7 @@ function ArchiveOfType({ type }: { type: AssessmentType }) {
         <p className="text-sm text-gray-600 mt-2">
           Archived versions are read-only, and every student result on them is
           kept. A version nobody has taken becomes eligible for the scheduled
-          purge 30 days after it was archived; a version students have taken is
+          purge 5 years after it was archived; a version students have taken is
           kept for good.
         </p>
       </CardHeader>
