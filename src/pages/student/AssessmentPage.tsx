@@ -849,7 +849,7 @@ function QuestionStep({
                         : "border-gray-300 bg-gray-50 text-gray-600"
                     }`}
                   >
-                    {checked ? <Check className="h-4 w-4" /> : CHOICE_LETTERS[slot]}
+                    {checked ? <Check className="h-4 w-4" /> : (CHOICE_LETTERS[slot] ?? String(slot + 1))}
                   </span>
                   <span className="flex-1">{choice.label}</span>
                 </label>
@@ -871,4 +871,5 @@ function QuestionStep({
   );
 }
 
-const CHOICE_LETTERS = ["A", "B", "C", "D"];
+/** A question has two to six choices; past F, should one ever arrive, a number. */
+const CHOICE_LETTERS = ["A", "B", "C", "D", "E", "F"];

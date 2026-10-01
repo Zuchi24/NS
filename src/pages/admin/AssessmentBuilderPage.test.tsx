@@ -187,8 +187,13 @@ async function fill(
   await replace(user, form.getByLabelText("Prompt"), prompt);
   await replace(user, form.getByLabelText("Points"), points);
 
+  // A new question starts with one row; add the rest the way an author would.
+  while (form.getAllByRole("radio").length < labels.length) {
+    await user.click(form.getByRole("button", { name: "Add choice" }));
+  }
+
   for (const [index, label] of labels.entries()) {
-    await replace(user, form.getByLabelText(`Choice ${"ABCD"[index]}`), label);
+    await replace(user, form.getByLabelText(`Choice ${"ABCDEF"[index]}`), label);
   }
 
   await user.click(form.getByRole("radio", { name: `Choice ${correct} is correct` }));
@@ -398,7 +403,7 @@ describe("showing the questions", () => {
 });
 
 describe("adding a question", () => {
-  it("opens a blank form with one point, four empty choices and the first marked correct", async () => {
+  it("opens a blank form with one point and one empty choice, marked correct", async () => {
     const user = userEvent.setup();
     await show();
 
@@ -408,17 +413,13 @@ describe("adding a question", () => {
 
     expect(form.getByLabelText("Prompt")).toHaveValue("");
     expect(form.getByLabelText("Points")).toHaveValue("1");
-
-    for (const letter of ["A", "B", "C", "D"]) {
-      expect(form.getByLabelText(`Choice ${letter}`)).toHaveValue("");
-    }
-
-    expect(form.getAllByRole("radio")).toHaveLength(4);
+    expect(form.getByLabelText("Choice A")).toHaveValue("");
+    expect(form.getAllByRole("radio")).toHaveLength(1);
     expect(form.getByRole("radio", { name: "Choice A is correct" })).toBeChecked();
-    expect(form.getByRole("radio", { name: "Choice B is correct" })).not.toBeChecked();
+    expect(form.getByText("2 to 6 choices. Select the one that is correct.")).toBeInTheDocument();
   });
 
-  it("sends the prompt, numeric points and exactly four choices with the one marked correct", async () => {
+  it("sends the prompt, numeric points and the choices with the one marked correct", async () => {
     const user = userEvent.setup();
     await show();
 
@@ -623,6 +624,122 @@ describe("adding a question", () => {
   });
 });
 
+describe("choosing how many choices a question has", () => {
+  async function openNew() {
+    const user = userEvent.setup();
+    await show();
+    await user.click(screen.getByRole("button", { name: "Add question" }));
+
+    return { user, form: questionForm("Add question") };
+  }
+
+  it("adds choices up to six, lettered A to F, and no further", async () => {
+    const { user, form } = await openNew();
+    const add = form.getByRole("button", { name: "Add choice" });
+
+    for (let rows = 1; rows < 6; rows++) {
+      expect(add).toBeEnabled();
+      await user.click(add);
+    }
+
+    expect(form.getAllByRole("radio")).toHaveLength(6);
+    for (const letter of ["A", "B", "C", "D", "E", "F"]) {
+      expect(form.getByLabelText(`Choice ${letter}`)).toBeInTheDocument();
+    }
+    expect(add).toBeDisabled();
+  });
+
+  it("removes a choice, but never the last one", async () => {
+    const { user, form } = await openNew();
+
+    expect(form.getByRole("button", { name: "Remove choice A" })).toBeDisabled();
+
+    await user.click(form.getByRole("button", { name: "Add choice" }));
+    await replace(user, form.getByLabelText("Choice A"), "Router");
+    await replace(user, form.getByLabelText("Choice B"), "Switch");
+    await user.click(form.getByRole("button", { name: "Remove choice A" }));
+
+    expect(form.getAllByRole("radio")).toHaveLength(1);
+    expect(form.getByLabelText("Choice A")).toHaveValue("Switch");
+    expect(form.getByRole("button", { name: "Remove choice A" })).toBeDisabled();
+  });
+
+  it("leaves no choice correct when the correct one is removed, and refuses to save until one is", async () => {
+    const { user, form } = await openNew();
+    await fill(user, form, { labels: ["Router", "Switch", "Hub"], correct: "B" });
+
+    await user.click(form.getByRole("button", { name: "Remove choice B" }));
+
+    expect(form.getAllByRole("radio")).toHaveLength(2);
+    for (const radio of form.getAllByRole("radio")) {
+      expect(radio).not.toBeChecked();
+    }
+
+    await user.click(form.getByRole("button", { name: "Add question" }));
+
+    expect(form.getByRole("group", { name: "Choices" })).toHaveAccessibleDescription(
+      "Mark exactly one choice as correct.",
+    );
+    expect(service.createQuestion).not.toHaveBeenCalled();
+  });
+
+  it("refuses to save a question with only one choice", async () => {
+    const { user, form } = await openNew();
+    await fill(user, form, { labels: ["Router"] });
+
+    await user.click(form.getByRole("button", { name: "Add question" }));
+
+    expect(form.getByRole("group", { name: "Choices" })).toHaveAccessibleDescription(
+      "A question has between 2 and 6 choices.",
+    );
+    expect(service.createQuestion).not.toHaveBeenCalled();
+  });
+
+  it("fills in True and False, with True marked correct, and sends just those two", async () => {
+    const { user, form } = await openNew();
+    await fill(user, form, { labels: ["Router", "Switch", "Hub"] });
+
+    await user.click(form.getByRole("button", { name: "True / False" }));
+
+    expect(form.getAllByRole("radio")).toHaveLength(2);
+    expect(form.getByLabelText("Choice A")).toHaveValue("True");
+    expect(form.getByLabelText("Choice B")).toHaveValue("False");
+    expect(form.getByRole("radio", { name: "Choice A is correct" })).toBeChecked();
+    expect(form.getByRole("radio", { name: "Choice B is correct" })).not.toBeChecked();
+
+    // The other answer can be the right one instead.
+    await user.click(form.getByRole("radio", { name: "Choice B is correct" }));
+
+    vi.mocked(service.createQuestion).mockResolvedValue(question({ id: 23 }));
+    await user.click(form.getByRole("button", { name: "Add question" }));
+
+    await waitFor(() => expect(service.createQuestion).toHaveBeenCalled());
+    const [, draft] = vi.mocked(service.createQuestion).mock.calls[0];
+    expect(draft.choices).toEqual([
+      { label: "True", isCorrect: false },
+      { label: "False", isCorrect: true },
+    ]);
+  });
+
+  it("sends all six choices of a six-choice question", async () => {
+    const { user, form } = await openNew();
+    await fill(user, form, {
+      labels: ["Physical", "Data link", "Network", "Transport", "Session", "Application"],
+      correct: "F",
+    });
+
+    vi.mocked(service.createQuestion).mockResolvedValue(question({ id: 23 }));
+    await user.click(form.getByRole("button", { name: "Add question" }));
+
+    await waitFor(() => expect(service.createQuestion).toHaveBeenCalled());
+    const [, draft] = vi.mocked(service.createQuestion).mock.calls[0];
+    expect(draft.choices).toHaveLength(6);
+    expect(draft.choices.filter((choice) => choice.isCorrect)).toEqual([
+      { label: "Application", isCorrect: true },
+    ]);
+  });
+});
+
 describe("editing a question", () => {
   it("opens with the question as it is stored", async () => {
     const user = userEvent.setup();
@@ -695,7 +812,7 @@ describe("editing a question", () => {
       new ApiError("The given data was invalid.", 422, {
         prompt: ["Keep the question to 2000 characters or fewer."],
         "choices.1.label": ["Every choice needs a label."],
-        choices: ["Mark exactly one of the four choices as correct."],
+        choices: ["Mark exactly one choice as correct."],
       }),
     );
 
@@ -712,7 +829,7 @@ describe("editing a question", () => {
       "Every choice needs a label.",
     );
     expect(form.getByRole("group", { name: "Choices" })).toHaveAccessibleDescription(
-      "Mark exactly one of the four choices as correct.",
+      "Mark exactly one choice as correct.",
     );
 
     // Left open, nothing reloaded under it, and no second copy of the message.
@@ -745,7 +862,7 @@ describe("editing a question", () => {
     await user.click(form.getByRole("button", { name: "Save question" }));
 
     expect(form.getByRole("group", { name: "Choices" })).toHaveAccessibleDescription(
-      "Mark exactly one of the four choices as correct.",
+      "Mark exactly one choice as correct.",
     );
     expect(service.updateQuestion).not.toHaveBeenCalled();
   });
@@ -794,9 +911,10 @@ describe("deleting a question", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete question 1" }));
 
-    expect(
-      screen.getByRole("alertdialog", { name: "Delete question 1?" }),
-    ).toBeInTheDocument();
+    const confirm = screen.getByRole("alertdialog", { name: "Delete question 1?" });
+
+    expect(confirm).toHaveTextContent(/Its choices go with it/);
+    expect(confirm).not.toHaveTextContent(/four/);
     expect(service.deleteQuestion).not.toHaveBeenCalled();
   });
 

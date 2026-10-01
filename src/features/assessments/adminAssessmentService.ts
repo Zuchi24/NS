@@ -311,8 +311,10 @@ export interface AssessmentChoiceDraft {
  * half-typed number is a string rather than NaN. It becomes an integer on the
  * way out, and validateQuestionDraft is what stands between the two.
  *
- * The choices are always the whole set of four: the server takes them no other
- * way, on a create or an edit.
+ * The choices are always sent as the whole set — two to six of them, one
+ * correct — on a create or an edit; the server takes them no other way. While
+ * the author is still writing, the draft may hold fewer: a new question starts
+ * with one row, and validateQuestionDraft refuses it until there are two.
  *
  * The timer is picked from QUESTION_TIMER_PRESETS, so it is never half-typed:
  * a number of seconds, or null for no timer.
@@ -335,21 +337,24 @@ export function isTimerPreset(seconds: number): boolean {
   return (QUESTION_TIMER_PRESETS as readonly number[]).includes(seconds);
 }
 
-/** How many choices a question has — exactly this many, no more and no fewer. */
-export const QUESTION_CHOICE_COUNT = 4;
+/**
+ * The fewest and most choices a question may be saved with — the server's
+ * StoreAssessmentQuestionRequest::MIN_CHOICES and MAX_CHOICES. A true/false
+ * question is two choices.
+ */
+export const QUESTION_CHOICE_MIN = 2;
+export const QUESTION_CHOICE_MAX = 6;
 
 /**
- * A blank question. Its choices array is shared, so update a draft by copying
- * it — as React state is updated anyway — rather than writing into it.
+ * A blank question: one empty choice row to start from, which the author adds
+ * to. Its choices array is shared, so update a draft by copying it — as React
+ * state is updated anyway — rather than writing into it.
  */
 export const EMPTY_QUESTION_DRAFT: AssessmentQuestionDraft = {
   prompt: "",
   points: "1",
   timeLimitSeconds: null,
-  choices: Array.from({ length: QUESTION_CHOICE_COUNT }, () => ({
-    label: "",
-    isCorrect: false,
-  })),
+  choices: [{ label: "", isCorrect: false }],
 };
 
 export function draftOfQuestion(
@@ -611,7 +616,7 @@ export async function deleteAssessment(
 | published, 409 once it has been taken. See lockStateOf().
 */
 
-/** Adds a question with its four choices, at the end. */
+/** Adds a question with its choices, at the end. */
 export async function createQuestion(
   assessmentId: number,
   draft: AssessmentQuestionDraft,
@@ -628,8 +633,9 @@ export async function createQuestion(
  * Rewrites a question.
  *
  * The whole draft goes, choices included, because the form holds every field
- * and the server takes choices only as the complete set. The four slots keep
- * their ids and take the new labels and answer.
+ * and the server takes choices only as the complete set. Slots still in use
+ * keep their ids and take the new labels and answer; any past the new last
+ * choice are removed.
  */
 export async function updateQuestion(
   questionId: number,
@@ -768,8 +774,11 @@ export function validateQuestionDraft(
     errors.time_limit_seconds = "Choose one of the timer settings, or no timer.";
   }
 
-  if (draft.choices.length !== QUESTION_CHOICE_COUNT) {
-    errors.choices = `A question has exactly ${QUESTION_CHOICE_COUNT} choices.`;
+  if (
+    draft.choices.length < QUESTION_CHOICE_MIN ||
+    draft.choices.length > QUESTION_CHOICE_MAX
+  ) {
+    errors.choices = `A question has between ${QUESTION_CHOICE_MIN} and ${QUESTION_CHOICE_MAX} choices.`;
   } else {
     draft.choices.forEach((choice, index) => {
       const label = characterLength(choice.label);
@@ -783,7 +792,7 @@ export function validateQuestionDraft(
     });
 
     if (draft.choices.filter((choice) => choice.isCorrect).length !== 1) {
-      errors.choices = "Mark exactly one of the four choices as correct.";
+      errors.choices = "Mark exactly one choice as correct.";
     }
   }
 

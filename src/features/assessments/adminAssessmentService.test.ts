@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EMPTY_ASSESSMENT_DRAFT,
   EMPTY_QUESTION_DRAFT,
+  QUESTION_CHOICE_MAX,
+  QUESTION_CHOICE_MIN,
   createAssessment,
   createQuestion,
   deleteAssessment,
@@ -594,17 +596,10 @@ describe("drafts", () => {
     });
   });
 
-  it("starts a new question with four blank choices, none correct", () => {
+  it("starts a new question with one blank choice, not correct, for the author to add to", () => {
     expect(EMPTY_QUESTION_DRAFT.prompt).toBe("");
     expect(EMPTY_QUESTION_DRAFT.points).toBe("1");
-    expect(EMPTY_QUESTION_DRAFT.choices).toEqual([
-      { label: "", isCorrect: false },
-      { label: "", isCorrect: false },
-      { label: "", isCorrect: false },
-      { label: "", isCorrect: false },
-    ]);
-    // Four separate objects, so editing one slot cannot edit the others.
-    expect(new Set(EMPTY_QUESTION_DRAFT.choices).size).toBe(4);
+    expect(EMPTY_QUESTION_DRAFT.choices).toEqual([{ label: "", isCorrect: false }]);
   });
 
   it("fills the assessment form, turning a missing description into an empty box", async () => {
@@ -731,17 +726,59 @@ describe("validateQuestionDraft", () => {
     }
   });
 
-  it("refuses anything but exactly four choices", () => {
-    const four = questionDraft().choices;
+  /** `count` labelled choices, the first one correct. */
+  const choicesOf = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      label: `Choice ${index}`,
+      isCorrect: index === 0,
+    }));
 
-    expect(
-      validateQuestionDraft(questionDraft({ choices: four.slice(0, 3) })).choices,
-    ).toBeDefined();
-    expect(
-      validateQuestionDraft(
-        questionDraft({ choices: [...four, { label: "E", isCorrect: false }] }),
-      ).choices,
-    ).toBeDefined();
+  it("refuses fewer than two choices or more than six", () => {
+    for (const count of [0, 1, 7]) {
+      expect(
+        validateQuestionDraft(questionDraft({ choices: choicesOf(count) })).choices,
+      ).toBe("A question has between 2 and 6 choices.");
+    }
+    expect(QUESTION_CHOICE_MIN).toBe(2);
+    expect(QUESTION_CHOICE_MAX).toBe(6);
+  });
+
+  it("accepts anywhere from two to six choices", () => {
+    for (const count of [2, 3, 4, 5, 6]) {
+      expect(validateQuestionDraft(questionDraft({ choices: choicesOf(count) }))).toEqual({});
+    }
+  });
+
+  it("accepts a true/false question, and still needs exactly one of the two correct", () => {
+    const trueFalse = (trueCorrect: boolean, falseCorrect: boolean) =>
+      questionDraft({
+        choices: [
+          { label: "True", isCorrect: trueCorrect },
+          { label: "False", isCorrect: falseCorrect },
+        ],
+      });
+
+    expect(validateQuestionDraft(trueFalse(false, true))).toEqual({});
+    expect(validateQuestionDraft(trueFalse(true, true)).choices).toBe(
+      "Mark exactly one choice as correct.",
+    );
+    expect(validateQuestionDraft(trueFalse(false, false)).choices).toBe(
+      "Mark exactly one choice as correct.",
+    );
+  });
+
+  it("needs exactly one correct choice whatever the count", () => {
+    for (const count of [2, 6]) {
+      const none = choicesOf(count).map((choice) => ({ ...choice, isCorrect: false }));
+      const two = choicesOf(count).map((choice, index) => ({ ...choice, isCorrect: index < 2 }));
+
+      expect(validateQuestionDraft(questionDraft({ choices: none })).choices).toBe(
+        "Mark exactly one choice as correct.",
+      );
+      expect(validateQuestionDraft(questionDraft({ choices: two })).choices).toBe(
+        "Mark exactly one choice as correct.",
+      );
+    }
   });
 
   it("requires every choice to have a label, keyed as the server keys it", () => {
@@ -788,15 +825,9 @@ describe("validateQuestionDraft", () => {
   it("finds everything wrong with a blank question at once", () => {
     const found = validateQuestionDraft({ ...EMPTY_QUESTION_DRAFT, points: "" });
 
-    expect(Object.keys(found).sort()).toEqual([
-      "choices",
-      "choices.0.label",
-      "choices.1.label",
-      "choices.2.label",
-      "choices.3.label",
-      "points",
-      "prompt",
-    ]);
+    // One row is not yet a question: the count is what is wrong with the choices.
+    expect(Object.keys(found).sort()).toEqual(["choices", "points", "prompt"]);
+    expect(found.choices).toBe("A question has between 2 and 6 choices.");
   });
 });
 

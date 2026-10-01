@@ -12,6 +12,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,6 +31,8 @@ import { useAsync } from "@/services/useAsync";
 import {
   ASSESSMENT_TYPE_LABELS,
   EMPTY_QUESTION_DRAFT,
+  QUESTION_CHOICE_MAX,
+  QUESTION_CHOICE_MIN,
   QUESTION_TIMER_PRESETS,
   createQuestion,
   deleteAssessment,
@@ -63,7 +66,7 @@ import { AssessmentResultsPanel } from "./AssessmentResultsPanel";
  * Building one of a topic's assessments.
  *
  * A page of its own rather than a panel inside the roadmap: an assessment is a
- * list of questions, each with four choices, and that does not fit inside a
+ * list of questions, each with two to six choices, and that does not fit inside a
  * topic's card without crowding out the topic.
  *
  * It builds one version of the topic's pre-test or post-test. Title,
@@ -967,7 +970,7 @@ function QuestionControls({
           className="rounded-md border border-red-200 bg-red-50/60 p-3 space-y-2"
         >
           <p className="text-xs text-gray-700">
-            Delete question {number}? Its four choices go with it, and this
+            Delete question {number}? Its choices go with it, and this
             cannot be undone.
           </p>
           <div className="flex items-center gap-2">
@@ -984,7 +987,13 @@ function QuestionControls({
   );
 }
 
-const CHOICE_LETTERS = ["A", "B", "C", "D"];
+const CHOICE_LETTERS = ["A", "B", "C", "D", "E", "F"];
+
+/** The two choices of a true/false question, True marked correct to start from. */
+const TRUE_FALSE_CHOICES: AssessmentChoiceDraft[] = [
+  { label: "True", isCorrect: true },
+  { label: "False", isCorrect: false },
+];
 
 /** A blank question, with the first choice marked correct to start from. */
 function newQuestionDraft(): AssessmentQuestionDraft {
@@ -1062,6 +1071,31 @@ function QuestionForm({
         isCorrect: at === index,
       })),
     }));
+
+  /*
+   * Changing which choices there are moves every one after the change to a new
+   * position, so an error keyed to a position (`choices.2.label`) would land on
+   * the wrong row. Those are dropped; Save checks the whole set again anyway.
+   */
+  const setChoices = (next: (choices: AssessmentChoiceDraft[]) => AssessmentChoiceDraft[]) => {
+    setDraft((current) => ({ ...current, choices: next(current.choices) }));
+    setErrors((current) =>
+      Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith("choices"))),
+    );
+  };
+
+  const addChoice = () =>
+    setChoices((choices) =>
+      choices.length >= QUESTION_CHOICE_MAX ? choices : [...choices, { label: "", isCorrect: false }],
+    );
+
+  // Never below one row. Removing the correct choice leaves none marked: the
+  // author picks again, and Save refuses until they do.
+  const removeChoice = (index: number) =>
+    setChoices((choices) => (choices.length <= 1 ? choices : choices.filter((_, at) => at !== index)));
+
+  // A true/false question is two choices, not a type of its own.
+  const applyTrueFalse = () => setChoices(() => TRUE_FALSE_CHOICES.map((choice) => ({ ...choice })));
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -1198,9 +1232,14 @@ function QuestionForm({
 
       <fieldset className="space-y-2" aria-describedby={describedBy("choices")}>
         <legend className="text-sm font-medium text-gray-900">Choices</legend>
-        <p className="text-xs text-gray-600">
-          Four choices. Select the one that is correct.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-gray-600">
+            {QUESTION_CHOICE_MIN} to {QUESTION_CHOICE_MAX} choices. Select the one that is correct.
+          </p>
+          <Button type="button" size="sm" variant="outline" onClick={applyTrueFalse}>
+            True / False
+          </Button>
+        </div>
 
         {draft.choices.map((choice, index) => {
           const letter = CHOICE_LETTERS[index] ?? String(index + 1);
@@ -1228,6 +1267,17 @@ function QuestionForm({
                   aria-describedby={describedBy(labelKey)}
                   onChange={(e) => setChoice(index, { label: e.target.value })}
                 />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  aria-label={`Remove choice ${letter}`}
+                  disabled={draft.choices.length <= 1}
+                  onClick={() => removeChoice(index)}
+                  className="shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
               </div>
               {errors[labelKey] && (
                 <FieldError id={describedBy(labelKey)!} message={errors[labelKey]} />
@@ -1235,6 +1285,17 @@ function QuestionForm({
             </div>
           );
         })}
+
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={draft.choices.length >= QUESTION_CHOICE_MAX}
+          onClick={addChoice}
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Add choice
+        </Button>
 
         {errors.choices && (
           <FieldError id={describedBy("choices")!} message={errors.choices} />

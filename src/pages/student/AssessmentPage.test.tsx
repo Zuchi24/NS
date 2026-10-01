@@ -466,6 +466,76 @@ describe("choosing answers", () => {
   });
 });
 
+describe("two to six choices", () => {
+  const trueFalse: StudentAssessmentQuestion = {
+    id: 51,
+    prompt: "A router forwards packets between networks.",
+    points: 1,
+    timeLimitSeconds: null,
+    order: 1,
+    choices: [
+      { id: 61, label: "True", order: 0 },
+      { id: 62, label: "False", order: 1 },
+    ],
+  };
+
+  const layers: StudentAssessmentQuestion = {
+    id: 52,
+    prompt: "Which layer do applications talk to?",
+    points: 1,
+    timeLimitSeconds: null,
+    order: 1,
+    choices: ["Physical", "Data link", "Network", "Transport", "Session", "Application"].map(
+      (label, index) => ({ id: 70 + index, label, order: index }),
+    ),
+  };
+
+  it("shows a true/false question as two choices, one picked at a time, with no answer given away", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ questions: [trueFalse] }));
+    await begin(user);
+
+    const group = questionGroup(1);
+    expect(group.getAllByRole("radio")).toHaveLength(2);
+    expect(group.getByText("A")).toBeInTheDocument();
+    expect(group.getByText("B")).toBeInTheDocument();
+
+    await user.click(group.getByRole("radio", { name: "True" }));
+    await user.click(group.getByRole("radio", { name: "False" }));
+
+    expect(group.getByRole("radio", { name: "False" })).toBeChecked();
+    expect(group.getByRole("radio", { name: "True" })).not.toBeChecked();
+    expect(screen.queryByText(/correct/i)).not.toBeInTheDocument();
+  });
+
+  it("shows all six choices of a six-choice question, lettered A to F, in order", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ questions: [layers] }));
+    await begin(user);
+
+    const group = questionGroup(1);
+    const radios = group.getAllByRole("radio");
+
+    expect(radios).toHaveLength(6);
+    expect(radios.map((radio) => radio.closest("label")?.textContent)).toEqual([
+      "APhysical",
+      "BData link",
+      "CNetwork",
+      "DTransport",
+      "ESession",
+      "FApplication",
+    ]);
+
+    await user.click(group.getByRole("radio", { name: "Application" }));
+
+    expect(group.getByRole("radio", { name: "Application" })).toBeChecked();
+    expect(group.getAllByRole("radio").filter((radio) => (radio as HTMLInputElement).checked)).toHaveLength(1);
+    for (const radio of radios) {
+      expect(radio).not.toHaveAttribute("data-correct");
+    }
+  });
+});
+
 describe("submitting", () => {
   it("sends one answer per question, in question order", async () => {
     const user = userEvent.setup();
