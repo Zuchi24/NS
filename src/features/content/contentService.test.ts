@@ -475,3 +475,45 @@ describe("fetchSubtopic", () => {
     expect(await fetchSubtopic(999)).toBeNull();
   });
 });
+
+describe("a topic's standing in the roadmap", () => {
+  it("carries the server's judgement through, and invents none where it made none", async () => {
+    const topic = (id: number, extra: Record<string, unknown> = {}) => ({
+      id,
+      roadmap_id: 1,
+      parent_id: null,
+      title: `Topic ${id}`,
+      description: null,
+      ytube_link: null,
+      order: id,
+      ...extra,
+    });
+
+    vi.mocked(api.get).mockResolvedValue(
+      page([
+        {
+          id: 1,
+          title: "Roadmap",
+          description: null,
+          order: 0,
+          is_published: true,
+          topics: [
+            topic(1, { open: true }),
+            topic(2, { open: false, locked_reason: 'Submit the post-test for "Topic 1" to unlock "Topic 2".' }),
+            topic(3),
+          ],
+        },
+      ]),
+    );
+
+    const [roadmap] = await fetchRoadmaps();
+    const [open, shut, unjudged] = roadmap.topics!;
+
+    expect(open.open).toBe(true);
+    expect(open.lockedReason).toBeUndefined();
+    expect(shut.open).toBe(false);
+    expect(shut.lockedReason).toBe('Submit the post-test for "Topic 1" to unlock "Topic 2".');
+    // No key from the server is not "shut": staff are sent none.
+    expect(unjudged.open).toBeUndefined();
+  });
+});

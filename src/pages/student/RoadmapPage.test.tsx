@@ -175,6 +175,43 @@ describe("RoadmapPage", () => {
     expect(navigate).toHaveBeenCalledWith("/topic/1002");
   });
 
+  it("draws a topic the server shut as locked, with the server's reason", async () => {
+    const roadmap = roadmapOf(3);
+    roadmap.topics[1] = {
+      ...roadmap.topics[1],
+      open: false,
+      lockedReason: 'Submit the post-test for "Topic 1" to unlock "Topic 2".',
+    };
+    roadmap.topics[0] = { ...roadmap.topics[0], open: true };
+
+    await renderWith([roadmap]);
+
+    const shut = screen.getByRole("button", { name: "Open Topic 2" });
+    const open = screen.getByRole("button", { name: "Open Topic 1" });
+
+    expect(within(shut).getByText("Locked.")).toBeInTheDocument();
+    expect(
+      within(shut).getByText(/Submit the post-test for "Topic 1" to unlock "Topic 2"\./),
+    ).toBeInTheDocument();
+    // Open, and a topic the server made no judgement on, carry no lock.
+    expect(within(open).queryByText("Locked.")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("button", { name: "Open Topic 3" })).queryByText("Locked."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("leaves a locked topic pressable, since the server is what refuses it", async () => {
+    const user = userEvent.setup();
+    const roadmap = roadmapOf(2);
+    roadmap.topics[1] = { ...roadmap.topics[1], open: false, lockedReason: "Not yet." };
+
+    await renderWith([roadmap]);
+
+    await user.click(screen.getByRole("button", { name: "Open Topic 2" }));
+
+    expect(navigate).toHaveBeenCalledWith("/topic/1002");
+  });
+
   it("points to a topic for progress, and claims nothing about order or access", async () => {
     await renderWith([roadmapOf(3)]);
 

@@ -37,8 +37,10 @@ import { useAsync } from "@/services/useAsync";
  * post-test, all exactly as the server judged them (TopicProgressCard).
  *
  * Everything here is the server's — including whether the topic is open at all.
- * The roadmap locks topics in order and the API refuses a locked one outright,
- * so a student who types its URL gets the locked state, not its contents.
+ * The API locks a topic until the post-test of each earlier topic in its
+ * roadmap has been submitted, and refuses a locked one outright, so a student
+ * who types its URL gets the locked state and the server's reason, not its
+ * contents.
  */
 
 /** What the loader hands back: the topic, or the fact that it is shut. */

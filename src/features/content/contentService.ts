@@ -30,6 +30,9 @@ interface ApiTopic {
   description: string | null;
   ytube_link: string | null;
   order: number;
+  /** Whether this student may open the topic; absent for staff and sections. */
+  open?: boolean;
+  locked_reason?: string;
   roadmap?: ApiRoadmap;
   /** Present only where the endpoint was asked to nest them. */
   subtopics?: ApiSubtopic[];
@@ -107,6 +110,8 @@ function toTopic(topic: ApiTopic): Topic {
     description: topic.description,
     videoUrl: topic.ytube_link,
     order: topic.order,
+    open: topic.open,
+    lockedReason: topic.locked_reason,
     // A response from before subtopics existed says nothing here, and every
     // topic in one was a topic of its roadmap.
     parentId: topic.parent_id ?? null,

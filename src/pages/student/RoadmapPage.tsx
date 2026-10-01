@@ -25,15 +25,16 @@ import { useAsync } from "@/services/useAsync";
  * running through them does. So each roadmap is one continuous vertical path:
  * a spine, a numbered node on it for every topic, and the card that node opens.
  *
- * The path itself draws no standing: a topic of a roadmap is not paced behind
- * the topics before it, so its node and its card look the same whatever the
- * student has done. The sections inside a topic are paced, and each one the
+ * A topic is paced behind the ones before it: it opens once each earlier topic
+ * that has a post-test has had it submitted. The server says which are shut and
+ * why, and a shut topic's card carries that reason; the path itself draws
+ * nothing else. The sections inside a topic are paced too, and each one the
  * server judged says which of the three it is — finished, open now, or not yet
  * reached. That judgement arrives with the section and is only drawn here;
  * nothing on this page works one out, and a section the server said nothing
  * about is drawn without one rather than guessed at.
  *
- * A locked section still opens. The badge is there to save a student the trip,
+ * A locked topic or section still opens. The badge is there to save a student the trip,
  * not to stop them making it: the lock is the server's, enforced when the
  * section is asked for, and pressing one lands on the server's own reason.
  * (The server also leaves a locked section's description out of the roadmap,
@@ -432,6 +433,19 @@ function TopicNode({
                   <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 break-words">
                     {topic.description}
                   </p>
+                )}
+
+                {topic.open === false && (
+                  <span className="mt-3 flex items-start gap-1.5 text-xs text-gray-600">
+                    <Lock
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span>
+                      <span className="font-semibold">Locked.</span>{" "}
+                      {topic.lockedReason ?? "Finish the topics before this one to unlock it."}
+                    </span>
+                  </span>
                 )}
 
                 {topic.videoUrl && (

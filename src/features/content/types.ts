@@ -12,10 +12,11 @@ export interface Paginated<T> {
 /**
  * One part of a roadmap: reading, watching, and the material attached to it.
  *
- * A topic holds no challenges and paces nothing. Every topic of a published
- * roadmap is open to any signed-in student, so there is no standing to report
- * and no lock to show — what gates a topic is whether its roadmap has been
- * published, which the server answers by refusing the request.
+ * A topic holds no challenges. Whether a student may open one is the server's
+ * to say: its roadmap has to be published, and every earlier topic of that
+ * roadmap with a post-test has to have had it submitted. The roadmap sends the
+ * answer with each topic (`open`, and `lockedReason` when it is shut) and the
+ * server refuses the request all the same, so nothing here works it out.
  */
 export interface Topic {
   id: number;
@@ -24,6 +25,14 @@ export interface Topic {
   description: string | null;
   videoUrl: string | null;
   order: number;
+  /**
+   * Whether the server says this student may open the topic. Absent where it
+   * made no judgement — staff, and any response that does not carry one — which
+   * is not the same as shut.
+   */
+  open?: boolean;
+  /** Why it is shut, in the server's words. Present only when `open` is false. */
+  lockedReason?: string;
   /**
    * The topic this one is a section of, or null if it is a topic of the
    * roadmap in its own right.
