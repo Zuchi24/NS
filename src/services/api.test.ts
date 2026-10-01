@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, VERIFICATION_REQUIRED_EVENT, api, authToken } from "./api";
+import { ApiError, UNAUTHENTICATED_EVENT, VERIFICATION_REQUIRED_EVENT, api, authToken } from "./api";
 
 /**
  * What a caller is told when a request fails.
@@ -121,6 +121,52 @@ describe("failed requests", () => {
     await api.get("/me").catch(() => null);
 
     expect(authToken.get()).toBeNull();
+  });
+
+  it("says so on the window when it drops a rejected token, so the screen can follow", async () => {
+    authToken.set("stale-token");
+    const heard = vi.fn();
+    window.addEventListener(UNAUTHENTICATED_EVENT, heard);
+
+    fetchMock.mockResolvedValueOnce(respond(401, JSON.stringify({ message: "Unauthenticated." })));
+    await api.get("/me").catch(() => null);
+
+    window.removeEventListener(UNAUTHENTICATED_EVENT, heard);
+
+    expect(heard).toHaveBeenCalledTimes(1);
+  });
+
+  it("says nothing when the refused request carried no token, or a refusal is not a 401", async () => {
+    const heard = vi.fn();
+    window.addEventListener(UNAUTHENTICATED_EVENT, heard);
+
+    // No token to drop: a refused sign-in attempt is not a sign-out.
+    fetchMock.mockResolvedValueOnce(respond(401, JSON.stringify({ message: "Unauthenticated." })));
+    await api.get("/login").catch(() => null);
+
+    // A token, but a refusal to do something rather than the end of the session.
+    authToken.set("good-token");
+    fetchMock.mockResolvedValueOnce(respond(403, JSON.stringify({ message: "Not yours." })));
+    await api.get("/admin/overview").catch(() => null);
+
+    window.removeEventListener(UNAUTHENTICATED_EVENT, heard);
+
+    expect(heard).not.toHaveBeenCalled();
+    expect(authToken.get()).toBe("good-token");
+  });
+
+  it("leaves a newer token alone when the refusal was for the one it replaced", async () => {
+    authToken.set("old-token");
+
+    fetchMock.mockImplementationOnce(async () => {
+      // Another tab signs in while this request is out.
+      authToken.set("new-token");
+      return respond(401, JSON.stringify({ message: "Unauthenticated." }));
+    });
+
+    await api.get("/me").catch(() => null);
+
+    expect(authToken.get()).toBe("new-token");
   });
 
   it("says the server cannot be reached when the request never went out", async () => {

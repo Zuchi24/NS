@@ -1,4 +1,4 @@
-import { ApiError, api, authToken } from "@/services/api";
+import { AUTH_TOKEN_KEY, ApiError, api, authToken } from "@/services/api";
 import { storage } from "@/services/storage";
 import type {
   LoginCredentials,
@@ -18,6 +18,74 @@ import type {
  */
 
 const USER_KEY = "netsim-user";
+
+/**
+ * One NetSim account per browser profile, however many tabs are open.
+ *
+ * "Keep me signed in" decides how long the token is held — for good, or until
+ * the tab closes — not how many accounts a profile may have. So this marker is
+ * written to the shared store on every explicit sign-in and sign-out, whichever
+ * store the token itself goes to, and every other tab listens for it changing.
+ * A tab-private sign-in would otherwise change nothing a neighbouring tab could
+ * see.
+ *
+ * It says only that the profile's session changed: `<user id>:<nonce>`. It is
+ * not a credential and nothing is authenticated by it. Who is signed in is
+ * still the token and what /me says of it.
+ */
+export const SESSION_KEY = "netsim-session";
+
+/** What this tab last saw of the profile's session, to tell a real change from an echo. */
+let known: { marker: string | null; credential: string | null } = {
+  marker: null,
+  credential: null,
+};
+
+function readMarker(): string | null {
+  return storage.get<string>(SESSION_KEY);
+}
+
+function noteSynced(): void {
+  known = { marker: readMarker(), credential: authToken.get() };
+}
+
+/** A new session generation: the nonce is what tells two sign-ins by one user apart. */
+function announceSession(userId: number): void {
+  const nonce =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
+  storage.set(SESSION_KEY, `${userId}:${nonce}`, "local");
+  noteSynced();
+}
+
+/** Whether a storage event is about the browser-wide session, rather than anything else. */
+export function concernsSession(key: string | null): boolean {
+  return key === null || key === SESSION_KEY || key === AUTH_TOKEN_KEY;
+}
+
+/**
+ * The cached user is kept with the id of the token it was cached for — the part
+ * before the `|` in a Sanctum token, which is a row number and not the secret.
+ * A user cached for one token is not evidence of who another token belongs to.
+ */
+interface CachedUser {
+  tokenId: string;
+  user: User;
+}
+
+function tokenId(token: string | null): string | null {
+  const bar = token?.indexOf("|") ?? -1;
+
+  return token !== null && bar > 0 ? token.slice(0, bar) : null;
+}
+
+function cachedUser(): User | null {
+  const cached = storage.get<Partial<CachedUser>>(USER_KEY);
+  const current = tokenId(authToken.get());
+
+  return cached?.user && current !== null && cached.tokenId === current ? cached.user : null;
+}
 
 /** The shape UserResource returns, snake_case and untouched. */
 interface ApiUser {
@@ -79,9 +147,20 @@ function persist(user: ApiUser, token?: string, remember = true): User {
   }
 
   const mapped = toUser(user);
+  const id = tokenId(authToken.get());
+
   // The cached user is only a render optimisation, so it lives exactly as long
   // as the token does — an unremembered session must not leave a name behind.
-  storage.set(USER_KEY, mapped, authToken.scope());
+  if (id !== null) {
+    storage.set(USER_KEY, { tokenId: id, user: mapped } satisfies CachedUser, authToken.scope());
+  }
+
+  // Last, so a tab woken by the marker finds the new token already in place.
+  // Only a sign-in starts a session: verifying an address carries on the one
+  // there is.
+  if (token) {
+    announceSession(mapped.id);
+  }
 
   return mapped;
 }
@@ -202,7 +281,15 @@ export async function logout(): Promise<void> {
   } finally {
     authToken.clear();
     storage.remove(USER_KEY);
+    // Ends the profile's session for every tab, not just this one.
+    storage.remove(SESSION_KEY);
+    noteSynced();
   }
+}
+
+/** Forgets the cached user, for a session that ended without a sign-out. */
+export function forgetUser(): void {
+  storage.remove(USER_KEY);
 }
 
 /**
@@ -212,12 +299,25 @@ export async function logout(): Promise<void> {
  * user stands so a reload during a backend restart does not throw someone out.
  */
 export async function restoreSession(): Promise<User | null> {
-  if (!authToken.get()) {
+  noteSynced();
+
+  const asked = authToken.get();
+
+  if (!asked) {
     return null;
   }
 
   try {
     const response = await api.get<{ data: ApiUser }>("/me");
+
+    // Another tab signed in as someone else while /me was out. What came back
+    // is about the token that was sent, not the one now in place, so it must
+    // not be cached against it; the tab that changed it is already being
+    // reconciled and will ask again.
+    if (authToken.get() !== asked) {
+      return null;
+    }
+
     return persist(response.data);
   } catch (error) {
     if (error instanceof ApiError && error.isUnauthenticated) {
@@ -225,6 +325,45 @@ export async function restoreSession(): Promise<User | null> {
       return null;
     }
 
-    return storage.get<User>(USER_KEY);
+    return cachedUser();
   }
+}
+
+/**
+ * What this tab has to do about a change to the browser-wide session.
+ *
+ *  - `null`: nothing. The same token is still in place, which is also what an
+ *    echo of this tab's own sign-in looks like.
+ *  - `"signed-out"`: no session is left.
+ *  - `"restore"`: a different token is in place; ask /me who it is.
+ *
+ * A token private to this tab is given up when another tab starts or ends the
+ * session, since the browser keeps one account. The shared token is never
+ * touched here: it is the session the other tab just chose.
+ */
+export type SessionPlan = "signed-out" | "restore" | null;
+
+export function planSessionSync(): SessionPlan {
+  const marker = readMarker();
+
+  if (marker !== known.marker && storage.hasIn(AUTH_TOKEN_KEY, "session")) {
+    storage.removeFrom(AUTH_TOKEN_KEY, "session");
+    storage.removeFrom(USER_KEY, "session");
+  }
+
+  const credential = authToken.get();
+  const changed = credential !== known.credential;
+
+  known = { marker, credential };
+
+  if (!changed) {
+    return null;
+  }
+
+  if (credential === null) {
+    storage.remove(USER_KEY);
+    return "signed-out";
+  }
+
+  return "restore";
 }

@@ -81,4 +81,27 @@ export const storage = {
 
     return null;
   },
+
+  /** Whether one particular scope holds the key, whatever the other says. */
+  hasIn(key: string, scope: StorageScope): boolean {
+    try {
+      return backing(scope)?.getItem(key) != null;
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Clears the key from one scope only.
+   *
+   * For a tab giving up what is private to it while leaving the shared store
+   * alone — `remove` is the one that clears both.
+   */
+  removeFrom(key: string, scope: StorageScope): void {
+    try {
+      backing(scope)?.removeItem(key);
+    } catch {
+      // Non-fatal.
+    }
+  },
 };

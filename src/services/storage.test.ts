@@ -118,6 +118,25 @@ describe("storage scopes", () => {
     expect(storage.get("netsim-nothing")).toBeNull();
     expect(storage.scopeOf("netsim-nothing")).toBeNull();
   });
+
+  it("says which scope holds a key even when both do, unlike scopeOf", () => {
+    local.setItem(KEY, JSON.stringify("shared"));
+    session.setItem(KEY, JSON.stringify("private"));
+
+    expect(storage.hasIn(KEY, "local")).toBe(true);
+    expect(storage.hasIn(KEY, "session")).toBe(true);
+    expect(storage.hasIn("netsim-nothing", "session")).toBe(false);
+  });
+
+  it("clears one scope and leaves the other, for a tab giving up only what is its own", () => {
+    local.setItem(KEY, JSON.stringify("shared"));
+    session.setItem(KEY, JSON.stringify("private"));
+
+    storage.removeFrom(KEY, "session");
+
+    expect(session.getItem(KEY)).toBeNull();
+    expect(local.getItem(KEY)).toBe(JSON.stringify("shared"));
+  });
 });
 
 describe("storage when the browser refuses", () => {

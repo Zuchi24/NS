@@ -17,6 +17,9 @@ const BASE_URL = (
 
 const TOKEN_KEY = "netsim-token";
 
+/** The key the credential is stored under, for anything watching it change. */
+export const AUTH_TOKEN_KEY = TOKEN_KEY;
+
 /** Laravel's 422 body: one array of messages per rejected field. */
 export type ValidationErrors = Record<string, string[]>;
 
@@ -88,6 +91,34 @@ function errorFrom(
 
 /** Raised on the window when the API refuses a request for want of a verified address. */
 export const VERIFICATION_REQUIRED_EVENT = "netsim:verification-required";
+
+/**
+ * Raised on the window when the credential a request carried was refused, so
+ * the session can drop the account it is still showing. Without it the token
+ * goes but the screen keeps the name, and looks signed in until a reload.
+ */
+export const UNAUTHENTICATED_EVENT = "netsim:unauthenticated";
+
+/**
+ * A 401 for the credential that request carried: drop it, and say so.
+ *
+ * Only when that credential is still the live one. Another tab may have signed
+ * in as someone else while this request was in flight, and its refusal says
+ * nothing about the new session — clearing then would sign out the account
+ * that had just been chosen. A request that carried no credential has nothing
+ * to drop either, so a refused sign-in attempt is not a sign-out.
+ */
+function rejectCredential(sent: string | null): void {
+  if (sent === null || authToken.get() !== sent) {
+    return;
+  }
+
+  authToken.clear();
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(UNAUTHENTICATED_EVENT));
+  }
+}
 
 /**
  * How long the server asked to be left alone, in whole seconds.
@@ -209,7 +240,7 @@ async function request<T>(
     // A rejected token is worthless; drop it so the app falls back to signed
     // out instead of retrying with it on every subsequent call.
     if (response.status === 401) {
-      authToken.clear();
+      rejectCredential(token);
     }
 
     throw errorFrom(response.status, payload, response.headers);
@@ -250,7 +281,7 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
 
   if (!response.ok) {
     if (response.status === 401) {
-      authToken.clear();
+      rejectCredential(token);
     }
 
     throw errorFrom(response.status, payload, response.headers);
@@ -285,7 +316,7 @@ async function download(path: string): Promise<Blob> {
 
   if (!response.ok) {
     if (response.status === 401) {
-      authToken.clear();
+      rejectCredential(token);
     }
 
     // The body of a failed download is JSON, not the file.
