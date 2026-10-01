@@ -8,10 +8,11 @@ import type { Action, CableState } from "../../model";
 import { PhysicalCableChallenge } from "../PhysicalCableChallenge";
 import { CY, HEIGHT, LAYOUT, SHELF_TOP, WIDTH, benchScale } from "../benchGeometry";
 import { BenchView } from "../components/BenchView";
+import { CRIMPER_SHELF_X } from "../components/CrimperTool";
 import { PRACTICE_BENCH } from "../setup";
 
 /**
- * R1: stripping by dragging a stripper onto the cable.
+ * R1: stripping by dragging the crimper's stripping blade onto the cable.
  *
  * The gesture's arithmetic is checked in benchGeometry.test.ts; this drives
  * the whole chain — pointer down on a tool, move over the cable, release —
@@ -89,16 +90,30 @@ function standingAt(end: "A" | "B", mm: number) {
 
 const jacketOf = (end: "A" | "B") => Number(screen.getByTestId(`end-${end}`).getAttribute("data-jacket-edge-mm"));
 
-/** Take a stripper off the shelf and put it on the cable. */
+const SLOT_LABEL = { correct: "UTP slot (Cat5e/6)", "too-deep": "Small round slot" } as const;
+
+/**
+ * Take the crimper off the shelf to strip through one of its slots. On the
+ * whole page that is Strip in the toolbar and the slot in the strip controls;
+ * the bench drawing on its own is told both when it is drawn (benchViewAt).
+ */
+function takeToStrip(slot: "correct" | "too-deep", init: { pointerId: number; clientX: number; clientY: number }) {
+  const button = screen.queryByRole("button", { name: /^Strip( \(suggested\))?$/, hidden: true });
+  if (button !== null) {
+    if (button.getAttribute("aria-pressed") !== "true") fireEvent.click(button);
+    fireEvent.click(screen.getByLabelText(SLOT_LABEL[slot]));
+  }
+  fireEvent.pointerDown(screen.getByTestId("take-crimper"), init);
+}
+
+/** Take the crimper off the shelf and put its stripping blade on the cable. */
 function dragStripper(
   svg: Element,
   slot: "correct" | "too-deep",
   to: { clientX: number; clientY: number },
   { release = true } = {},
 ) {
-  const tool = screen.getByTestId(`take-${slot}`);
-
-  fireEvent.pointerDown(tool, { pointerId: 1, clientX: slot === "correct" ? 450 : 550, clientY: SHELF_TOP + 30 });
+  takeToStrip(slot, { pointerId: 1, clientX: CRIMPER_SHELF_X, clientY: SHELF_TOP + 30 });
   fireEvent.pointerMove(svg, { pointerId: 1, ...to });
   if (release) fireEvent.pointerUp(svg, { pointerId: 1, ...to });
 }
@@ -185,10 +200,8 @@ describe("stripping by dragging", () => {
 
   it("leaves the cable alone when the pointer never travels", () => {
     const svg = benchAt();
-    const tool = screen.getByTestId("take-correct");
-
-    fireEvent.pointerDown(tool, { pointerId: 1, clientX: 450, clientY: SHELF_TOP + 30 });
-    fireEvent.pointerUp(svg, { pointerId: 1, clientX: 451, clientY: SHELF_TOP + 31 });
+    takeToStrip("correct", { pointerId: 1, clientX: CRIMPER_SHELF_X, clientY: SHELF_TOP + 30 });
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: CRIMPER_SHELF_X + 1, clientY: SHELF_TOP + 31 });
 
     expect(jacketOf("A")).toBe(0);
     expect(screen.queryByTestId("stripper-in-hand")).toBeNull();
@@ -267,34 +280,35 @@ describe("what the model says about a gesture", () => {
   });
 });
 
-describe("the tools on the shelf", () => {
-  it("names both jaws, inside the shelf where they can be read", () => {
+describe("the crimper on the shelf", () => {
+  it("is the one tool to strip with, and says so inside the shelf where it can be read", () => {
     benchAt();
 
-    for (const [slot, name] of [
-      ["correct", /UTP/],
-      ["too-deep", /Small round/],
-    ] as const) {
-      const label = screen.getByTestId(`label-${slot}`);
+    expect(screen.queryByTestId("take-correct")).toBeNull();
+    expect(screen.queryByTestId("take-too-deep")).toBeNull();
+    expect(screen.getByTestId("crimper-tool").getAttribute("data-operation")).toBe("strip");
 
-      expect(label.textContent).toMatch(name);
-      // Drawn inside the viewBox, not off the bottom of it.
-      expect(Number(label.getAttribute("data-y"))).toBeLessThan(HEIGHT);
-      expect(Number(label.getAttribute("data-y"))).toBeGreaterThan(SHELF_TOP);
-    }
+    const label = screen.getByTestId("label-crimper");
+    expect(label.textContent).toMatch(/strip/i);
+    // Drawn inside the viewBox, not off the bottom of it.
+    expect(Number(label.getAttribute("data-y"))).toBeLessThan(HEIGHT);
+    expect(Number(label.getAttribute("data-y"))).toBeGreaterThan(SHELF_TOP);
   });
 
-  it("lies on neither end, so reaching for a tool chooses no end", () => {
+  it("names both of its stripping slots in the strip controls", () => {
+    benchAt();
+
+    expect(screen.getByLabelText(/UTP slot/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Small round slot/)).toBeInTheDocument();
+  });
+
+  it("lies on neither end, so reaching for it chooses no end", () => {
     const svg = benchAt();
 
     for (const slot of ["correct", "too-deep"] as const) {
-      fireEvent.pointerDown(screen.getByTestId(`take-${slot}`), {
-        pointerId: 1,
-        clientX: slot === "correct" ? 450 : 550,
-        clientY: SHELF_TOP + 30,
-      });
+      takeToStrip(slot, { pointerId: 1, clientX: CRIMPER_SHELF_X, clientY: SHELF_TOP + 30 });
       // Lift straight up onto the cable: still over the out-of-scale middle.
-      fireEvent.pointerMove(svg, { pointerId: 1, clientX: slot === "correct" ? 450 : 550, clientY: CY });
+      fireEvent.pointerMove(svg, { pointerId: 1, clientX: CRIMPER_SHELF_X, clientY: CY });
 
       expect(screen.getByTestId("stripper-in-hand").getAttribute("data-end")).toBe("");
 
@@ -307,10 +321,20 @@ describe("the tools on the shelf", () => {
  * The bench drawing on its own over S1's starting cable, with every action it
  * can send spied on — so a test can count exactly how many strips were sent.
  */
-function benchViewAt(cable: CableState = createInitialState(S1_PRACTICE)) {
+function benchViewAt(cable: CableState = createInitialState(S1_PRACTICE), slot: "correct" | "too-deep" = "correct") {
   const spies = { onStrip: vi.fn(), onUntwist: vi.fn(), onArrange: vi.fn(), onTrim: vi.fn(), onCut: vi.fn(), onSelectEnd: vi.fn() };
 
-  render(<BenchView cable={cable} scenario={S1_PRACTICE} selectedEnd="A" markers={{ A: null, B: null }} {...spies} />);
+  render(
+    <BenchView
+      cable={cable}
+      scenario={S1_PRACTICE}
+      selectedEnd="A"
+      markers={{ A: null, B: null }}
+      operation="strip"
+      stripSlot={slot}
+      {...spies}
+    />,
+  );
 
   const svg = screen.getByRole("img", { name: /Workbench/ });
 
@@ -329,8 +353,8 @@ function benchViewAt(cable: CableState = createInitialState(S1_PRACTICE)) {
   return { svg, ...spies };
 }
 
-/** Where the UTP stripper lies on the shelf. */
-const ON_SHELF = { clientX: 450, clientY: SHELF_TOP + 30 };
+/** Where the crimper lies on the shelf. */
+const ON_SHELF = { clientX: CRIMPER_SHELF_X, clientY: SHELF_TOP + 30 };
 
 describe("letting go is a strip only on a jacket", () => {
   it("strips end A when it is let go on end A's jacket", () => {
@@ -356,7 +380,7 @@ describe("letting go is a strip only on a jacket", () => {
   it("sends nothing when carried over a jacket and back to the shelf", () => {
     const { svg, onStrip } = benchViewAt();
 
-    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 1, ...ON_SHELF });
+    takeToStrip("correct", { pointerId: 1, ...ON_SHELF });
     fireEvent.pointerMove(svg, { pointerId: 1, ...standingAt("A", 20) });
 
     expect(screen.getByTestId("stripper-in-hand").getAttribute("data-end")).toBe("A");
@@ -377,7 +401,7 @@ describe("letting go is a strip only on a jacket", () => {
   it("leaves the cable exactly as it was when put back on the shelf", () => {
     const svg = benchAt();
 
-    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 1, ...ON_SHELF });
+    takeToStrip("correct", { pointerId: 1, ...ON_SHELF });
     fireEvent.pointerMove(svg, { pointerId: 1, ...standingAt("A", 20) });
     fireEvent.pointerMove(svg, { pointerId: 1, ...ON_SHELF });
     fireEvent.pointerUp(svg, { pointerId: 1, ...ON_SHELF });
@@ -398,7 +422,7 @@ describe("letting go is a strip only on a jacket", () => {
   });
 
   it("sends nothing when carried over a jacket and then right off the drawing", () => {
-    const { svg, onStrip } = benchViewAt();
+    const { svg, onStrip } = benchViewAt(undefined, "too-deep");
     const away = { clientX: WIDTH + 40, clientY: -40 };
 
     dragStripper(svg, "too-deep", standingAt("A", 25), { release: false });
@@ -480,7 +504,7 @@ describe("the stripper belongs to the pointer that picked it up", () => {
   it("is carried and let go by the pointer that took it, whatever its id", () => {
     const { svg, onStrip } = benchViewAt();
 
-    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 7, ...ON_SHELF });
+    takeToStrip("correct", { pointerId: 7, ...ON_SHELF });
     fireEvent.pointerMove(svg, { pointerId: 7, clientX: ON_SHELF.clientX + 2, clientY: ON_SHELF.clientY + 1 });
 
     // Not yet a drag: nothing is carried until the hand has travelled.
@@ -558,11 +582,11 @@ describe("the stripper belongs to the pointer that picked it up", () => {
     expect(onStrip).toHaveBeenCalledWith("A", 20, "correct");
   });
 
-  it("cannot be taken over by a second pointer picking up a stripper", () => {
+  it("cannot be taken over by a second pointer reaching for the crimper", () => {
     const { svg, onStrip } = benchViewAt();
 
     dragStripper(svg, "correct", standingAt("A", 20), { release: false });
-    fireEvent.pointerDown(screen.getByTestId("take-too-deep"), { pointerId: 2, clientX: 550, clientY: SHELF_TOP + 30 });
+    fireEvent.pointerDown(screen.getByTestId("take-crimper"), { pointerId: 2, ...ON_SHELF });
     fireEvent.pointerMove(svg, { pointerId: 2, ...standingAt("A", 35) });
     fireEvent.pointerUp(svg, { pointerId: 2, ...standingAt("A", 35) });
 
@@ -615,7 +639,7 @@ describe("the stripper belongs to the pointer that picked it up", () => {
   it("sends nothing when its owner lets go before it has travelled", () => {
     const { svg, onStrip } = benchViewAt();
 
-    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 1, ...ON_SHELF });
+    takeToStrip("correct", { pointerId: 1, ...ON_SHELF });
     fireEvent.pointerUp(svg, { pointerId: 1, clientX: ON_SHELF.clientX + 2, clientY: ON_SHELF.clientY + 1 });
 
     expect(onStrip).not.toHaveBeenCalled();
@@ -626,7 +650,7 @@ describe("the stripper belongs to the pointer that picked it up", () => {
     const { svg, onStrip } = benchViewAt();
 
     dragStripper(svg, "correct", standingAt("A", 20));
-    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 3, ...ON_SHELF });
+    takeToStrip("correct", { pointerId: 3, ...ON_SHELF });
     fireEvent.pointerMove(svg, { pointerId: 3, ...standingAt("A", 25) });
     fireEvent.pointerUp(svg, { pointerId: 3, ...standingAt("A", 25) });
 

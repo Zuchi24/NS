@@ -802,6 +802,8 @@ describe("on the whole bench", () => {
 
     const overA = { clientX: LAYOUT.A.x0 + LAYOUT.A.dir * 20, clientY: CY };
     const crimpHere = () => {
+      // The crimper comes off the shelf to crimp once Crimp is chosen in the toolbar.
+      fireEvent.click(toolButton("Crimp"));
       fireEvent.pointerDown(screen.getByTestId("take-crimper"), { pointerId: 1, clientX: CRIMPER_SHELF_X, clientY: SHELF_TOP + 28 });
       fireEvent.pointerMove(svg, { pointerId: 1, ...overA });
       fireEvent.pointerUp(svg, { pointerId: 1, ...overA });

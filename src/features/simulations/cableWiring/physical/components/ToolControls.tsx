@@ -82,7 +82,7 @@ export function ToolControls({ tool, endId, end, connections, scenario, assist, 
       return (
         <Row>
           <fieldset className="flex items-center gap-3 text-sm">
-            <legend className="sr-only">Stripper slot</legend>
+            <legend className="sr-only">Crimper stripping slot</legend>
             {(
               [
                 ["correct", "UTP slot (Cat5e/6)"],

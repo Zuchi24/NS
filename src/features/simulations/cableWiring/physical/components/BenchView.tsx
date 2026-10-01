@@ -20,17 +20,17 @@ import { useUntwistGesture } from "../gestures/useUntwistGesture";
 import { cutXAt } from "../jacketCutGeometry";
 import { panelClaims, resolveMarkers } from "../markers";
 import type { MarkerClaim } from "../markers";
+import { crimperOperationFor } from "../crimperOperation";
 import { CONDUCTOR_LABEL, PAIR_LABEL, jacketWords } from "../messages";
 import { pairOrderOf } from "../pairGeometry";
 import { PLUG_GRIP, PLUG_HALF, plugFrontXAt, plugGrip, plugRearXAt } from "../plugGeometry";
-import { CableCutterShelfTool, CableCutters } from "./CableCutterTool";
-import { Crimper, CrimperShelfTool } from "./CrimperTool";
-import { CutterShelfTool, Cutters } from "./CutterTool";
+import type { ToolId } from "../tools";
+import { Crimper, CrimperCutting, CrimperShelfTool, CrimperStripping } from "./CrimperTool";
 import { EndDetail } from "./EndDetail";
 import type { ConductorLift, Marker, PairPull } from "./EndDetail";
 import { PlugFlip, PlugGlyph, PlugSeat, PlugShelfTool } from "./PlugTool";
 import { PortLayer } from "./PortLayer";
-import { Stripper, StripperTools } from "./StripperTools";
+import { ToolShelf } from "./ToolShelf";
 
 /**
  * The workbench: a cutting mat with the cable lying across it, end A on the
@@ -42,8 +42,16 @@ import { Stripper, StripperTools } from "./StripperTools";
  * cable between them is not to scale, and is drawn broken with its length
  * written on it.
  *
- * R1: the mat is also an input surface. A stripper can be taken off the shelf
- * and dragged onto either end, and where it comes to rest is both which end it
+ * The shelf holds one hand tool, the RJ45 crimper, beside the plugs. Cutting
+ * the cable (R5), stripping (R1), trimming (R4) and crimping are all done with
+ * it: which of them taking it starts is the operation chosen in the toolbar
+ * (see crimperOperation). Each is still its own gesture, below, sending its
+ * own action; "the stripper" and "the cutters" there are the crimper doing
+ * that job.
+ *
+ * R1: the mat is also an input surface. The crimper's stripping blade can be
+ * taken off the shelf and dragged onto either end, and where it comes to rest
+ * is both which end it
  * works on and how much jacket it takes. While it is on the cable the bench
  * asks the model whether that strip would be accepted and colours the gesture
  * by the answer; the model decides for real when the tool is let go.
@@ -121,6 +129,14 @@ interface Props {
   onConnect?: (end: EndId, endpoint: EndpointId) => void;
   /** Send a plug the student pulled out of its port. The model still decides. */
   onDisconnect?: (end: EndId) => void;
+  /**
+   * The operation chosen in the toolbar, which decides what the one crimper on
+   * the shelf does when it is taken: cut the cable, strip, trim or crimp (see
+   * crimperOperation). Without it the crimper is taken to crimp.
+   */
+  operation?: ToolId;
+  /** The stripping slot chosen in the strip controls: the opening the crimper strips through. */
+  stripSlot?: StripSlot;
 }
 
 /** What a bench with no way to send an insert does with one: nothing, and it never offers one. */
@@ -163,6 +179,8 @@ export function BenchView({
   onCrimp,
   onConnect,
   onDisconnect,
+  operation = "crimp",
+  stripSlot = "correct",
 }: Props) {
   const length = jacketedLengthMm(cable, scenario);
   const { scale } = benchScale(cable);
@@ -211,6 +229,32 @@ export function BenchView({
   });
 
   const crimp = useCrimpGesture({ scale, surface, onCommit: onCrimp ?? NO_CRIMP });
+
+  // The one crimper on the shelf. Taking it starts the gesture for whichever
+  // of its jobs the toolbar has chosen — the cable cut, the strip, the trim or
+  // the crimp — each the same gesture, sending the same action, it always was.
+  // The choice is authoritative: where the crimper is put down never turns
+  // one job into another. It is one tool, so while it is out in one of those
+  // roles it cannot be taken off the shelf for another; reaching for it in the
+  // role it is already out in is left to that gesture, exactly as before.
+  const chosen = crimperOperationFor(operation);
+  const crimperOperation = chosen === "crimp" && !onCrimp ? null : chosen;
+  const crimperOutAs =
+    drag !== null ? "strip" : trim.cutters !== null ? "trim" : cut.cutters !== null ? "cut" : crimp.crimper !== null ? "crimp" : null;
+  const crimperOut = crimperOutAs !== null;
+  const takeCrimper = (event: ReactPointerEvent) => {
+    if (crimperOperation === null || (crimperOutAs !== null && crimperOutAs !== crimperOperation)) {
+      // Nothing to take, or nothing the crimper does here: the press is
+      // still the shelf's, never a hand on the cable behind it.
+      event.stopPropagation();
+      event.preventDefault();
+      return;
+    }
+    if (crimperOperation === "cut") cut.takeCutters(event);
+    else if (crimperOperation === "trim") trim.takeCutters(event);
+    else if (crimperOperation === "strip") takeTool(stripSlot)(event);
+    else crimp.takeCrimper(event);
+  };
 
   // Carrying a plug's lead to a port, and pulling a plug out of one. Neither
   // starts while a hand is already busy on the cable.
@@ -636,11 +680,9 @@ export function BenchView({
         ))}
       </g>
 
-      <StripperTools onTake={takeTool} held={drag?.slot ?? null} />
-      <CutterShelfTool onTake={trim.takeCutters} lifted={trim.cutters !== null} />
-      <CableCutterShelfTool onTake={cut.takeCutters} lifted={cut.cutters !== null} />
+      <ToolShelf />
+      <CrimperShelfTool onTake={takeCrimper} lifted={crimperOut} operation={crimperOperation} />
       {onInsert && <PlugShelfTool onTake={insert.takePlug} count={cable.tray.plugs} lifted={insert.plug !== null} />}
-      {onCrimp && <CrimperShelfTool onTake={crimp.takeCrimper} lifted={crimp.crimper !== null} />}
 
       {/* The crimper, in hand or standing on an end. It crimps when it is
           squeezed, and not before. */}
@@ -711,8 +753,8 @@ export function BenchView({
           style={{ cursor: trim.cutters.held ? "grabbing" : "pointer" }}
           onPointerDown={trim.pressCutters}
         >
-          {trim.target !== null && <title>Squeeze the cutters to cut here</title>}
-          <Cutters
+          {trim.target !== null && <title>Squeeze the crimper to trim here</title>}
+          <CrimperCutting
             cx={trim.target === null ? trim.cutters.at.x : bladeXAt(trim.target.leaveMm, trim.target.end, scale)}
             cy={trim.cutters.at.y}
             dir={trim.target === null ? 1 : LAYOUT[trim.target.end].dir}
@@ -734,7 +776,7 @@ export function BenchView({
               </text>
               {!cutRefused && (
                 <text textAnchor="middle" y={8} fontSize={8} fill="#94A3B8">
-                  {trim.cutters.held ? "let go to stand them here" : "click to cut"}
+                  {trim.cutters.held ? "let go to stand it here" : "click to cut"}
                 </text>
               )}
             </g>
@@ -758,8 +800,8 @@ export function BenchView({
           style={{ cursor: cut.cutters.held ? "grabbing" : "pointer" }}
           onPointerDown={cut.pressCutters}
         >
-          {cut.target !== null && <title>Squeeze the cable cutters to cut here</title>}
-          <CableCutters
+          {cut.target !== null && <title>Squeeze the crimper to cut the cable here</title>}
+          <CrimperCutting
             cx={
               cut.target === null
                 ? cut.cutters.at.x
@@ -801,7 +843,7 @@ export function BenchView({
               </text>
               {!jacketRefused && (
                 <text textAnchor="middle" y={8} fontSize={8} fill="#94A3B8">
-                  {cut.cutters.held ? "let go to stand them here" : "click to cut"}
+                  {cut.cutters.held ? "let go to stand it here" : "click to cut"}
                 </text>
               )}
             </g>
@@ -1046,7 +1088,7 @@ export function BenchView({
           pointerEvents="none"
         >
           {target !== null && <MinWorkTick end={target} scale={scale} />}
-          <Stripper slot={drag.slot} cx={drag.at.x + 14} cy={drag.at.y} />
+          <CrimperStripping slot={drag.slot} cx={drag.at.x + 14} cy={drag.at.y} />
           {target !== null && (
             <g transform={`translate(${drag.at.x + 14} ${drag.at.y - 34})`}>
               <rect

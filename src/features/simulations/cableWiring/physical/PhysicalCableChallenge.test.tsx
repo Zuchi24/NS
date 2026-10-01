@@ -454,6 +454,8 @@ describe("physical actions", () => {
     const shelf = { clientX: CRIMPER_SHELF_X, clientY: SHELF_TOP + 28 };
     const overA = { clientX: LAYOUT.A.x0 + LAYOUT.A.dir * 20, clientY: CY };
 
+    // The crimper comes off the shelf to crimp once Crimp is chosen in the toolbar.
+    tool("Crimp");
     fireEvent.pointerDown(screen.getByTestId("take-crimper"), { pointerId: 1, ...shelf });
     fireEvent.pointerMove(svg, { pointerId: 1, ...overA });
     fireEvent.pointerUp(svg, { pointerId: 1, ...overA });

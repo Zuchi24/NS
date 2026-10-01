@@ -49,6 +49,11 @@ export const TesterPanel = memo(function TesterPanel({ cable, scenario, beginner
         </button>
       </div>
 
+      {/* The tester itself, a MAIN unit and a REMOTE unit. A picture only: the readout below is the model's. */}
+      <div className="mb-2 rounded-md bg-slate-800 px-2 py-1.5">
+        <TesterIllustration />
+      </div>
+
       <dl className="mb-2 grid grid-cols-2 gap-1 text-xs">
         <div className="rounded bg-slate-800 px-2 py-1">
           <dt className="text-slate-400">MAIN</dt>
@@ -170,6 +175,82 @@ function Report({ report, mainEnd, beginner }: { report: ElectricalReport; mainE
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * A handheld RJ45 cable tester as it sits on the bench: the MAIN unit, with
+ * its power switch, and the REMOTE unit that plugs onto the far end, each a
+ * cream case with a green face and a row of pin lights, and an RJ45 jack.
+ * Its lights are drawn dark; what they read is the readout below, not this.
+ */
+function TesterIllustration() {
+  const body = "#ECE8DC";
+  const bodyEdge = "#C9C2AE";
+  const face = "#1F6B45";
+  const ink = "#E8F3EC";
+  const led = "#4A1F1F";
+  const pins = ["1", "2", "3", "4", "5", "6", "7", "8", "G"];
+
+  return (
+    <svg
+      viewBox="0 0 200 112"
+      role="img"
+      aria-label="Network cable tester: a MAIN unit and a REMOTE unit, each with a row of pin lights and an RJ45 jack"
+      data-testid="tester-illustration"
+      className="mx-auto block h-auto w-full max-w-[14rem]"
+    >
+      {/* ---- MAIN unit ---- */}
+      {/* its RJ45 jack, on the top edge */}
+      <rect x={48} y={1} width={22} height={8} rx={1.5} fill="#2B2F33" />
+      <rect x={51} y={3} width={16} height={4} rx={0.8} fill="#111418" />
+      <rect x={6} y={6} width={106} height={102} rx={11} fill={body} stroke={bodyEdge} strokeWidth={1.2} />
+      <rect x={16} y={15} width={86} height={62} rx={4} fill={face} />
+      <text x={22} y={26} fontSize={7} fontWeight={700} fill={ink} letterSpacing="0.06em">
+        CABLE TESTER
+      </text>
+      <text x={96} y={26} fontSize={5.5} fill={ink} textAnchor="end">
+        RJ45
+      </text>
+      {pins.map((pin, index) => (
+        <g key={pin} transform={`translate(${24 + index * 9} 44)`}>
+          <circle r={2.4} fill={led} stroke="#7A3A3A" strokeWidth={0.4} />
+          <text y={9} fontSize={5} fill={ink} textAnchor="middle">
+            {pin}
+          </text>
+        </g>
+      ))}
+      <text x={59} y={71} fontSize={6.5} fontWeight={700} fill={ink} textAnchor="middle" letterSpacing="0.08em">
+        MAIN
+      </text>
+      {/* the power switch, OFF · ON · S(low) */}
+      <rect x={20} y={85} width={26} height={11} rx={5.5} fill="#F8F6EF" stroke={bodyEdge} strokeWidth={0.8} />
+      <rect x={23} y={87} width={9} height={7} rx={2} fill="#B9B2A0" />
+      <text x={50} y={93} fontSize={5} fill="#6B6656">
+        OFF · ON · S
+      </text>
+
+      {/* ---- REMOTE unit ---- */}
+      <rect x={128} y={10} width={64} height={98} rx={9} fill={body} stroke={bodyEdge} strokeWidth={1.2} />
+      <rect x={136} y={18} width={48} height={60} rx={4} fill={face} />
+      <text x={160} y={28} fontSize={6.5} fontWeight={700} fill={ink} textAnchor="middle" letterSpacing="0.08em">
+        REMOTE
+      </text>
+      {pins.map((pin, index) => (
+        <g key={pin} transform={`translate(${153} ${35 + index * 4.9})`}>
+          <circle r={1.7} fill={led} stroke="#7A3A3A" strokeWidth={0.3} />
+          <text x={5} y={1.8} fontSize={4.5} fill={ink}>
+            {pin}
+          </text>
+        </g>
+      ))}
+      {/* its RJ45 jack, at the foot of the case */}
+      <rect x={149} y={86} width={22} height={15} rx={2} fill="#2B2F33" />
+      <rect x={152} y={89} width={16} height={9} rx={1} fill="#111418" />
+      {[0, 1, 2, 3, 4, 5, 6, 7].map((contact) => (
+        <line key={contact} x1={153.5 + contact * 1.9} x2={153.5 + contact * 1.9} y1={89.5} y2={92} stroke="#E0B23C" strokeWidth={0.6} />
+      ))}
+    </svg>
   );
 }
 

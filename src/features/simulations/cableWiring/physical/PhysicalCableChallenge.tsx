@@ -228,6 +228,8 @@ export function PhysicalCableChallenge({
                 selectedEnd={selectedEnd}
                 onSelectEnd={selectEnd}
                 markers={markers}
+                operation={tool}
+                stripSlot={controls.slot}
                 onPairClick={
                   tool === "untwist" ? (id: EndId, pair: PairId) => bench.act({ type: "untwist", end: id, pair }) : undefined
                 }

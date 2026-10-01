@@ -8,6 +8,7 @@ import type { Action, CableState, EndId, PairId } from "../../model";
 import { PhysicalCableChallenge } from "../PhysicalCableChallenge";
 import { CY, HEIGHT, WIDTH, benchScale } from "../benchGeometry";
 import { BenchView } from "../components/BenchView";
+import { CRIMPER_SHELF_X } from "../components/CrimperTool";
 import { PAIR_RELEASE, pairRegions } from "../pairGeometry";
 import { PRACTICE_BENCH } from "../setup";
 
@@ -449,9 +450,10 @@ describe("the other ways in still work", () => {
 
   it("leaves the stripper's own gesture alone", () => {
     const svg = benchAt();
-    const tool = screen.getByTestId("take-correct");
+    // Strip is the toolbar's starting choice, so the crimper comes off the shelf to strip.
+    const tool = screen.getByTestId("take-crimper");
 
-    fireEvent.pointerDown(tool, { pointerId: 1, clientX: 450, clientY: 260 });
+    fireEvent.pointerDown(tool, { pointerId: 1, clientX: CRIMPER_SHELF_X, clientY: 260 });
     fireEvent.pointerMove(svg, { pointerId: 1, clientX: 300, clientY: CY });
     fireEvent.pointerUp(svg, { pointerId: 1, clientX: 300, clientY: CY });
 

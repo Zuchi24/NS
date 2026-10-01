@@ -8,7 +8,7 @@ import type { Action, CableState, EndId } from "../../model";
 import { PhysicalCableChallenge } from "../PhysicalCableChallenge";
 import { CY, HEIGHT, LAYOUT, SHELF_TOP, WIDTH, benchScale } from "../benchGeometry";
 import { BenchView } from "../components/BenchView";
-import { CUTTER_SHELF_X } from "../components/CutterTool";
+import { CRIMPER_SHELF_X } from "../components/CrimperTool";
 import { PRACTICE_BENCH } from "../setup";
 
 /**
@@ -82,6 +82,18 @@ const exposedOf = (end: EndId) => Number(screen.getByTestId(`end-${end}`).getAtt
  *  so what matters is whether a *trim* line is on the bench. */
 const cutLine = () =>
   screen.queryAllByTestId("tool-marker").find((shown) => shown.getAttribute("data-kind") === "trim") ?? null;
+/** Every preview line on the bench, as drawn. */
+const markersNow = () => screen.queryAllByTestId("tool-marker").map((shown) => shown.outerHTML);
+/**
+ * Choose Trim in the toolbar, and return the line the panel itself then draws:
+ * the crimper, wherever it stands, must add nothing to it unless it stands on
+ * conductor.
+ */
+function choosingTrim() {
+  fireEvent.click(toolButton("Trim"));
+
+  return markersNow();
+}
 
 const toolButton = (label: string) =>
   screen.getByRole("button", { name: new RegExp(`^${label}( \\(suggested\\))?$`), hidden: true });
@@ -115,15 +127,25 @@ function standingAt(cable: CableState, end: EndId, leaveMm: number, clientY: num
   return { clientX: x0 + dir * leaveMm * benchScale(cable).scale, clientY };
 }
 
-const ON_SHELF = { clientX: CUTTER_SHELF_X, clientY: SHELF_TOP + 28 };
+const ON_SHELF = { clientX: CRIMPER_SHELF_X, clientY: SHELF_TOP + 28 };
 
-/** Take the cutters off the shelf and stand them somewhere. */
+/**
+ * Take the crimper off the shelf for one of its jobs. On the whole page the
+ * job is chosen in the toolbar first; the bench drawing on its own is told it.
+ */
+function takeCrimper(job: "Trim" | "Strip", init: { pointerId: number; clientX: number; clientY: number }) {
+  const button = screen.queryByRole("button", { name: new RegExp(`^${job}( \\(suggested\\))?$`), hidden: true });
+  if (button !== null && button.getAttribute("aria-pressed") !== "true") fireEvent.click(button);
+  fireEvent.pointerDown(screen.getByTestId("take-crimper"), init);
+}
+
+/** Take the crimper off the shelf to trim, and stand it somewhere. */
 function placeCutters(
   svg: Element,
   to: { clientX: number; clientY: number },
   { release = true, steps = 2 } = {},
 ) {
-  fireEvent.pointerDown(screen.getByTestId("take-cutters"), { pointerId: 1, ...ON_SHELF });
+  takeCrimper("Trim", { pointerId: 1, ...ON_SHELF });
 
   for (let step = 1; step <= steps; step++) {
     fireEvent.pointerMove(svg, {
@@ -160,7 +182,7 @@ function squeeze(svg: Element, at = { clientX: 0, clientY: 0 }) {
 function benchViewAt(cable: CableState) {
   const spies = { onTrim: vi.fn(), onCut: vi.fn(), onStrip: vi.fn(), onUntwist: vi.fn(), onArrange: vi.fn(), onSelectEnd: vi.fn() };
   const view = (next: CableState) => (
-    <BenchView cable={next} scenario={S1_PRACTICE} selectedEnd="A" markers={{ A: null, B: null }} {...spies} />
+    <BenchView cable={next} scenario={S1_PRACTICE} selectedEnd="A" markers={{ A: null, B: null }} operation="trim" {...spies} />
   );
   const { rerender } = render(view(cable));
   const svg = screen.getByRole("img", { name: /Workbench/ });
@@ -272,7 +294,7 @@ describe("standing the cutters on the conductors", () => {
     const { svg } = benchAt();
     strip("A");
 
-    fireEvent.pointerDown(screen.getByTestId("take-cutters"), { pointerId: 1, ...ON_SHELF });
+    takeCrimper("Trim", { pointerId: 1, ...ON_SHELF });
     fireEvent.pointerUp(svg, { pointerId: 1, clientX: ON_SHELF.clientX + 1, clientY: ON_SHELF.clientY + 1 });
 
     expect(cutters()).toBeNull();
@@ -284,11 +306,12 @@ describe("neutral space", () => {
     const { svg } = benchAt();
     strip("A");
 
+    const panel = choosingTrim();
     placeCutters(svg, { clientX: WIDTH / 2, clientY: CY }, { release: false });
 
     expect(cutters()!.getAttribute("data-end")).toBe("");
     expect(cutters()!.getAttribute("data-mm")).toBe("");
-    expect(cutLine()).toBeNull();
+    expect(markersNow()).toEqual(panel);
   });
 
   it("goes back on the shelf when let go with nothing under it", () => {
@@ -306,10 +329,11 @@ describe("neutral space", () => {
     const { svg } = benchAt();
     strip("A");
 
+    const panel = choosingTrim();
     placeCutters(svg, { clientX: WIDTH / 2, clientY: CY }, { release: false });
 
     expect(cutters()!.getAttribute("data-end")).toBe("");
-    expect(cutLine()).toBeNull();
+    expect(markersNow()).toEqual(panel);
   });
 });
 
@@ -529,7 +553,7 @@ describe("a squeeze is a press and a release on the cutters, never a click", () 
     const { svg, onTrim } = benchViewAt(cable);
 
     placeCutters(svg, standingAt(cable, "A", 14));
-    fireEvent.pointerDown(screen.getByTestId("take-cutters"), { pointerId: 1, ...ON_SHELF });
+    takeCrimper("Trim", { pointerId: 1, ...ON_SHELF });
     fireEvent.pointerUp(svg, { pointerId: 1, ...ON_SHELF });
 
     expect(onTrim).not.toHaveBeenCalled();
@@ -560,11 +584,12 @@ describe("putting the cutters down without cutting", () => {
     const { svg } = benchAt();
     strip("A");
 
+    const panel = choosingTrim();
     placeCutters(svg, standingAt(strippedA(), "A", 15), { release: false });
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect(cutters()).toBeNull();
-    expect(cutLine()).toBeNull();
+    expect(markersNow()).toEqual(panel);
     expect(exposedOf("A")).toBe(30);
   });
 
@@ -572,13 +597,14 @@ describe("putting the cutters down without cutting", () => {
     const { svg } = benchAt();
     strip("A");
 
+    const panel = choosingTrim();
     placeCutters(svg, standingAt(strippedA(), "A", 15));
     expect(cutters()).not.toBeNull();
 
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect(cutters()).toBeNull();
-    expect(cutLine()).toBeNull();
+    expect(markersNow()).toEqual(panel);
     expect(exposedOf("A")).toBe(30);
     expect(feedback()).not.toHaveTextContent(/Trimmed/);
   });
@@ -729,7 +755,7 @@ describe("the other ways in still work", () => {
   it("leaves the stripper's own gesture alone", () => {
     const { svg } = benchAt();
 
-    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 1, clientX: 450, clientY: SHELF_TOP + 30 });
+    takeCrimper("Strip", { pointerId: 1, ...ON_SHELF });
     fireEvent.pointerMove(svg, { pointerId: 1, clientX: LAYOUT.A.x0 + 100, clientY: CY });
     fireEvent.pointerUp(svg, { pointerId: 1, clientX: LAYOUT.A.x0 + 100, clientY: CY });
 

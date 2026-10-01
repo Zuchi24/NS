@@ -7,6 +7,7 @@ import { PAIR_IDS, S1_PRACTICE, apply, createInitialState } from "../../model";
 import type { Action, CableState, Conductor, EndId } from "../../model";
 import { PhysicalCableChallenge } from "../PhysicalCableChallenge";
 import { CY, HEIGHT, LAYOUT, SHELF_TOP, WIDTH, benchScale } from "../benchGeometry";
+import { CRIMPER_SHELF_X } from "../components/CrimperTool";
 import { LANE_COUNT, conductorRegions, laneY, liftedRow, rowBounds } from "../conductorGeometry";
 import { PRACTICE_BENCH } from "../setup";
 
@@ -578,7 +579,8 @@ describe("the other ways in still work", () => {
   it("leaves the stripper's own gesture alone", () => {
     const { svg } = benchAt();
 
-    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 1, clientX: 450, clientY: SHELF_TOP + 30 });
+    // Strip is the toolbar's starting choice, so the crimper comes off the shelf to strip.
+    fireEvent.pointerDown(screen.getByTestId("take-crimper"), { pointerId: 1, clientX: CRIMPER_SHELF_X, clientY: SHELF_TOP + 30 });
     fireEvent.pointerMove(svg, { pointerId: 1, clientX: LAYOUT.A.x0 + 100, clientY: CY });
     fireEvent.pointerUp(svg, { pointerId: 1, clientX: LAYOUT.A.x0 + 100, clientY: CY });
 

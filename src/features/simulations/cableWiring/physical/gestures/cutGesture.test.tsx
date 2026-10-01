@@ -8,8 +8,7 @@ import type { Action, CableState, EndId } from "../../model";
 import { PhysicalCableChallenge } from "../PhysicalCableChallenge";
 import { CY, HEIGHT, LAYOUT, SHELF_TOP, WIDTH, benchScale, jacketRun } from "../benchGeometry";
 import { BenchView } from "../components/BenchView";
-import { CABLE_CUTTER_SHELF_X } from "../components/CableCutterTool";
-import { CUTTER_SHELF_X } from "../components/CutterTool";
+import { CRIMPER_SHELF_X } from "../components/CrimperTool";
 import { jacketField } from "../jacketCutGeometry";
 import { PRACTICE_BENCH } from "../setup";
 import type { BenchSetup } from "../setup";
@@ -107,6 +106,7 @@ function benchViewAt(cable: CableState) {
       scenario={S1_PRACTICE}
       selectedEnd="A"
       markers={{ A: null, B: null }}
+      operation="cut"
       onCut={onCut}
       {...spies}
     />,
@@ -155,11 +155,21 @@ function standingAt(cable: CableState, end: EndId, backMm: number, clientY: numb
   return { clientX: x0 - dir * backMm * benchScale(cable).scale, clientY };
 }
 
-const ON_SHELF = { clientX: CABLE_CUTTER_SHELF_X, clientY: SHELF_TOP + 28 };
+const ON_SHELF = { clientX: CRIMPER_SHELF_X, clientY: SHELF_TOP + 28 };
 
-/** Take the cable cutters off the shelf and stand them somewhere. */
+/**
+ * Take the crimper off the shelf for one of its jobs. On the whole page the
+ * job is chosen in the toolbar first; the bench drawing on its own is told it.
+ */
+function takeCrimper(job: "Cut" | "Strip", init: { pointerId: number; clientX: number; clientY: number }) {
+  const button = screen.queryByRole("button", { name: new RegExp(`^${job}( \\(suggested\\))?$`), hidden: true });
+  if (button !== null && button.getAttribute("aria-pressed") !== "true") fireEvent.click(button);
+  fireEvent.pointerDown(screen.getByTestId("take-crimper"), init);
+}
+
+/** Take the crimper off the shelf to cut the cable, and stand it somewhere. */
 function placeCutters(svg: Element, to: { clientX: number; clientY: number }, { release = true, steps = 2 } = {}) {
-  fireEvent.pointerDown(screen.getByTestId("take-cable-cutters"), { pointerId: 1, ...ON_SHELF });
+  takeCrimper("Cut", { pointerId: 1, ...ON_SHELF });
 
   for (let step = 1; step <= steps; step++) {
     fireEvent.pointerMove(svg, {
@@ -273,7 +283,7 @@ describe("standing the cable cutters on the jacket", () => {
   it("goes back on the shelf when they are pressed and let go without travelling", () => {
     const { svg } = benchAt();
 
-    fireEvent.pointerDown(screen.getByTestId("take-cable-cutters"), { pointerId: 1, ...ON_SHELF });
+    takeCrimper("Cut", { pointerId: 1, ...ON_SHELF });
     fireEvent.pointerUp(svg, { pointerId: 1, ...ON_SHELF });
 
     expect(cutters()).toBeNull();
@@ -327,11 +337,15 @@ describe("the preview while they stand there", () => {
 
   it("says nothing at all while they are standing on no jacket", () => {
     const { svg } = benchAt();
+    // Choosing Cut puts the panel's own line on the selected end; the crimper
+    // standing on no jacket adds nothing to it.
+    fireEvent.click(toolButton("Cut"));
+    const before = screen.queryAllByTestId("tool-marker").map((shown) => shown.outerHTML);
 
     placeCutters(svg, { clientX: LAYOUT.A.x0, clientY: jacketField("A").y - 20 }, { release: false });
 
     expect(cutters()!.getAttribute("data-end")).toBe("");
-    expect(cutLine()).toBeNull();
+    expect(screen.queryAllByTestId("tool-marker").map((shown) => shown.outerHTML)).toEqual(before);
   });
 
   it("never speaks of a cut being right or wrong", () => {
@@ -556,7 +570,7 @@ describe("a squeeze is a press and a release on the cutters, never a click", () 
     const { svg, onCut } = benchViewAt(cable);
 
     placeCutters(svg, standingAt(cable, "A", 12));
-    fireEvent.pointerDown(screen.getByTestId("take-cable-cutters"), { pointerId: 1, ...ON_SHELF });
+    takeCrimper("Cut", { pointerId: 1, ...ON_SHELF });
     fireEvent.pointerUp(svg, { pointerId: 1, ...ON_SHELF });
 
     expect(onCut).not.toHaveBeenCalled();
@@ -923,19 +937,20 @@ describe("taking the cutters disturbs nothing else", () => {
     expect(onTrim).not.toHaveBeenCalled();
   });
 
-  it("leaves the flush cutters on their own shelf spot", () => {
+  it("cuts with the one crimper: there are no separate cutters or strippers on the shelf", () => {
     benchAt();
 
-    expect(screen.getByTestId("cutters-tool")).toBeInTheDocument();
-    expect(screen.getByTestId("cable-cutters-tool")).toBeInTheDocument();
-    expect(CABLE_CUTTER_SHELF_X).not.toBe(CUTTER_SHELF_X);
+    expect(screen.getAllByTestId("crimper-tool")).toHaveLength(1);
+    for (const gone of ["cutters-tool", "cable-cutters-tool", "take-cutters", "take-cable-cutters", "take-correct", "take-too-deep"]) {
+      expect(screen.queryByTestId(gone)).toBeNull();
+    }
   });
 
   it("leaves the strippers, pairs and conductors working", () => {
     const { svg } = benchAt();
 
-    // R1 still strips by dragging a stripper onto a jacket.
-    fireEvent.pointerDown(screen.getByTestId("take-correct"), { pointerId: 1, clientX: 450, clientY: SHELF_TOP + 28 });
+    // R1 still strips by dragging the crimper's stripping blade onto a jacket.
+    takeCrimper("Strip", { pointerId: 1, ...ON_SHELF });
     const to = standingAt(createInitialState(S1_PRACTICE), "A", 20);
     fireEvent.pointerMove(svg, { pointerId: 1, ...to });
     fireEvent.pointerUp(svg, { pointerId: 1, ...to });
@@ -950,17 +965,14 @@ describe("which preview an end shows", () => {
     const { svg } = benchAt();
     const cable = createInitialState(S1_PRACTICE);
 
-    // The panel marks the selected end with the tool that is out.
     selectEnd("A");
-    fireEvent.click(toolButton("Strip"));
-    const panelLine = screen
-      .queryAllByTestId("tool-marker")
-      .filter((shown) => shown.getAttribute("data-kind") === "strip");
-    expect(panelLine).not.toHaveLength(0);
-
     placeCutters(svg, standingAt(cable, "A", 15));
 
-    // One line on end A, and it is the cutters'.
+    // The panel marks the selected end with the tool chosen there — Strip, now
+    // the crimper is standing on the jacket to cut.
+    fireEvent.click(toolButton("Strip"));
+
+    // One line on end A, and it is the crimper's cut.
     const onA = screen.queryAllByTestId("tool-marker").map((shown) => shown.getAttribute("data-kind"));
     expect(onA).toContain("cut");
     expect(onA).not.toContain("strip");
@@ -970,8 +982,8 @@ describe("which preview an end shows", () => {
     const { svg } = benchAt();
 
     selectEnd("A");
-    fireEvent.click(toolButton("Strip"));
     placeCutters(svg, standingAt(createInitialState(S1_PRACTICE), "A", 15));
+    fireEvent.click(toolButton("Strip"));
     fireEvent.keyDown(window, { key: "Escape" });
 
     const kinds = screen.queryAllByTestId("tool-marker").map((shown) => shown.getAttribute("data-kind"));

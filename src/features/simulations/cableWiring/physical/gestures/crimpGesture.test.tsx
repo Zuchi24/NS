@@ -137,13 +137,24 @@ const crimper = () => screen.queryByTestId("crimper");
 const endGroup = (end: EndId) => screen.getByTestId(`end-${end}`);
 const feedback = () => screen.getByTestId("feedback");
 
+/**
+ * Take the crimper off the shelf to crimp. On the whole page that is Crimp in
+ * the toolbar first; the bench drawing on its own takes it to crimp unless told
+ * otherwise.
+ */
+function takeCrimper(init: { pointerId: number; clientX: number; clientY: number }) {
+  const button = screen.queryByRole("button", { name: /^Crimp( \(suggested\))?$/, hidden: true });
+  if (button !== null && button.getAttribute("aria-pressed") !== "true") fireEvent.click(button);
+  fireEvent.pointerDown(screen.getByTestId("take-crimper"), init);
+}
+
 /** Take the crimper off the shelf and carry it somewhere, optionally putting it down there. */
 function placeCrimper(
   svg: Element,
   to: { clientX: number; clientY: number },
   { release = true, steps = 2, pointerId = 1, via = [] as { clientX: number; clientY: number }[] } = {},
 ) {
-  fireEvent.pointerDown(screen.getByTestId("take-crimper"), { pointerId, ...ON_SHELF });
+  takeCrimper({ pointerId, ...ON_SHELF });
 
   const path = [...via, to];
   let from = ON_SHELF;
@@ -238,7 +249,7 @@ describe("taking the crimper off the shelf", () => {
 
     expect(crimper()).toBeNull();
 
-    fireEvent.pointerDown(screen.getByTestId("take-crimper"), { pointerId: 1, ...ON_SHELF });
+    takeCrimper({ pointerId: 1, ...ON_SHELF });
     fireEvent.pointerUp(svg, { pointerId: 1, ...ON_SHELF });
     fireEvent.click(svg);
 
@@ -276,7 +287,7 @@ describe("taking the crimper off the shelf", () => {
     expect(onArrange).not.toHaveBeenCalled();
   });
 
-  it("is not offered on a bench that has no way to send a crimp", () => {
+  it("does not crimp on a bench that has no way to send a crimp, though it is still on the shelf", () => {
     render(
       <BenchView
         cable={pluggedA()}
@@ -292,7 +303,11 @@ describe("taking the crimper off the shelf", () => {
       />,
     );
 
-    expect(screen.queryByTestId("take-crimper")).toBeNull();
+    // It is the bench's one hand tool, so it is still there to cut and strip
+    // with; there is simply nothing for it to crimp.
+    expect(screen.getByTestId("crimper-tool").getAttribute("data-operation")).toBe("");
+    fireEvent.pointerDown(screen.getByTestId("take-crimper"), { pointerId: 1, ...ON_SHELF });
+    expect(crimper()).toBeNull();
   });
 });
 
@@ -506,7 +521,7 @@ describe("the crimper belongs to the pointer that took hold of it", () => {
     const { svg, onCrimp } = benchViewAt(cable);
 
     placeCrimper(svg, overEnd("A"), { release: false });
-    fireEvent.pointerDown(screen.getByTestId("take-crimper"), { pointerId: 2, ...ON_SHELF });
+    takeCrimper({ pointerId: 2, ...ON_SHELF });
     fireEvent.pointerMove(svg, { pointerId: 2, ...overEnd("B") });
 
     expect(crimper()!.getAttribute("data-end")).toBe("A");
@@ -645,6 +660,20 @@ describe("the model's refusals, surfaced as the model's own", () => {
 
     placeCrimper(svg, overEnd("A"));
     squeeze(svg);
+
+    expect(feedback()).toHaveTextContent(rejectionMessage(FULL("A"), answer.rejected, cable));
+    expect(feedback().getAttribute("data-tone")).toBe("refused");
+    expect(endGroup("A")).toHaveAttribute("data-plug", "none");
+  });
+
+  it("an end with no plug on it, asked through the precise controls: the model's own refusal", () => {
+    benchAt();
+    const cable = createInitialState(OPEN_SCENARIO);
+    const answer = apply(cable, FULL("A"), OPEN_SCENARIO);
+    if (!("rejected" in answer)) throw new Error("model crimped a raw end");
+
+    fireEvent.click(toolButton("Crimp"));
+    fireEvent.click(screen.getByRole("button", { name: "Squeeze fully", hidden: true }));
 
     expect(feedback()).toHaveTextContent(rejectionMessage(FULL("A"), answer.rejected, cable));
     expect(feedback().getAttribute("data-tone")).toBe("refused");
