@@ -97,6 +97,7 @@ interface ApiUser {
   full_name: string;
   email: string;
   email_verified?: boolean;
+  avatar_url?: string | null;
   role: Role;
   created_at: string | null;
   section_id: number | null;
@@ -121,11 +122,13 @@ function toUser(user: ApiUser): User {
     name: user.full_name,
     firstName: user.first_name,
     lastName: user.last_name,
+    extendedName: user.extended_name ?? null,
     studentId: user.student_id,
     email: user.email,
     emailVerified: user.email_verified,
     role: user.role,
     joinedAt: user.created_at ?? null,
+    avatarUrl: user.avatar_url ?? null,
     section: user.section
       ? {
           id: user.section.id,

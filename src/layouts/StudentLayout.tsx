@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/components/ui/utils";
 import { useAuth } from "@/features/auth/useAuth";
+import { ProfileAvatar } from "@/features/profile/ProfileAvatar";
 import { BrandLogo } from "@/components/common/BrandLogo";
 
 /**
@@ -291,9 +292,14 @@ export function StudentLayout() {
                   {user?.role ?? "student"}
                 </div>
               </div>
-              <div className="w-9 h-9 bg-brand-teal-dark rounded-full flex items-center justify-center shrink-0">
-                <User className="w-5 h-5 text-white" />
-              </div>
+              {/* The student's picture, or the plain person icon without one. */}
+              <ProfileAvatar
+                avatarUrl={user?.avatarUrl}
+                alt="Your profile photo"
+                className="w-9 h-9"
+                fallbackClassName="bg-brand-teal-dark"
+                fallback={<User className="w-5 h-5 text-white" />}
+              />
             </Link>
           </div>
         </header>

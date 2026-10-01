@@ -12,6 +12,8 @@ export interface User {
   name: string;
   firstName: string;
   lastName: string;
+  /** A suffix such as "Jr." or "III", or null for none. */
+  extendedName?: string | null;
   studentId: string | null;
   email: string;
   /** Whether the server has accepted the account's email address. */
@@ -22,6 +24,13 @@ export interface User {
    * person — there is no birth date, and none is invented for the profile.
    */
   joinedAt: string | null;
+  /**
+   * Where the account's own picture is fetched from, or null for none. An API
+   * address, not an image anyone can load: it answers only with a bearer
+   * token, so it is read through useAvatar rather than put in an `<img>`.
+   * Optional because a user cached before pictures existed has no such field.
+   */
+  avatarUrl?: string | null;
   /** Null for admins, and for students not yet placed in a section. */
   section: Section | null;
 }
