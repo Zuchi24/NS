@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  MATERIAL_DESCRIPTION_MAX,
   createMaterial,
   openMaterial,
   readableSize,
@@ -130,6 +131,26 @@ describe("validateDraft", () => {
     const errors = validateDraft(draft({ title: "   " }), { isNew: true });
 
     expect(errors.title).toBeDefined();
+  });
+
+  // The server's own limit on a material's description — not the 280 a
+  // topic's overview is held to.
+  it("accepts a description of exactly the limit", () => {
+    const description = "a".repeat(MATERIAL_DESCRIPTION_MAX);
+
+    expect(MATERIAL_DESCRIPTION_MAX).toBe(2000);
+    expect(validateDraft(draft({ description }), { isNew: true })).toEqual({});
+  });
+
+  it("refuses a description one character over the limit", () => {
+    const errors = validateDraft(
+      draft({ description: "a".repeat(MATERIAL_DESCRIPTION_MAX + 1) }),
+      { isNew: true },
+    );
+
+    expect(errors.description).toBe(
+      "Keep the description to 2000 characters or fewer.",
+    );
   });
 
   it("requires an address for a link", () => {

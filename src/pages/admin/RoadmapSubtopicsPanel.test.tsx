@@ -1,8 +1,17 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 
 import { RoadmapTopicsPanel } from "./RoadmapTopicsPanel";
 import { ApiError } from "@/services/api";
@@ -43,10 +52,27 @@ vi.mock("@/features/content/topicService", async (importOriginal) => {
   };
 });
 
+/**
+ * The count each mounted materials panel would report, by the row it is for.
+ * The stub renders nothing extra, so this is how a test plays the panel
+ * telling its row how many materials it now holds.
+ */
+const countReporters = vi.hoisted(
+  () => new Map<number, (count: number) => void>(),
+);
+
 vi.mock("./TopicMaterialsPanel", () => ({
-  TopicMaterialsPanel: ({ topicId }: { topicId: number }) => (
-    <div data-testid="materials-panel">Materials for {topicId}</div>
-  ),
+  TopicMaterialsPanel: ({
+    topicId,
+    onCountChange,
+  }: {
+    topicId: number;
+    onCountChange?: (count: number) => void;
+  }) => {
+    if (onCountChange) countReporters.set(topicId, onCountChange);
+
+    return <div data-testid="materials-panel">Materials for {topicId}</div>;
+  },
 }));
 
 // Stubbed like the materials panel: it fetches and navigates on its own, and
@@ -140,6 +166,7 @@ function cardFor(title: string): HTMLElement {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  countReporters.clear();
 });
 
 afterEach(cleanup);
@@ -395,6 +422,299 @@ describe("adding a subtopic", () => {
     expect(materials.createMaterial).not.toHaveBeenCalled();
     // The dialog stays open on the refusal, still holding what was staged.
     expect(screen.getByTestId("subtopic-add-material-list")).toBeInTheDocument();
+  });
+
+  /*
+   * Staging a section's materials
+   *
+   * The same staging the Add Topic dialog has, held to the same promises: kept
+   * in the browser until the section exists, sent one at a time in the order
+   * written, and never past a material still being written.
+   */
+
+  const stored = {} as Awaited<ReturnType<typeof materials.createMaterial>>;
+
+  async function openAddSubtopic(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(
+      screen.getByRole("button", { name: /add subtopic to Networking/i }),
+    );
+  }
+
+  function addForm() {
+    return screen.getByRole("form", { name: /add subtopic/i });
+  }
+
+  function materialsGroup() {
+    return screen.getByRole("group", { name: /learning materials/i });
+  }
+
+  async function stageMaterial(
+    user: ReturnType<typeof userEvent.setup>,
+    { title, url }: { title: string; url: string },
+  ) {
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /add material/i }),
+    );
+    await user.type(within(materialsGroup()).getByLabelText(/^title$/i), title);
+    await user.type(within(materialsGroup()).getByLabelText(/web address/i), url);
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /add to list/i }),
+    );
+  }
+
+  function stagedRows() {
+    return within(screen.getByTestId("subtopic-add-material-list")).getAllByRole(
+      "listitem",
+    );
+  }
+
+  it("stages several, in the order they were written, without sending them", async () => {
+    const user = userEvent.setup();
+
+    renderWith([withSections]);
+    await openAddSubtopic(user);
+    await stageMaterial(user, { title: "First", url: "https://example.com/1" });
+    await stageMaterial(user, { title: "Second", url: "https://example.com/2" });
+
+    const rows = stagedRows();
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("1. First");
+    expect(rows[1]).toHaveTextContent("2. Second");
+    expect(service.createSubtopic).not.toHaveBeenCalled();
+    expect(materials.createMaterial).not.toHaveBeenCalled();
+  });
+
+  it("edits a staged material in place", async () => {
+    const user = userEvent.setup();
+
+    renderWith([withSections]);
+    await openAddSubtopic(user);
+    await stageMaterial(user, { title: "Typo", url: "https://example.com/a" });
+
+    await user.click(screen.getByRole("button", { name: /edit Typo/i }));
+
+    const title = within(materialsGroup()).getByLabelText(/^title$/i);
+    await user.clear(title);
+    await user.type(title, "Fixed");
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /save material/i }),
+    );
+
+    expect(stagedRows()).toHaveLength(1);
+    expect(stagedRows()[0]).toHaveTextContent("1. Fixed");
+  });
+
+  it("removes a staged material", async () => {
+    const user = userEvent.setup();
+
+    renderWith([withSections]);
+    await openAddSubtopic(user);
+    await stageMaterial(user, { title: "Keep", url: "https://example.com/1" });
+    await stageMaterial(user, { title: "Drop", url: "https://example.com/2" });
+
+    await user.click(screen.getByRole("button", { name: /remove Drop/i }));
+
+    expect(stagedRows()).toHaveLength(1);
+    expect(stagedRows()[0]).toHaveTextContent("1. Keep");
+  });
+
+  it("forgets what was staged when the dialog is cancelled, and sends nothing", async () => {
+    const user = userEvent.setup();
+
+    renderWith([withSections]);
+    await openAddSubtopic(user);
+    await stageMaterial(user, { title: "Abandoned", url: "https://example.com/x" });
+
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: /cancel/i }),
+    );
+    await openAddSubtopic(user);
+
+    expect(
+      screen.queryByTestId("subtopic-add-material-list"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(materialsGroup()).queryByLabelText(/^title$/i),
+    ).not.toBeInTheDocument();
+    expect(service.createSubtopic).not.toHaveBeenCalled();
+    expect(materials.createMaterial).not.toHaveBeenCalled();
+  });
+
+  it("creates the section first, then sends its materials in order", async () => {
+    const user = userEvent.setup();
+    const created = { ...withSections, id: 99, parentId: withSections.id };
+
+    vi.mocked(service.createSubtopic).mockResolvedValue(created);
+    vi.mocked(materials.createMaterial).mockResolvedValue(stored);
+
+    renderWith([withSections]);
+    await openAddSubtopic(user);
+    await user.type(within(addForm()).getByLabelText(/^title$/i), "Cabling");
+    await stageMaterial(user, { title: "First", url: "https://example.com/1" });
+    await stageMaterial(user, { title: "Second", url: "https://example.com/2" });
+    await user.click(within(addForm()).getByRole("button", { name: /add subtopic/i }));
+
+    await waitFor(() =>
+      expect(materials.createMaterial).toHaveBeenCalledTimes(2),
+    );
+
+    const calls = vi.mocked(materials.createMaterial).mock;
+
+    expect(calls.calls.map(([id]) => id)).toEqual([created.id, created.id]);
+    expect(calls.calls.map(([, draft]) => draft.title)).toEqual(["First", "Second"]);
+    // The section existed before either material was sent.
+    expect(
+      vi.mocked(service.createSubtopic).mock.invocationCallOrder[0],
+    ).toBeLessThan(calls.invocationCallOrder[0]);
+  });
+
+  it("keeps the section, says which material would not go, and sends the rest", async () => {
+    const user = userEvent.setup();
+    const created = { ...withSections, id: 99, parentId: withSections.id };
+
+    vi.mocked(service.createSubtopic).mockResolvedValue(created);
+    vi.mocked(materials.createMaterial)
+      .mockResolvedValueOnce(stored)
+      .mockRejectedValueOnce(new ApiError("That file is too large.", 413))
+      .mockResolvedValueOnce(stored);
+
+    renderWith([withSections]);
+    await openAddSubtopic(user);
+    await user.type(within(addForm()).getByLabelText(/^title$/i), "Cabling");
+    await stageMaterial(user, { title: "One", url: "https://example.com/1" });
+    await stageMaterial(user, { title: "Two", url: "https://example.com/2" });
+    await stageMaterial(user, { title: "Three", url: "https://example.com/3" });
+    await user.click(within(addForm()).getByRole("button", { name: /add subtopic/i }));
+
+    await waitFor(() =>
+      expect(materials.createMaterial).toHaveBeenCalledTimes(3),
+    );
+
+    expect(
+      vi.mocked(materials.createMaterial).mock.calls.map(([, draft]) => draft.title),
+    ).toEqual(["One", "Two", "Three"]);
+
+    const complaints = vi.mocked(toast.error).mock.calls;
+    const complaint = complaints[complaints.length - 1][0];
+
+    expect(complaint).toMatch(/subtopic was created/i);
+    expect(complaint).toMatch(/"Two" — That file is too large/);
+    expect(complaint).not.toMatch(/"One"|"Three"/);
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("will not save while a material is still being written", async () => {
+    const user = userEvent.setup();
+
+    renderWith([withSections]);
+    await openAddSubtopic(user);
+    await user.type(within(addForm()).getByLabelText(/^title$/i), "Cabling");
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /add material/i }),
+    );
+    await user.type(within(materialsGroup()).getByLabelText(/^title$/i), "Half done");
+    await user.click(within(addForm()).getByRole("button", { name: /add subtopic/i }));
+
+    expect(
+      await screen.findByText(/finish or cancel the material/i),
+    ).toBeInTheDocument();
+    expect(service.createSubtopic).not.toHaveBeenCalled();
+    expect(materials.createMaterial).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(materialsGroup()).getByLabelText(/^title$/i)).toHaveValue(
+      "Half done",
+    );
+  });
+
+  /*
+   * A save that is still running
+   *
+   * The same promise the Add Topic dialog keeps: once Save begins it owns the
+   * dialog until it settles. Requests are held open by promises the test
+   * releases, so nothing here depends on timing.
+   */
+
+  function dialogCancel() {
+    return within(screen.getByRole("dialog")).getByRole("button", {
+      name: /^cancel$/i,
+    });
+  }
+
+  it("holds the dialog, and everything in it, while the section is saving", async () => {
+    const user = userEvent.setup();
+    const created = { ...withSections, id: 99, parentId: withSections.id };
+    let release: (value: Topic) => void = () => {};
+
+    vi.mocked(service.createSubtopic).mockReturnValueOnce(
+      new Promise<Topic>((resolve) => {
+        release = resolve;
+      }),
+    );
+    vi.mocked(materials.createMaterial).mockResolvedValue(stored);
+
+    renderWith([withSections]);
+    await openAddSubtopic(user);
+    await user.type(within(addForm()).getByLabelText(/^title$/i), "Cabling");
+    await stageMaterial(user, { title: "Handout", url: "https://example.com/h" });
+    await user.click(within(addForm()).getByRole("button", { name: /add subtopic/i }));
+
+    expect(
+      within(addForm()).getByRole("button", { name: /saving/i }),
+    ).toBeDisabled();
+
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: /^close$/i }));
+    expect(dialogCancel()).toBeDisabled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    fireEvent.submit(addForm());
+    expect(service.createSubtopic).toHaveBeenCalledTimes(1);
+
+    expect(
+      within(materialsGroup()).getByRole("button", { name: /add material/i }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /edit Handout/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /remove Handout/i })).toBeDisabled();
+
+    await act(async () => release(created));
+
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(materials.createMaterial).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("unlocks after a failed save, keeping what was staged, so it can be tried again", async () => {
+    const user = userEvent.setup();
+    const created = { ...withSections, id: 99, parentId: withSections.id };
+
+    vi.mocked(service.createSubtopic)
+      .mockRejectedValueOnce(new Error("Network down"))
+      .mockResolvedValueOnce(created);
+    vi.mocked(materials.createMaterial).mockResolvedValue(stored);
+
+    renderWith([withSections]);
+    await openAddSubtopic(user);
+    await user.type(within(addForm()).getByLabelText(/^title$/i), "Cabling");
+    await stageMaterial(user, { title: "Handout", url: "https://example.com/h" });
+    await user.click(within(addForm()).getByRole("button", { name: /add subtopic/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Network down"));
+
+    expect(materials.createMaterial).not.toHaveBeenCalled();
+    expect(
+      within(addForm()).getByRole("button", { name: /add subtopic/i }),
+    ).toBeEnabled();
+    expect(dialogCancel()).toBeEnabled();
+    expect(screen.getByRole("button", { name: /remove Handout/i })).toBeEnabled();
+    expect(stagedRows()).toHaveLength(1);
+
+    await user.click(within(addForm()).getByRole("button", { name: /add subtopic/i }));
+
+    await waitFor(() => expect(materials.createMaterial).toHaveBeenCalledTimes(1));
+    expect(service.createSubtopic).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(materials.createMaterial).mock.calls[0][0]).toBe(created.id);
   });
 
   it("offers no assessments on a section", async () => {
@@ -922,5 +1242,118 @@ describe("a section's learning materials", () => {
     expect(
       screen.getByRole("button", { name: /collapse Networking Fundamentals/i }),
     ).toHaveAttribute("aria-expanded", "true");
+  });
+});
+
+describe("a section's material count", () => {
+  function link(id: number, topicId: number): LearningMaterial {
+    return {
+      id,
+      topicId,
+      title: `Material ${id}`,
+      description: null,
+      kind: "link",
+      kindLabel: "Link",
+      url: `https://example.com/${id}`,
+      downloadUrl: null,
+      filename: null,
+      mimeType: null,
+      sizeBytes: null,
+      order: id,
+      isPublished: true,
+    };
+  }
+
+  function holding(id: number, title: string, count: number, order: number) {
+    return subtopic({
+      id,
+      title,
+      order,
+      materials: Array.from({ length: count }, (_, at) => link(id * 10 + at, id)),
+    });
+  }
+
+  function materialsButton(title: string) {
+    return screen.getByRole("button", {
+      name: new RegExp(`learning materials for ${title}`, "i"),
+    });
+  }
+
+  it("shows what the roadmap says each section holds: none, one, several", () => {
+    renderWith(
+      [
+        topic({
+          subtopics: [
+            holding(101, "Empty", 0, 0),
+            holding(102, "Single", 1, 1),
+            holding(103, "Several", 3, 2),
+          ],
+        }),
+      ],
+      1,
+    );
+
+    expect(materialsButton("Empty")).toHaveAccessibleName(/\(0\)/);
+    expect(materialsButton("Single")).toHaveAccessibleName(/\(1\)/);
+    expect(materialsButton("Several")).toHaveAccessibleName(/\(3\)/);
+  });
+
+  it("follows the section's own panel after an add and a delete, without reloading the roadmap", async () => {
+    const user = userEvent.setup();
+
+    renderWith([topic({ subtopics: [holding(101, "OSI Model", 1, 0)] })], 1);
+
+    await user.click(materialsButton("OSI Model"));
+    const report = countReporters.get(101);
+    expect(report).toBeDefined();
+
+    // A material added in the panel…
+    act(() => report!(2));
+    expect(materialsButton("OSI Model")).toHaveAccessibleName(/\(2\)/);
+
+    // …and one deleted.
+    act(() => report!(1));
+    expect(materialsButton("OSI Model")).toHaveAccessibleName(/\(1\)/);
+
+    // Counted locally: the whole roadmap is not reloaded to recount one row.
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it("keeps the live count when the topic is folded and opened again", async () => {
+    const user = userEvent.setup();
+
+    renderWith([topic({ subtopics: [holding(101, "OSI Model", 1, 0)] })], 1);
+
+    await user.click(materialsButton("OSI Model"));
+    act(() => countReporters.get(101)!(3));
+
+    await user.click(
+      screen.getByRole("button", { name: /collapse Hardware and Cabling/i }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: /expand Hardware and Cabling/i }),
+    );
+
+    // The roadmap's own copy still says one; the panel last said three.
+    expect(materialsButton("OSI Model")).toHaveAccessibleName(/\(3\)/);
+  });
+
+  it("counts each section apart", async () => {
+    const user = userEvent.setup();
+
+    renderWith(
+      [
+        topic({
+          subtopics: [holding(101, "OSI Model", 1, 0), holding(102, "TCP/IP", 2, 1)],
+        }),
+      ],
+      1,
+    );
+
+    await user.click(materialsButton("OSI Model"));
+    act(() => countReporters.get(101)!(4));
+
+    expect(materialsButton("OSI Model")).toHaveAccessibleName(/\(4\)/);
+    expect(materialsButton("TCP/IP")).toHaveAccessibleName(/\(2\)/);
   });
 });

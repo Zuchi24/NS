@@ -43,12 +43,26 @@ export function StagedMaterials({
   materials,
   onChange,
   caption,
+  onEditingChange,
+  disabled = false,
 }: {
   idPrefix: string;
   materials: MaterialDraft[];
   onChange: (next: MaterialDraft[]) => void;
   /** What these will be attached to, in the words the dialog uses. */
   caption: string;
+  /**
+   * Told whenever the editor opens or shuts. What is typed into an open editor
+   * is in no list yet, so the dialog asks this before it saves rather than
+   * saving without it.
+   */
+  onEditingChange?: (open: boolean) => void;
+  /**
+   * Locks every control while the dialog is saving. The save sends the list as
+   * it stood when it began, so a change made now would quietly go nowhere.
+   * Through the root fieldset, which disables everything inside it natively.
+   */
+  disabled?: boolean;
 }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [draft, setDraft] = useState<MaterialDraft>(EMPTY_MATERIAL_DRAFT);
@@ -58,12 +72,14 @@ export function StagedMaterials({
     setEditing(next);
     setDraft(next.mode === "edit" ? materials[next.index] : EMPTY_MATERIAL_DRAFT);
     setErrors({});
+    onEditingChange?.(true);
   };
 
   const cancel = () => {
     setEditing(null);
     setDraft(EMPTY_MATERIAL_DRAFT);
     setErrors({});
+    onEditingChange?.(false);
   };
 
   /**
@@ -101,7 +117,10 @@ export function StagedMaterials({
   };
 
   return (
-    <fieldset className="space-y-3 border-t border-gray-200 pt-4">
+    <fieldset
+      disabled={disabled}
+      className="space-y-3 border-t border-gray-200 pt-4"
+    >
       <legend className="text-sm font-medium text-gray-900">
         Learning materials (optional)
       </legend>

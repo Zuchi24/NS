@@ -578,4 +578,98 @@ describe("TopicMaterialsPanel", () => {
       );
     });
   });
+
+  /*
+   * Reporting the count
+   *
+   * A section's row shows how many materials it holds, and this panel is the
+   * one that knows after an add or a delete. It says so each time the list
+   * arrives — never from a list that did not.
+   */
+  describe("reporting its count", () => {
+    /** Renders with each load in turn, reporting into the mock it returns. */
+    async function renderCounting(...loads: LearningMaterial[][]) {
+      const onCountChange = vi.fn();
+
+      for (const load of loads) {
+        vi.mocked(service.fetchTopicMaterials).mockResolvedValueOnce(load);
+      }
+
+      render(<TopicMaterialsPanel topicId={7} onCountChange={onCountChange} />);
+
+      await waitFor(() =>
+        expect(screen.queryByText(/loading materials/i)).not.toBeInTheDocument(),
+      );
+
+      return onCountChange;
+    }
+
+    it("reports how many it loaded, none included", async () => {
+      expect(await renderCounting([])).toHaveBeenLastCalledWith(0);
+      cleanup();
+      expect(await renderCounting([first])).toHaveBeenLastCalledWith(1);
+      cleanup();
+      expect(await renderCounting([first, second, material({ id: 3 })]))
+        .toHaveBeenLastCalledWith(3);
+    });
+
+    it("reports nothing until a list has arrived, or when it fails", async () => {
+      const onCountChange = vi.fn();
+      vi.mocked(service.fetchTopicMaterials).mockRejectedValueOnce(
+        new Error("Network down"),
+      );
+
+      render(<TopicMaterialsPanel topicId={7} onCountChange={onCountChange} />);
+
+      expect(onCountChange).not.toHaveBeenCalled();
+      await screen.findByText(/network down/i);
+      expect(onCountChange).not.toHaveBeenCalled();
+    });
+
+    it("reports one more after a material is added", async () => {
+      const onCountChange = await renderCounting([first], [first, second]);
+      vi.mocked(service.createMaterial).mockResolvedValueOnce(second);
+
+      await userEvent.click(
+        screen.getByRole("button", { name: /add material/i }),
+      );
+      await userEvent.type(screen.getByLabelText(/title/i), "Second up");
+      await userEvent.type(
+        screen.getByLabelText(/web address/i),
+        "https://example.com/2",
+      );
+      await userEvent.click(submitButton(/^add material$/i));
+
+      await waitFor(() => expect(onCountChange).toHaveBeenLastCalledWith(2));
+      expect(onCountChange.mock.calls).toEqual([[1], [2]]);
+    });
+
+    it("reports one fewer after a material is deleted", async () => {
+      const onCountChange = await renderCounting([first, second], [second]);
+      vi.mocked(service.deleteMaterial).mockResolvedValueOnce(undefined);
+
+      await userEvent.click(
+        screen.getByRole("button", { name: /delete first up/i }),
+      );
+      await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+
+      await waitFor(() => expect(onCountChange).toHaveBeenLastCalledWith(1));
+      expect(onCountChange.mock.calls).toEqual([[2], [1]]);
+    });
+
+    it("reports the same count after a reorder", async () => {
+      const onCountChange = await renderCounting([first, second], [second, first]);
+      vi.mocked(service.reorderMaterials).mockResolvedValueOnce([second, first]);
+
+      await userEvent.click(
+        screen.getByRole("button", { name: /move first up down/i }),
+      );
+
+      await waitFor(() =>
+        expect(service.fetchTopicMaterials).toHaveBeenCalledTimes(2),
+      );
+      await waitFor(() => expect(onCountChange).toHaveBeenCalledTimes(2));
+      expect(onCountChange.mock.calls).toEqual([[2], [2]]);
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -143,6 +143,25 @@ export function RoadmapTopicsPanel({
     null,
   );
 
+  /**
+   * How many materials each section holds, as its materials panel last loaded
+   * them, by section id.
+   *
+   * The roadmap's own copy is only as fresh as its last load, and reloading the
+   * whole roadmap to recount one section would fold up the tree being worked
+   * in. So an open panel reports its count and the badge reads that first.
+   * Held here rather than in the section tree, which unmounts with its card —
+   * folding a topic and opening it again must not bring the stale count back.
+   */
+  const [materialCounts, setMaterialCounts] = useState<Record<number, number>>(
+    {},
+  );
+
+  const noteMaterialCount = (subtopicId: number, count: number) =>
+    setMaterialCounts((current) =>
+      current[subtopicId] === count ? current : { ...current, [subtopicId]: count },
+    );
+
   const editingTopicId = editing?.mode === "edit" ? editing.topic.id : null;
 
   const toggle = (topicId: number) => {
@@ -282,6 +301,8 @@ export function RoadmapTopicsPanel({
                   expandedSubtopicId={expandedSubtopicId}
                   onToggleSubtopic={toggleSubtopic}
                   onChanged={onChanged}
+                  materialCounts={materialCounts}
+                  onMaterialCount={noteMaterialCount}
                 >
                   {editingTopicId === topic.id && (
                     <TopicEditForm
@@ -354,6 +375,8 @@ function TopicCard({
   expandedSubtopicId,
   onToggleSubtopic,
   onChanged,
+  materialCounts,
+  onMaterialCount,
   children,
 }: {
   topic: Topic;
@@ -380,6 +403,9 @@ function TopicCard({
   expandedSubtopicId: number | null;
   onToggleSubtopic: (subtopicId: number) => void;
   onChanged: () => void;
+  /** Sections' material counts as their open panels last loaded them. */
+  materialCounts: Record<number, number>;
+  onMaterialCount: (subtopicId: number, count: number) => void;
   /** The edit form, when this is the topic being edited. */
   children?: React.ReactNode;
 }) {
@@ -554,6 +580,8 @@ function TopicCard({
           onToggleSubtopic={onToggleSubtopic}
           onChanged={onChanged}
           onAddSubtopic={onAddSubtopic}
+          materialCounts={materialCounts}
+          onMaterialCount={onMaterialCount}
         />
       )}
 
@@ -841,6 +869,43 @@ function TopicEditForm({
   );
 }
 
+/** Said under the materials group when a save would leave one behind. */
+const UNFINISHED_MATERIAL =
+  "Finish or cancel the material you’re working on before saving.";
+
+/**
+ * Whether a staged material is still being written, for the dialogs that stage
+ * them.
+ *
+ * What is typed into an open material editor is in no list yet, so saving past
+ * it would create the topic or section without it and say nothing. Instead the
+ * save waits, and says why, with the editor and what is in it left as they are.
+ *
+ * `reset` is the dialog's to call whenever it blanks its other state: the list
+ * is remounted on the next opening and says nothing as it goes.
+ */
+function useUnfinishedMaterial() {
+  const [open, setOpen] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+
+  return {
+    blocked,
+    onEditingChange: (next: boolean) => {
+      setOpen(next);
+      if (!next) setBlocked(false);
+    },
+    /** Whether the save has to wait, saying so when it does. */
+    holdsSave: () => {
+      if (open) setBlocked(true);
+      return open;
+    },
+    reset: () => {
+      setOpen(false);
+      setBlocked(false);
+    },
+  };
+}
+
 /**
  * Adding a topic, in a modal over the roadmap.
  *
@@ -885,6 +950,10 @@ function AddTopicDialog({
    * blanks them with everything else.
    */
   const [materials, setMaterials] = useState<MaterialDraft[]>([]);
+  const unfinished = useUnfinishedMaterial();
+
+  /** Whether a save is under way, read synchronously; `saving` is for drawing. */
+  const inFlight = useRef(false);
 
   /**
    * Shuts the modal on an empty draft.
@@ -898,72 +967,86 @@ function AddTopicDialog({
     setErrors({});
     setTests({ pre_test: false, post_test: false });
     setMaterials([]);
+    unfinished.reset();
     onClose();
   };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    // Read and set before anything is awaited, so a second submit in the same
+    // tick is turned away here rather than by a button that has not re-rendered.
+    if (inFlight.current) return;
+    if (unfinished.holdsSave()) return;
+
+    inFlight.current = true;
     setSaving(true);
 
-    // Appended. Moving a topic is its own action, so a new one goes to the end
-    // and the author walks it up to where they want it — which reads the same
-    // as every other move and stores the same way.
-    const result = await saveTopicDraft(draft, (next) =>
-      createTopic(roadmapId, next),
-    );
-
-    /*
-     * The tests, once there is a topic to hang them on.
-     *
-     * After the topic and never with it: an assessment is its own row behind
-     * its own endpoint, and the id it needs is the one the server just gave
-     * back. Each is reported on its own — a test that could not be opened is
-     * said out loud and leaves the topic, and any test that did open, exactly
-     * where they are. The author finishes them in the builder either way, so a
-     * refusal here costs a click rather than the work.
-     */
-    if (result.saved) {
-      const topic = result.saved;
-
-      // The materials first, in the order the group shows them and before the
-      // tests, so the list a student reads is the list the author wrote.
-      reportRefusedMaterials(
-        await sendStagedMaterials(topic.id, materials),
-        "topic",
+    try {
+      // Appended. Moving a topic is its own action, so a new one goes to the
+      // end and the author walks it up to where they want it — which reads the
+      // same as every other move and stores the same way.
+      const result = await saveTopicDraft(draft, (next) =>
+        createTopic(roadmapId, next),
       );
 
-      for (const type of ASSESSMENT_TYPES) {
-        if (!tests[type]) continue;
+      /*
+       * The tests, once there is a topic to hang them on.
+       *
+       * After the topic and never with it: an assessment is its own row behind
+       * its own endpoint, and the id it needs is the one the server just gave
+       * back. Each is reported on its own — a test that could not be opened is
+       * said out loud and leaves the topic, and any test that did open, exactly
+       * where they are. The author finishes them in the builder either way, so
+       * a refusal here costs a click rather than the work.
+       */
+      if (result.saved) {
+        const topic = result.saved;
 
-        try {
-          await createAssessment(topic.id, {
-            ...EMPTY_ASSESSMENT_DRAFT,
-            type,
-            title: ASSESSMENT_TYPE_LABELS[type],
-          });
-        } catch (e) {
-          toast.error(
-            e instanceof Error
-              ? e.message
-              : `Could not open a ${ASSESSMENT_TYPE_LABELS[type].toLowerCase()} for this topic.`,
-          );
+        // The materials first, in the order the group shows them and before
+        // the tests, so the list a student reads is the list the author wrote.
+        reportRefusedMaterials(
+          await sendStagedMaterials(topic.id, materials),
+          "topic",
+        );
+
+        for (const type of ASSESSMENT_TYPES) {
+          if (!tests[type]) continue;
+
+          try {
+            await createAssessment(topic.id, {
+              ...EMPTY_ASSESSMENT_DRAFT,
+              type,
+              title: ASSESSMENT_TYPE_LABELS[type],
+            });
+          } catch (e) {
+            toast.error(
+              e instanceof Error
+                ? e.message
+                : `Could not open a ${ASSESSMENT_TYPE_LABELS[type].toLowerCase()} for this topic.`,
+            );
+          }
         }
       }
-    }
 
-    setSaving(false);
-    setErrors(result.errors);
+      setErrors(result.errors);
 
-    // A refused draft keeps the modal open, with what was typed still in it and
-    // the message under the box that has to change. Only a stored topic closes
-    // it.
-    if (result.saved) {
-      toast.success("Topic added.");
-      setDraft(EMPTY_TOPIC_DRAFT);
-      setErrors({});
-      setTests({ pre_test: false, post_test: false });
-      setMaterials([]);
-      onCreated(result.saved);
+      // A refused draft keeps the modal open, with what was typed still in it
+      // and the message under the box that has to change. Only a stored topic
+      // closes it.
+      if (result.saved) {
+        toast.success("Topic added.");
+        setDraft(EMPTY_TOPIC_DRAFT);
+        setErrors({});
+        setTests({ pre_test: false, post_test: false });
+        setMaterials([]);
+        unfinished.reset();
+        onCreated(result.saved);
+      }
+    } finally {
+      // Released however the save ended, so nothing can leave it locked.
+      inFlight.current = false;
+      setSaving(false);
     }
   };
 
@@ -972,16 +1055,18 @@ function AddTopicDialog({
       open={open}
       onOpenChange={(next) => {
         // Escape, the overlay and the corner cross all come through here, and
-        // each of them means the same as Cancel.
-        if (!next) close();
+        // each of them means the same as Cancel — which a running save does
+        // not allow. The topic may already exist, so the save is seen through
+        // rather than walked away from.
+        if (!next && !saving) close();
       }}
     >
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Add Topic</DialogTitle>
           <DialogDescription>
-            It joins the end of the roadmap. Move it into place, and add its
-            learning materials, once it is in.
+            It joins the end of the roadmap. Materials listed here are added
+            to it once it is saved.
           </DialogDescription>
         </DialogHeader>
 
@@ -1019,8 +1104,13 @@ function AddTopicDialog({
               idPrefix="topic-add-material"
               materials={materials}
               onChange={setMaterials}
+              onEditingChange={unfinished.onEditingChange}
+              // The save sends the list as it stood when it began, so nothing
+              // here may change underneath it.
+              disabled={saving}
               caption="Added to the topic once it is created. Students see them in this order."
             />
+            {unfinished.blocked && <FieldError message={UNFINISHED_MATERIAL} />}
 
             {/*
               * Its tests, offered here and made afterwards.
@@ -1075,7 +1165,13 @@ function AddTopicDialog({
             <Button type="submit" disabled={saving} className="flex-1">
               {saving ? "Saving…" : "Add topic"}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={close}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={saving}
+              onClick={close}
+            >
               Cancel
             </Button>
           </DialogFooter>
@@ -1115,6 +1211,8 @@ function SubtopicTree({
   onToggleSubtopic,
   onChanged,
   onAddSubtopic,
+  materialCounts,
+  onMaterialCount,
 }: {
   parent: Topic;
   parentPosition: number;
@@ -1126,6 +1224,8 @@ function SubtopicTree({
   onToggleSubtopic: (subtopicId: number) => void;
   onChanged: () => void;
   onAddSubtopic: () => void;
+  materialCounts: Record<number, number>;
+  onMaterialCount: (subtopicId: number, count: number) => void;
 }) {
   const [moving, setMoving] = useState(false);
 
@@ -1205,6 +1305,9 @@ function SubtopicTree({
             ) : (
               <SubtopicRow
                 subtopic={subtopic}
+                // The panel's own count once it has loaded, the roadmap's
+                // until then.
+                count={materialCounts[subtopic.id] ?? subtopic.materials.length}
                 label={`${parentPosition}.${index + 1}`}
                 busy={busy || moving}
                 isExpanded={expandedSubtopicId === subtopic.id}
@@ -1235,7 +1338,11 @@ function SubtopicTree({
                   id={`subtopic-${subtopic.id}-materials`}
                   className="ml-3 mt-2 mb-3 border-l-2 border-brand-teal/30 pl-4"
                 >
-                  <TopicMaterialsPanel topicId={subtopic.id} owner="section" />
+                  <TopicMaterialsPanel
+                    topicId={subtopic.id}
+                    owner="section"
+                    onCountChange={(count) => onMaterialCount(subtopic.id, count)}
+                  />
                 </div>
               )}
           </li>
@@ -1276,6 +1383,7 @@ function SubtopicTree({
  */
 function SubtopicRow({
   subtopic,
+  count,
   label,
   busy,
   isExpanded,
@@ -1288,6 +1396,8 @@ function SubtopicRow({
   onDelete,
 }: {
   subtopic: Subtopic;
+  /** How many materials it holds. */
+  count: number;
   /** Its number inside its parent, like "2.1". */
   label: string;
   busy: boolean;
@@ -1301,8 +1411,6 @@ function SubtopicRow({
   onDelete: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
-
-  const count = subtopic.materials.length;
 
   return (
     <div
@@ -1752,11 +1860,16 @@ function AddSubtopicDialog({
 
   /** The section's own materials, held until the section exists to hold them. */
   const [materials, setMaterials] = useState<MaterialDraft[]>([]);
+  const unfinished = useUnfinishedMaterial();
+
+  /** Whether a save is under way, read synchronously; `saving` is for drawing. */
+  const inFlight = useRef(false);
 
   const close = () => {
     setDraft(EMPTY_SUBTOPIC_DRAFT);
     setErrors({});
     setMaterials([]);
+    unfinished.reset();
     onClose();
   };
 
@@ -1765,30 +1878,40 @@ function AddSubtopicDialog({
 
     if (parent === null) return;
 
+    // Read and set before anything is awaited, as in AddTopicDialog.
+    if (inFlight.current) return;
+    if (unfinished.holdsSave()) return;
+
+    inFlight.current = true;
     setSaving(true);
 
-    const result = await saveSubtopicDraft(draft, (next) =>
-      createSubtopic(parent.id, next),
-    );
-
-    // A section owns its materials exactly as a topic does — same endpoint,
-    // same ordering — so the same sequencing serves both.
-    if (result.saved) {
-      reportRefusedMaterials(
-        await sendStagedMaterials(result.value.id, materials),
-        "subtopic",
+    try {
+      const result = await saveSubtopicDraft(draft, (next) =>
+        createSubtopic(parent.id, next),
       );
-    }
 
-    setSaving(false);
-    setErrors(result.errors);
+      // A section owns its materials exactly as a topic does — same endpoint,
+      // same ordering — so the same sequencing serves both.
+      if (result.saved) {
+        reportRefusedMaterials(
+          await sendStagedMaterials(result.value.id, materials),
+          "subtopic",
+        );
+      }
 
-    if (result.saved) {
-      toast.success("Subtopic added.");
-      setDraft(EMPTY_SUBTOPIC_DRAFT);
-      setErrors({});
-      setMaterials([]);
-      onCreated(result.value);
+      setErrors(result.errors);
+
+      if (result.saved) {
+        toast.success("Subtopic added.");
+        setDraft(EMPTY_SUBTOPIC_DRAFT);
+        setErrors({});
+        setMaterials([]);
+        unfinished.reset();
+        onCreated(result.value);
+      }
+    } finally {
+      inFlight.current = false;
+      setSaving(false);
     }
   };
 
@@ -1796,7 +1919,8 @@ function AddSubtopicDialog({
     <Dialog
       open={parent !== null}
       onOpenChange={(next) => {
-        if (!next) close();
+        // Not while a save is running, for the reason AddTopicDialog gives.
+        if (!next && !saving) close();
       }}
     >
       <DialogContent className="max-w-md">
@@ -1830,15 +1954,24 @@ function AddSubtopicDialog({
               idPrefix="subtopic-add-material"
               materials={materials}
               onChange={setMaterials}
+              onEditingChange={unfinished.onEditingChange}
+              disabled={saving}
               caption="Added to the section once it is created. Students see them in this order."
             />
+            {unfinished.blocked && <FieldError message={UNFINISHED_MATERIAL} />}
           </div>
 
           <DialogFooter className="mt-6 gap-2">
             <Button type="submit" disabled={saving} className="flex-1">
               {saving ? "Saving…" : "Add subtopic"}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={close}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={saving}
+              onClick={close}
+            >
               Cancel
             </Button>
           </DialogFooter>

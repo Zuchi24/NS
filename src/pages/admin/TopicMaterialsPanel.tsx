@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -68,12 +68,30 @@ const OWNER_CAPTION: Record<MaterialsOwner, string> = {
 export function TopicMaterialsPanel({
   topicId,
   owner = "topic",
+  onCountChange,
 }: {
   topicId: number;
   owner?: MaterialsOwner;
+  /**
+   * Told how many materials there are, each time the list is loaded — after
+   * every add, edit, delete and reorder, since each reloads it. Lets a count
+   * shown elsewhere keep up without reloading the whole roadmap.
+   */
+  onCountChange?: (count: number) => void;
 }) {
   const load = useCallback(() => fetchTopicMaterials(topicId), [topicId]);
   const { data, error, loading, reload } = useAsync(load, [topicId]);
+
+  // Held in a ref so a caller passing a fresh function each render is not
+  // told again for a list that has not changed.
+  const countChanged = useRef(onCountChange);
+  countChanged.current = onCountChange;
+
+  // Only a list that actually arrived is reported: `data` is null before the
+  // first load and after a failed one, and a new array only on a fresh load.
+  useEffect(() => {
+    if (data !== null) countChanged.current?.(data.length);
+  }, [data]);
 
   const [editing, setEditing] = useState<Editing | null>(null);
   const [busy, setBusy] = useState(false);

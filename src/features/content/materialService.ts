@@ -87,6 +87,15 @@ export const MAX_UPLOAD_MEGABYTES = 20;
 
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MEGABYTES * 1024 * 1024;
 
+/**
+ * The longest a material's description may be, in characters — the server's
+ * `description` rule on StoreLearningMaterialRequest and its update.
+ *
+ * Not the 280 a topic's overview is held to: that one is drawn on the roadmap,
+ * while this sits under the material it describes.
+ */
+export const MATERIAL_DESCRIPTION_MAX = 2000;
+
 /** What the author is saving. A file or a url, matching the kind. */
 export interface MaterialDraft {
   title: string;
@@ -305,11 +314,17 @@ export function videoEmbedUrl(url: string | null): string | null {
 export function validateDraft(
   draft: MaterialDraft,
   { isNew }: { isNew: boolean },
-): Partial<Record<"title" | "url" | "file", string>> {
-  const errors: Partial<Record<"title" | "url" | "file", string>> = {};
+): Partial<Record<"title" | "description" | "url" | "file", string>> {
+  const errors: Partial<Record<"title" | "description" | "url" | "file", string>> = {};
 
   if (draft.title.trim() === "") {
     errors.title = "Give the material a title.";
+  }
+
+  // Counted as the server counts it: trimmed, as Laravel trims before it
+  // validates, and in characters rather than UTF-16 units.
+  if ([...draft.description.trim()].length > MATERIAL_DESCRIPTION_MAX) {
+    errors.description = `Keep the description to ${MATERIAL_DESCRIPTION_MAX} characters or fewer.`;
   }
 
   if (draft.kind === "file") {

@@ -2,7 +2,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  act,
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -1017,6 +1019,247 @@ describe("RoadmapTopicsPanel", () => {
     expect(materials.createMaterial).not.toHaveBeenCalled();
     // And the modal stays open, still holding what was staged.
     expect(screen.getByTestId("topic-add-material-list")).toBeInTheDocument();
+  });
+
+  /*
+   * A material still being written
+   *
+   * What is typed into the open editor is in no list yet. Saving past it would
+   * create the topic without it and say nothing, so the save waits instead.
+   */
+
+  it("will not save while a material is still being written", async () => {
+    const user = userEvent.setup();
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /add material/i }),
+    );
+    await user.type(within(materialsGroup()).getByLabelText(/^title$/i), "Half done");
+    await user.click(submitButton(/add topic/i));
+
+    expect(
+      await screen.findByText(/finish or cancel the material/i),
+    ).toBeInTheDocument();
+    expect(service.createTopic).not.toHaveBeenCalled();
+    expect(materials.createMaterial).not.toHaveBeenCalled();
+    // The dialog, the editor and what was typed in it are all still there.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(materialsGroup()).getByLabelText(/^title$/i)).toHaveValue(
+      "Half done",
+    );
+  });
+
+  it("will not save while a staged material is being edited", async () => {
+    const user = userEvent.setup();
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await stageMaterial(user, { title: "Handout", url: "https://example.com/1" });
+    await user.click(screen.getByRole("button", { name: /edit Handout/i }));
+    await user.click(submitButton(/add topic/i));
+
+    expect(
+      await screen.findByText(/finish or cancel the material/i),
+    ).toBeInTheDocument();
+    expect(service.createTopic).not.toHaveBeenCalled();
+    expect(screen.getByTestId("topic-add-material-list")).toBeInTheDocument();
+  });
+
+  it("saves, with the material, once it is added to the list", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+    vi.mocked(materials.createMaterial).mockResolvedValue(
+      {} as Awaited<ReturnType<typeof materials.createMaterial>>,
+    );
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /add material/i }),
+    );
+    await user.type(within(materialsGroup()).getByLabelText(/^title$/i), "Handout");
+    await user.click(submitButton(/add topic/i));
+    await screen.findByText(/finish or cancel the material/i);
+
+    await user.type(
+      within(materialsGroup()).getByLabelText(/web address/i),
+      "https://example.com/h",
+    );
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /add to list/i }),
+    );
+
+    // Closing the editor withdraws the message, and the save goes through.
+    expect(screen.queryByText(/finish or cancel the material/i)).not.toBeInTheDocument();
+
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() => expect(materials.createMaterial).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(materials.createMaterial).mock.calls[0][1].title).toBe("Handout");
+  });
+
+  it("saves without a material whose editor was cancelled", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /add material/i }),
+    );
+    await user.type(within(materialsGroup()).getByLabelText(/^title$/i), "Dropped");
+    await user.click(
+      within(materialsGroup()).getByRole("button", { name: /^cancel$/i }),
+    );
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() => expect(service.createTopic).toHaveBeenCalled());
+    expect(materials.createMaterial).not.toHaveBeenCalled();
+  });
+
+  /*
+   * A save that is still running
+   *
+   * Once Save begins it owns the dialog until it settles: the topic may already
+   * exist on the server, so walking away would not undo it — it would only
+   * hide it. Each request is held open by a promise the test releases.
+   */
+
+  /** A request that stays pending until the test lets it go. */
+  function held<T>() {
+    let release: (value: T) => void = () => {};
+    const promise = new Promise<T>((resolve) => {
+      release = resolve;
+    });
+
+    return { promise, release };
+  }
+
+  function dialogCancel() {
+    return within(screen.getByRole("dialog")).getByRole("button", {
+      name: /^cancel$/i,
+    });
+  }
+
+  it("holds the dialog, and everything in it, while the topic is saving", async () => {
+    const user = userEvent.setup();
+    const topicSave = held<Topic>();
+
+    vi.mocked(service.createTopic).mockReturnValueOnce(topicSave.promise);
+    vi.mocked(materials.createMaterial).mockResolvedValue(
+      {} as Awaited<ReturnType<typeof materials.createMaterial>>,
+    );
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await stageMaterial(user, { title: "Handout", url: "https://example.com/h" });
+    await user.click(submitButton(/add topic/i));
+
+    expect(submitButton(/saving/i)).toBeDisabled();
+
+    // Every way out is refused: Escape, the corner cross, and Cancel.
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: /^close$/i }));
+    expect(dialogCancel()).toBeDisabled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // A second submit, by any route, is turned away — not only by the button.
+    fireEvent.submit(screen.getByRole("form", { name: /add topic/i }));
+    expect(service.createTopic).toHaveBeenCalledTimes(1);
+
+    // And the list the save is sending cannot change underneath it.
+    expect(
+      within(materialsGroup()).getByRole("button", { name: /add material/i }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /edit Handout/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /remove Handout/i })).toBeDisabled();
+
+    await act(async () => topicSave.release(first));
+
+    // Exactly one completion, and the dialog closes onto the topic.
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(materials.createMaterial).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // The lock went with it: the next topic starts unlocked.
+    await openAddTopic(user);
+    expect(submitButton(/add topic/i)).toBeEnabled();
+    expect(dialogCancel()).toBeEnabled();
+  });
+
+  it("stays locked until the staged materials have been sent", async () => {
+    const user = userEvent.setup();
+    const upload = held<Awaited<ReturnType<typeof materials.createMaterial>>>();
+
+    vi.mocked(service.createTopic).mockResolvedValue(first);
+    vi.mocked(materials.createMaterial).mockReturnValueOnce(upload.promise);
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await stageMaterial(user, { title: "Handout", url: "https://example.com/h" });
+    await user.click(submitButton(/add topic/i));
+
+    // The topic is stored and its material is on its way: still the save's.
+    await waitFor(() => expect(materials.createMaterial).toHaveBeenCalledTimes(1));
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(dialogCancel()).toBeDisabled();
+    expect(onChanged).not.toHaveBeenCalled();
+
+    await act(async () => upload.release({} as Awaited<typeof upload.promise>));
+
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("unlocks after a failed save, keeping what was staged, so it can be tried again", async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(service.createTopic)
+      .mockRejectedValueOnce(new Error("Network down"))
+      .mockResolvedValueOnce(first);
+    vi.mocked(materials.createMaterial).mockResolvedValue(
+      {} as Awaited<ReturnType<typeof materials.createMaterial>>,
+    );
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.type(screen.getByLabelText(/^title$/i), "Subnetting");
+    await stageMaterial(user, { title: "Handout", url: "https://example.com/h" });
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Network down"));
+
+    // Nothing was stored, so nothing was sent, and the dialog is usable again.
+    expect(materials.createMaterial).not.toHaveBeenCalled();
+    expect(submitButton(/add topic/i)).toBeEnabled();
+    expect(dialogCancel()).toBeEnabled();
+    expect(screen.getByRole("button", { name: /remove Handout/i })).toBeEnabled();
+    expect(screen.getByTestId("topic-add-material-list")).toBeInTheDocument();
+
+    await user.click(submitButton(/add topic/i));
+
+    await waitFor(() => expect(materials.createMaterial).toHaveBeenCalledTimes(1));
+    expect(service.createTopic).toHaveBeenCalledTimes(2);
+  });
+
+  it("still closes normally when no save is running", async () => {
+    const user = userEvent.setup();
+
+    renderWith([]);
+    await openAddTopic(user);
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("does not send a topic with no title", async () => {
