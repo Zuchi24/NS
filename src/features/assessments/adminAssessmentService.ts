@@ -63,14 +63,31 @@ export interface AssessmentChoice {
   isCorrect: boolean;
 }
 
+/**
+ * How a question is answered: by picking one of its choices, or by typing one
+ * of its accepted answers. Fixed once the question exists.
+ */
+export type QuestionType = "multiple_choice" | "fill_in_blank";
+
+export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  multiple_choice: "Multiple choice",
+  fill_in_blank: "Fill in the blank",
+};
+
 export interface AssessmentQuestion {
   id: number;
+  type: QuestionType;
   prompt: string;
   points: number;
   /** Seconds a student has once the question is shown, or null for no timer. */
   timeLimitSeconds: number | null;
   order: number;
   choices: AssessmentChoice[];
+  /**
+   * A fill-in-the-blank question's answer key, as the author typed it; empty
+   * for multiple choice. Only staff are sent it, and these endpoints are staff's.
+   */
+  acceptedAnswers: string[];
 }
 
 /**
@@ -146,11 +163,13 @@ interface ApiAssessmentChoice {
 
 interface ApiAssessmentQuestion {
   id: number;
+  type?: QuestionType;
   prompt: string;
   points: number;
   time_limit_seconds?: number | null;
   order: number;
   choices?: ApiAssessmentChoice[];
+  accepted_answers?: string[] | null;
 }
 
 interface ApiAssessment {
@@ -181,11 +200,15 @@ function toChoice(row: ApiAssessmentChoice): AssessmentChoice {
 function toQuestion(row: ApiAssessmentQuestion): AssessmentQuestion {
   return {
     id: row.id,
+    // A response from before fill in the blank existed says nothing here, and
+    // every question in one was multiple choice.
+    type: row.type ?? "multiple_choice",
     prompt: row.prompt,
     points: row.points,
     timeLimitSeconds: row.time_limit_seconds ?? null,
     order: row.order,
     choices: (row.choices ?? []).map(toChoice),
+    acceptedAnswers: row.accepted_answers ?? [],
   };
 }
 
@@ -316,14 +339,20 @@ export interface AssessmentChoiceDraft {
  * the author is still writing, the draft may hold fewer: a new question starts
  * with one row, and validateQuestionDraft refuses it until there are two.
  *
+ * A fill-in-the-blank question has accepted answers instead — one to ten,
+ * sent as the whole list — and no choices. Which one the draft is, is `type`,
+ * chosen on a new question and fixed after that.
+ *
  * The timer is picked from QUESTION_TIMER_PRESETS, so it is never half-typed:
  * a number of seconds, or null for no timer.
  */
 export interface AssessmentQuestionDraft {
+  type: QuestionType;
   prompt: string;
   points: string;
   timeLimitSeconds: number | null;
   choices: AssessmentChoiceDraft[];
+  acceptedAnswers: string[];
 }
 
 /**
@@ -346,21 +375,34 @@ export const QUESTION_CHOICE_MIN = 2;
 export const QUESTION_CHOICE_MAX = 6;
 
 /**
+ * The fewest and most accepted answers a fill-in-the-blank question may be
+ * saved with, and the longest any one may be — the server's
+ * StoreAssessmentQuestionRequest::MAX_ACCEPTED_ANSWERS and
+ * ANSWER_MAX_CHARACTERS.
+ */
+export const ACCEPTED_ANSWER_MIN = 1;
+export const ACCEPTED_ANSWER_MAX = 10;
+export const ACCEPTED_ANSWER_MAX_LENGTH = 255;
+
+/**
  * A blank question: one empty choice row to start from, which the author adds
  * to. Its choices array is shared, so update a draft by copying it — as React
  * state is updated anyway — rather than writing into it.
  */
 export const EMPTY_QUESTION_DRAFT: AssessmentQuestionDraft = {
+  type: "multiple_choice",
   prompt: "",
   points: "1",
   timeLimitSeconds: null,
   choices: [{ label: "", isCorrect: false }],
+  acceptedAnswers: [""],
 };
 
 export function draftOfQuestion(
   question: AssessmentQuestion,
 ): AssessmentQuestionDraft {
   return {
+    type: question.type,
     prompt: question.prompt,
     points: String(question.points),
     timeLimitSeconds: question.timeLimitSeconds,
@@ -368,6 +410,8 @@ export function draftOfQuestion(
       label: choice.label,
       isCorrect: choice.isCorrect,
     })),
+    acceptedAnswers:
+      question.acceptedAnswers.length > 0 ? [...question.acceptedAnswers] : [""],
   };
 }
 
@@ -387,17 +431,33 @@ function detailPayload(draft: AssessmentDraft): Record<string, unknown> {
  * appended, and moving one is reorderQuestions.
  *
  * The timer always goes, null included: on an edit, null is what clears it.
+ *
+ * The answer key goes as its type has it: choices for multiple choice,
+ * accepted answers for fill in the blank — never both, which the server
+ * refuses. The type itself goes only on a create; an edit refuses one, because
+ * a question's type is fixed.
  */
-function questionPayload(draft: AssessmentQuestionDraft): Record<string, unknown> {
-  return {
+function questionPayload(
+  draft: AssessmentQuestionDraft,
+  { isNew }: { isNew: boolean },
+): Record<string, unknown> {
+  const common = {
     prompt: draft.prompt.trim(),
     points: Number(draft.points.trim()),
     time_limit_seconds: draft.timeLimitSeconds,
-    choices: draft.choices.map((choice) => ({
-      label: choice.label.trim(),
-      is_correct: choice.isCorrect,
-    })),
   };
+
+  const key =
+    draft.type === "fill_in_blank"
+      ? { accepted_answers: draft.acceptedAnswers.map((answer) => answer.trim()) }
+      : {
+          choices: draft.choices.map((choice) => ({
+            label: choice.label.trim(),
+            is_correct: choice.isCorrect,
+          })),
+        };
+
+  return isNew ? { type: draft.type, ...common, ...key } : { ...common, ...key };
 }
 
 /*
@@ -616,14 +676,14 @@ export async function deleteAssessment(
 | published, 409 once it has been taken. See lockStateOf().
 */
 
-/** Adds a question with its choices, at the end. */
+/** Adds a question with its answer key, at the end. */
 export async function createQuestion(
   assessmentId: number,
   draft: AssessmentQuestionDraft,
 ): Promise<AssessmentQuestion> {
   const { data } = await api.post<{ data: ApiAssessmentQuestion }>(
     `/admin/assessments/${assessmentId}/questions`,
-    questionPayload(draft),
+    questionPayload(draft, { isNew: true }),
   );
 
   return toQuestion(data);
@@ -643,7 +703,7 @@ export async function updateQuestion(
 ): Promise<AssessmentQuestion> {
   const { data } = await api.put<{ data: ApiAssessmentQuestion }>(
     `/admin/questions/${questionId}`,
-    questionPayload(draft),
+    questionPayload(draft, { isNew: false }),
   );
 
   return toQuestion(data);
@@ -741,7 +801,24 @@ export type QuestionDraftField =
   | "points"
   | "time_limit_seconds"
   | "choices"
-  | `choices.${number}.label`;
+  | `choices.${number}.label`
+  | "accepted_answers"
+  | `accepted_answers.${number}`;
+
+/**
+ * A typed answer as the server compares it (App\Support\AnswerText): NFKC,
+ * lower case, hyphens and underscores to spaces, whitespace collapsed and
+ * trimmed. Used here only to tell an author an answer folds to nothing; the
+ * server does the marking.
+ */
+export function foldAnswer(text: string): string {
+  return text
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[-_]/g, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
 
 export function validateQuestionDraft(
   draft: AssessmentQuestionDraft,
@@ -772,6 +849,27 @@ export function validateQuestionDraft(
 
   if (draft.timeLimitSeconds !== null && !isTimerPreset(draft.timeLimitSeconds)) {
     errors.time_limit_seconds = "Choose one of the timer settings, or no timer.";
+  }
+
+  if (draft.type === "fill_in_blank") {
+    if (
+      draft.acceptedAnswers.length < ACCEPTED_ANSWER_MIN ||
+      draft.acceptedAnswers.length > ACCEPTED_ANSWER_MAX
+    ) {
+      errors.accepted_answers = `A question has between ${ACCEPTED_ANSWER_MIN} and ${ACCEPTED_ANSWER_MAX} accepted answers.`;
+    } else {
+      draft.acceptedAnswers.forEach((answer, index) => {
+        if (foldAnswer(answer) === "") {
+          errors[`accepted_answers.${index}`] =
+            "Each accepted answer needs some letters or numbers, not just spaces, hyphens or underscores.";
+        } else if (characterLength(answer) > ACCEPTED_ANSWER_MAX_LENGTH) {
+          errors[`accepted_answers.${index}`] =
+            `Keep each accepted answer to ${ACCEPTED_ANSWER_MAX_LENGTH} characters or fewer.`;
+        }
+      });
+    }
+
+    return errors;
   }
 
   if (

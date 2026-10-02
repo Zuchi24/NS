@@ -91,6 +91,8 @@ function choice(
 function question(over: Partial<AssessmentQuestion> = {}): AssessmentQuestion {
   return {
     id: 21,
+    type: "multiple_choice",
+    acceptedAnswers: [],
     prompt: "Which layer routes packets?",
     points: 2,
     timeLimitSeconds: null,
@@ -173,6 +175,11 @@ async function replace(user: User, field: HTMLElement, value: string) {
   }
 }
 
+/** The "is correct" radios of a form's choices — one per choice row, and not the type picker's. */
+function choiceRadios(form: Form) {
+  return form.getAllByRole("radio", { name: /^Choice [A-F] is correct$/ });
+}
+
 /** Fills a whole question form. */
 async function fill(
   user: User,
@@ -188,7 +195,7 @@ async function fill(
   await replace(user, form.getByLabelText("Points"), points);
 
   // A new question starts with one row; add the rest the way an author would.
-  while (form.getAllByRole("radio").length < labels.length) {
+  while (choiceRadios(form).length < labels.length) {
     await user.click(form.getByRole("button", { name: "Add choice" }));
   }
 
@@ -414,7 +421,7 @@ describe("adding a question", () => {
     expect(form.getByLabelText("Prompt")).toHaveValue("");
     expect(form.getByLabelText("Points")).toHaveValue("1");
     expect(form.getByLabelText("Choice A")).toHaveValue("");
-    expect(form.getAllByRole("radio")).toHaveLength(1);
+    expect(choiceRadios(form)).toHaveLength(1);
     expect(form.getByRole("radio", { name: "Choice A is correct" })).toBeChecked();
     expect(form.getByText("2 to 6 choices. Select the one that is correct.")).toBeInTheDocument();
   });
@@ -443,6 +450,7 @@ describe("adding a question", () => {
 
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith("/admin/assessments/11/questions", {
+        type: "multiple_choice",
         prompt: "Which device joins two networks?",
         points: 5,
         time_limit_seconds: null,
@@ -642,7 +650,7 @@ describe("choosing how many choices a question has", () => {
       await user.click(add);
     }
 
-    expect(form.getAllByRole("radio")).toHaveLength(6);
+    expect(choiceRadios(form)).toHaveLength(6);
     for (const letter of ["A", "B", "C", "D", "E", "F"]) {
       expect(form.getByLabelText(`Choice ${letter}`)).toBeInTheDocument();
     }
@@ -659,7 +667,7 @@ describe("choosing how many choices a question has", () => {
     await replace(user, form.getByLabelText("Choice B"), "Switch");
     await user.click(form.getByRole("button", { name: "Remove choice A" }));
 
-    expect(form.getAllByRole("radio")).toHaveLength(1);
+    expect(choiceRadios(form)).toHaveLength(1);
     expect(form.getByLabelText("Choice A")).toHaveValue("Switch");
     expect(form.getByRole("button", { name: "Remove choice A" })).toBeDisabled();
   });
@@ -670,8 +678,8 @@ describe("choosing how many choices a question has", () => {
 
     await user.click(form.getByRole("button", { name: "Remove choice B" }));
 
-    expect(form.getAllByRole("radio")).toHaveLength(2);
-    for (const radio of form.getAllByRole("radio")) {
+    expect(choiceRadios(form)).toHaveLength(2);
+    for (const radio of choiceRadios(form)) {
       expect(radio).not.toBeChecked();
     }
 
@@ -701,7 +709,7 @@ describe("choosing how many choices a question has", () => {
 
     await user.click(form.getByRole("button", { name: "True / False" }));
 
-    expect(form.getAllByRole("radio")).toHaveLength(2);
+    expect(choiceRadios(form)).toHaveLength(2);
     expect(form.getByLabelText("Choice A")).toHaveValue("True");
     expect(form.getByLabelText("Choice B")).toHaveValue("False");
     expect(form.getByRole("radio", { name: "Choice A is correct" })).toBeChecked();
@@ -1933,5 +1941,168 @@ describe("the question timer", () => {
       ),
     );
     expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("a fill-in-the-blank question", () => {
+  async function openNewFillInBlank() {
+    const user = userEvent.setup();
+    await show();
+    await user.click(screen.getByRole("button", { name: "Add question" }));
+    const form = questionForm("Add question");
+    await user.click(form.getByRole("radio", { name: "Fill in the blank" }));
+
+    return { user, form };
+  }
+
+  it("is chosen on a new question, which starts as multiple choice", async () => {
+    const user = userEvent.setup();
+    await show();
+    await user.click(screen.getByRole("button", { name: "Add question" }));
+    const form = questionForm("Add question");
+
+    expect(form.getByRole("radio", { name: "Multiple choice" })).toBeChecked();
+    expect(form.getByRole("radio", { name: "Fill in the blank" })).toBeEnabled();
+
+    await user.click(form.getByRole("radio", { name: "Fill in the blank" }));
+
+    expect(form.getByRole("group", { name: "Accepted answers" })).toBeInTheDocument();
+    expect(form.queryByRole("group", { name: "Choices" })).not.toBeInTheDocument();
+    expect(form.getByLabelText("Answer 1")).toHaveValue("");
+  });
+
+  it("keeps an existing question's type fixed", async () => {
+    const user = userEvent.setup();
+    await show();
+    await user.click(screen.getByRole("button", { name: "Edit question 1" }));
+    const form = questionForm("Edit question 1");
+
+    expect(form.getByRole("radio", { name: "Multiple choice" })).toBeChecked();
+    expect(form.getByRole("radio", { name: "Multiple choice" })).toBeDisabled();
+    expect(form.getByRole("radio", { name: "Fill in the blank" })).toBeDisabled();
+    expect(form.getByText(/type cannot be changed/)).toBeInTheDocument();
+  });
+
+  it("adds accepted answers up to ten, removes them, and never goes below one", async () => {
+    const { user, form } = await openNewFillInBlank();
+    const add = form.getByRole("button", { name: "Add answer" });
+
+    expect(form.getByRole("button", { name: "Remove answer 1" })).toBeDisabled();
+
+    for (let rows = 1; rows < 10; rows++) await user.click(add);
+
+    expect(form.getByLabelText("Answer 10")).toBeInTheDocument();
+    expect(add).toBeDisabled();
+
+    await replace(user, form.getByLabelText("Answer 2"), "gateway");
+    await user.click(form.getByRole("button", { name: "Remove answer 1" }));
+
+    expect(form.queryByLabelText("Answer 10")).not.toBeInTheDocument();
+    expect(form.getByLabelText("Answer 1")).toHaveValue("gateway");
+    expect(add).toBeEnabled();
+  });
+
+  it("caps an accepted answer at 255 characters", async () => {
+    const { form } = await openNewFillInBlank();
+
+    expect(form.getByLabelText("Answer 1")).toHaveAttribute("maxLength", "255");
+  });
+
+  it("refuses a blank accepted answer without asking the server", async () => {
+    const { user, form } = await openNewFillInBlank();
+    await replace(user, form.getByLabelText("Prompt"), "Which device forwards packets?");
+    await user.click(form.getByRole("button", { name: "Add answer" }));
+    await replace(user, form.getByLabelText("Answer 1"), "Router");
+    await replace(user, form.getByLabelText("Answer 2"), "-_");
+
+    await user.click(form.getByRole("button", { name: "Add question" }));
+
+    expect(form.getByLabelText("Answer 2")).toHaveAccessibleDescription(/letters or numbers/);
+    expect(form.getByLabelText("Answer 1")).not.toHaveAccessibleDescription();
+    expect(service.createQuestion).not.toHaveBeenCalled();
+  });
+
+  it("sends the type and accepted answers, and no choices", async () => {
+    const { user, form } = await openNewFillInBlank();
+
+    vi.mocked(service.createQuestion).mockImplementation(realService.createQuestion);
+    vi.mocked(api.post).mockResolvedValue({
+      data: { id: 23, type: "fill_in_blank", prompt: "Q", points: 2, order: 2, choices: [], accepted_answers: [] },
+    });
+
+    await replace(user, form.getByLabelText("Prompt"), "Which device forwards packets?");
+    await replace(user, form.getByLabelText("Points"), "2");
+    await replace(user, form.getByLabelText("Answer 1"), "Router");
+    await user.click(form.getByRole("button", { name: "Add answer" }));
+    await replace(user, form.getByLabelText("Answer 2"), "default gateway");
+    await user.click(form.getByRole("button", { name: "Add question" }));
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith("/admin/assessments/11/questions", {
+        type: "fill_in_blank",
+        prompt: "Which device forwards packets?",
+        points: 2,
+        time_limit_seconds: null,
+        accepted_answers: ["Router", "default gateway"],
+      }),
+    );
+  });
+
+  it("puts the server's refusal of an accepted answer under that answer", async () => {
+    const { user, form } = await openNewFillInBlank();
+
+    vi.mocked(service.createQuestion).mockRejectedValue(
+      new ApiError("The given data was invalid.", 422, {
+        "accepted_answers.0": ["Keep each accepted answer to 255 characters or fewer."],
+      }),
+    );
+
+    await replace(user, form.getByLabelText("Prompt"), "Which device forwards packets?");
+    await replace(user, form.getByLabelText("Answer 1"), "Router");
+    await user.click(form.getByRole("button", { name: "Add question" }));
+
+    await waitFor(() =>
+      expect(form.getByLabelText("Answer 1")).toHaveAccessibleDescription(/255 characters or fewer/),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("shows staff a stored question's accepted answers", async () => {
+    await show(
+      assessment({
+        questions: [
+          question({ type: "fill_in_blank", choices: [], acceptedAnswers: ["Router", "default gateway"] }),
+        ],
+      }),
+    );
+
+    const answers = screen.getByRole("list", { name: "Accepted answers for question 1" });
+    expect(within(answers).getByText("Router")).toBeInTheDocument();
+    expect(within(answers).getByText("default gateway")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Choices for question 1" })).not.toBeInTheDocument();
+  });
+
+  it("edits a stored question's accepted answers, as a fill-in-the-blank question still", async () => {
+    const user = userEvent.setup();
+    await show(
+      assessment({
+        questions: [question({ type: "fill_in_blank", choices: [], acceptedAnswers: ["router"] })],
+      }),
+    );
+    vi.mocked(service.updateQuestion).mockResolvedValue(question());
+
+    await user.click(screen.getByRole("button", { name: "Edit question 1" }));
+    const form = questionForm("Edit question 1");
+
+    expect(form.getByRole("radio", { name: "Fill in the blank" })).toBeChecked();
+    expect(form.getByLabelText("Answer 1")).toHaveValue("router");
+
+    await replace(user, form.getByLabelText("Answer 1"), "switch");
+    await user.click(form.getByRole("button", { name: "Save question" }));
+
+    await waitFor(() => expect(service.updateQuestion).toHaveBeenCalled());
+    const [, draft] = vi.mocked(service.updateQuestion).mock.calls[0];
+    expect(draft.type).toBe("fill_in_blank");
+    expect(draft.acceptedAnswers).toEqual(["switch"]);
   });
 });

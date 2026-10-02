@@ -39,8 +39,19 @@ export interface StudentAssessmentChoice {
   order: number;
 }
 
+/**
+ * How a question is answered: by picking one of its choices, or by typing an
+ * answer. A typed answer is marked by the server, which alone holds what it
+ * accepts — nothing here is told.
+ */
+export type StudentQuestionType = "multiple_choice" | "fill_in_blank";
+
+/** The longest a typed answer may be, as the server takes it. */
+export const TYPED_ANSWER_MAX_LENGTH = 255;
+
 export interface StudentAssessmentQuestion {
   id: number;
+  type: StudentQuestionType;
   prompt: string;
   /** What the question is worth — not what anyone was awarded for it. */
   points: number;
@@ -117,6 +128,7 @@ export interface ReviewedAssessment {
  */
 export interface AssessmentReviewQuestion {
   id: number;
+  type: StudentQuestionType;
   prompt: string;
   /** What the question was worth. What was awarded for it is below. */
   points: number;
@@ -128,6 +140,12 @@ export interface AssessmentReviewQuestion {
    */
   choices: StudentAssessmentChoice[];
   selectedChoiceId: number | null;
+  /**
+   * What the student typed for a fill-in-the-blank question, as stored; null
+   * for multiple choice, and when time ran out with nothing typed. Whether it
+   * was right is `isCorrect` — the answers that would have been are never sent.
+   */
+  responseText: string | null;
   correctChoiceId: number | null;
   isCorrect: boolean | null;
   pointsAwarded: number | null;
@@ -163,13 +181,16 @@ export interface AssessmentReview {
 export interface AssessmentAnswer {
   questionId: number;
   choiceId: number | null;
+  /** Only on a fill-in-the-blank answer: what was typed, or null for nothing. */
+  responseText?: string | null;
 }
 
 /**
- * The questions settled so far, by question id: the choice picked, or null for
- * a timed question whose time ran out. A question not yet reached is absent.
+ * The questions settled so far, by question id: the choice picked, the text
+ * typed for a fill-in-the-blank question, or null for a timed question whose
+ * time ran out. A question not yet reached is absent.
  */
-export type AssessmentSelections = Record<number, number | null>;
+export type AssessmentSelections = Record<number, number | string | null>;
 
 interface ApiChoice {
   id: number;
@@ -179,6 +200,7 @@ interface ApiChoice {
 
 interface ApiQuestion {
   id: number;
+  type?: StudentQuestionType;
   prompt: string;
   points: number;
   time_limit_seconds?: number | null;
@@ -207,6 +229,7 @@ interface ApiAttempt {
 
 interface ApiReviewQuestion extends ApiQuestion {
   selected_choice_id: number | null;
+  response_text?: string | null;
   correct_choice_id: number | null;
   is_correct: boolean | null;
   points_awarded: number | null;
@@ -228,6 +251,7 @@ function toChoice(row: ApiChoice): StudentAssessmentChoice {
 function toQuestion(row: ApiQuestion): StudentAssessmentQuestion {
   return {
     id: row.id,
+    type: row.type ?? "multiple_choice",
     prompt: row.prompt,
     points: row.points,
     timeLimitSeconds: row.time_limit_seconds ?? null,
@@ -263,6 +287,7 @@ function toResult(row: ApiAttempt): AssessmentResult {
 function toReviewQuestion(row: ApiReviewQuestion): AssessmentReviewQuestion {
   return {
     id: row.id,
+    type: row.type ?? "multiple_choice",
     prompt: row.prompt,
     points: row.points,
     order: row.order,
@@ -270,6 +295,7 @@ function toReviewQuestion(row: ApiReviewQuestion): AssessmentReviewQuestion {
     // smuggled onto a choice is dropped here as it is dropped there.
     choices: (row.choices ?? []).map(toChoice),
     selectedChoiceId: row.selected_choice_id ?? null,
+    responseText: row.response_text ?? null,
     correctChoiceId: row.correct_choice_id ?? null,
     isCorrect: row.is_correct ?? null,
     pointsAwarded: row.points_awarded ?? null,
@@ -364,8 +390,9 @@ export async function fetchOwnAttemptReview(
  * Submits the student's answers, once, and hands back the score the server
  * worked out.
  *
- * Only the question and the choice go: the score, the points and whose attempt
- * it is are the server's, and it refuses them if sent.
+ * Only the question and the choice go — and, for a fill-in-the-blank question,
+ * the text typed: the score, the points and whose attempt it is are the
+ * server's, and it refuses them if sent.
  */
 export async function submitAssessment(
   assessmentId: number,
@@ -374,10 +401,15 @@ export async function submitAssessment(
   const { data } = await api.post<{ data: ApiAttempt }>(
     `/assessments/${assessmentId}/attempts`,
     {
-      answers: answers.map((answer) => ({
-        question_id: answer.questionId,
-        choice_id: answer.choiceId,
-      })),
+      answers: answers.map((answer) =>
+        answer.responseText === undefined
+          ? { question_id: answer.questionId, choice_id: answer.choiceId }
+          : {
+              question_id: answer.questionId,
+              choice_id: answer.choiceId,
+              response_text: answer.responseText,
+            },
+      ),
     },
   );
 
@@ -397,7 +429,8 @@ export function unansweredQuestions(
 
 /**
  * The settled questions as a submission, in the order they were asked: the
- * choice picked, or null for a timed question whose time ran out.
+ * choice picked, or — for a fill-in-the-blank question — no choice and the
+ * text typed; null for a timed question whose time ran out.
  */
 export function answersFor(
   questions: StudentAssessmentQuestion[],
@@ -405,8 +438,20 @@ export function answersFor(
 ): AssessmentAnswer[] {
   return questions
     .filter((question) => selections[question.id] !== undefined)
-    .map((question) => ({
-      questionId: question.id,
-      choiceId: selections[question.id],
-    }));
+    .map((question) => {
+      const settled = selections[question.id];
+
+      if (question.type === "fill_in_blank") {
+        return {
+          questionId: question.id,
+          choiceId: null,
+          responseText: typeof settled === "string" ? settled : null,
+        };
+      }
+
+      return {
+        questionId: question.id,
+        choiceId: typeof settled === "number" ? settled : null,
+      };
+    });
 }

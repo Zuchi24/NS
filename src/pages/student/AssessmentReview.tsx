@@ -40,7 +40,13 @@ type Verdict = "correct" | "incorrect" | "unanswered";
 function verdictOf(question: AssessmentReviewQuestion): Verdict {
   if (question.isCorrect === true) return "correct";
 
-  return question.selectedChoiceId === null ? "unanswered" : "incorrect";
+  // Nothing picked, or — for a fill-in-the-blank question — nothing typed.
+  const answered =
+    question.type === "fill_in_blank"
+      ? question.responseText !== null
+      : question.selectedChoiceId !== null;
+
+  return answered ? "incorrect" : "unanswered";
 }
 
 const VERDICTS: Record<
@@ -146,16 +152,39 @@ function QuestionReview({
             {question.pointsAwarded ?? 0} of {points(question.points)} awarded
           </p>
 
-          <ul className="mt-4 space-y-2">
-            {question.choices.map((choice) => (
-              <ChoiceReview
-                key={choice.id}
-                choice={choice}
-                picked={choice.id === question.selectedChoiceId}
-                correct={choice.id === question.correctChoiceId}
-              />
-            ))}
-          </ul>
+          {question.type === "fill_in_blank" ? (
+            // What the student typed, and the verdict above. Never the answers
+            // that would have been accepted: the server does not send them.
+            question.responseText !== null && (
+              <p
+                className={`mt-4 rounded-md border px-3 py-2.5 text-sm ${
+                  question.isCorrect
+                    ? "border-emerald-300 bg-emerald-50"
+                    : "border-red-300 bg-red-50"
+                }`}
+              >
+                <span
+                  className={`block text-xs font-semibold ${
+                    question.isCorrect ? "text-emerald-700" : "text-red-700"
+                  }`}
+                >
+                  Your answer
+                </span>
+                <span className="block mt-1 text-gray-900 break-words">{question.responseText}</span>
+              </p>
+            )
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {question.choices.map((choice) => (
+                <ChoiceReview
+                  key={choice.id}
+                  choice={choice}
+                  picked={choice.id === question.selectedChoiceId}
+                  correct={choice.id === question.correctChoiceId}
+                />
+              ))}
+            </ul>
+          )}
 
           {verdict === "unanswered" && (
             <p className="mt-3 text-sm text-amber-800">

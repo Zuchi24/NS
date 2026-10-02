@@ -82,6 +82,7 @@ const { toast } = await import("sonner");
 
 const switching: StudentAssessmentQuestion = {
   id: 21,
+  type: "multiple_choice",
   prompt: "What does a switch primarily do?",
   points: 2,
   timeLimitSeconds: null,
@@ -96,6 +97,7 @@ const switching: StudentAssessmentQuestion = {
 
 const routing: StudentAssessmentQuestion = {
   id: 22,
+  type: "multiple_choice",
   prompt: "Which layer routes packets?",
   points: 1,
   timeLimitSeconds: null,
@@ -158,6 +160,7 @@ function review(over: Partial<AssessmentReview> = {}): AssessmentReview {
       {
         ...switching,
         selectedChoiceId: 32, // Assign public IP addresses
+        responseText: null,
         correctChoiceId: 31, // Connect devices within a LAN
         isCorrect: false,
         pointsAwarded: 0,
@@ -165,6 +168,7 @@ function review(over: Partial<AssessmentReview> = {}): AssessmentReview {
       {
         ...routing,
         selectedChoiceId: 41, // Network
+        responseText: null,
         correctChoiceId: 41,
         isCorrect: true,
         pointsAwarded: 1,
@@ -469,6 +473,7 @@ describe("choosing answers", () => {
 describe("two to six choices", () => {
   const trueFalse: StudentAssessmentQuestion = {
     id: 51,
+    type: "multiple_choice",
     prompt: "A router forwards packets between networks.",
     points: 1,
     timeLimitSeconds: null,
@@ -481,6 +486,7 @@ describe("two to six choices", () => {
 
   const layers: StudentAssessmentQuestion = {
     id: 52,
+    type: "multiple_choice",
     prompt: "Which layer do applications talk to?",
     points: 1,
     timeLimitSeconds: null,
@@ -868,6 +874,7 @@ describe("reviewing a completed attempt", () => {
           {
             ...routing,
             selectedChoiceId: 41,
+            responseText: null,
             correctChoiceId: 41,
             isCorrect: true,
             pointsAwarded: 1,
@@ -875,6 +882,7 @@ describe("reviewing a completed attempt", () => {
           {
             ...switching,
             selectedChoiceId: 32,
+            responseText: null,
             correctChoiceId: 31,
             isCorrect: false,
             pointsAwarded: 0,
@@ -967,6 +975,7 @@ describe("reviewing a completed attempt", () => {
           {
             ...switching,
             selectedChoiceId: null,
+            responseText: null,
             correctChoiceId: 31,
             isCorrect: false,
             pointsAwarded: 0,
@@ -1723,5 +1732,133 @@ describe("what a screen reader is told about time", () => {
 
     elapse(5_000);
     expect(announced()).toBe("");
+  });
+});
+
+describe("a fill-in-the-blank question", () => {
+  afterEach(() => vi.useRealTimers());
+
+  const blank: StudentAssessmentQuestion = {
+    id: 23,
+    type: "fill_in_blank",
+    prompt: "Which device forwards packets between networks?",
+    points: 2,
+    timeLimitSeconds: null,
+    order: 3,
+    choices: [],
+  };
+
+  it("asks for a typed answer: labelled, at most 255 characters, no autocomplete or spellcheck", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ questions: [blank] }));
+    await begin(user);
+
+    const input = questionGroup(1).getByLabelText("Your answer");
+
+    expect(input).toHaveAttribute("maxLength", "255");
+    expect(input).toHaveAttribute("autoComplete", "off");
+    expect(input).toHaveAttribute("spellCheck", "false");
+    expect(questionGroup(1).queryAllByRole("radio")).toHaveLength(0);
+  });
+
+  it("will not move on from an untimed question until something is typed", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ questions: [blank] }));
+    await begin(user);
+
+    expect(screen.getByRole("button", { name: "Finish" })).toBeDisabled();
+    expect(screen.getByText("Type an answer to continue.")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Your answer"), "   ");
+    expect(screen.getByRole("button", { name: "Finish" })).toBeDisabled();
+
+    await user.type(screen.getByLabelText("Your answer"), "Router");
+    expect(screen.getByRole("button", { name: "Finish" })).toBeEnabled();
+  });
+
+  it("submits what was typed as the answer, beside the choices picked", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.submitAssessment).mockResolvedValue(result);
+    reviewLandsOn();
+    await show(assessment({ questions: [switching, blank] }));
+    await begin(user);
+
+    await user.click(questionGroup(1).getByRole("radio", { name: "Assign public IP addresses" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.type(screen.getByLabelText("Your answer"), "Router");
+    await user.click(screen.getByRole("button", { name: "Finish" }));
+
+    await waitFor(() =>
+      expect(service.submitAssessment).toHaveBeenCalledWith(11, [
+        { questionId: 21, choiceId: 32 },
+        { questionId: 23, choiceId: null, responseText: "Router" },
+      ]),
+    );
+  });
+
+  it("sends nothing typed when a timed question's time runs out, and leaves the mark to the server", async () => {
+    vi.mocked(service.submitAssessment).mockResolvedValue(result);
+    await showTimed([{ ...blank, timeLimitSeconds: 10 }]);
+    press("Start assessment");
+
+    fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "Rou" } });
+    elapse(10_000);
+    await settleSubmission();
+
+    // What was half-typed and never handed in is not sent.
+    expect(service.submitAssessment).toHaveBeenCalledWith(11, [
+      { questionId: 23, choiceId: null, responseText: null },
+    ]);
+  });
+
+  it("keeps the answer key out of the page: the question carries no accepted answers", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ questions: [blank] }));
+    await begin(user);
+
+    expect(Object.keys(blank)).not.toContain("acceptedAnswers");
+    expect(document.body.textContent).not.toMatch(/accepted/i);
+  });
+
+  it("reviews the typed answer and whether it was right, and never the accepted answers", async () => {
+    await show(
+      assessment({ questions: [blank] }),
+      review({
+        earnedPoints: 2,
+        totalPoints: 2,
+        percent: 100,
+        questions: [
+          {
+            ...blank,
+            selectedChoiceId: null,
+            responseText: "router",
+            correctChoiceId: null,
+            isCorrect: true,
+            pointsAwarded: 2,
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByText("router")).toBeInTheDocument();
+    expect(screen.getAllByText("Your answer").length).toBeGreaterThan(0);
+    expect(screen.getByText("Correct")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/accepted/i);
+  });
+
+  it("reviews a wrong typed answer as incorrect, and a missing one as unanswered", async () => {
+    await show(
+      assessment({ questions: [blank, { ...blank, id: 24, order: 4 }] }),
+      review({
+        questions: [
+          { ...blank, selectedChoiceId: null, responseText: "switch", correctChoiceId: null, isCorrect: false, pointsAwarded: 0 },
+          { ...blank, id: 24, order: 4, selectedChoiceId: null, responseText: null, correctChoiceId: null, isCorrect: false, pointsAwarded: 0 },
+        ],
+      }),
+    );
+
+    expect(screen.getByText("switch")).toBeInTheDocument();
+    expect(screen.getByText("Incorrect")).toBeInTheDocument();
+    expect(screen.getByText("You did not answer this question.")).toBeInTheDocument();
   });
 });

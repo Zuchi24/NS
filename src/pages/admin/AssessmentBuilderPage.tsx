@@ -30,10 +30,14 @@ import { ApiError } from "@/services/api";
 import { useAsync } from "@/services/useAsync";
 import {
   ASSESSMENT_TYPE_LABELS,
+  ACCEPTED_ANSWER_MAX,
+  ACCEPTED_ANSWER_MAX_LENGTH,
+  ACCEPTED_ANSWER_MIN,
   EMPTY_QUESTION_DRAFT,
   QUESTION_CHOICE_MAX,
   QUESTION_CHOICE_MIN,
   QUESTION_TIMER_PRESETS,
+  QUESTION_TYPE_LABELS,
   createQuestion,
   deleteAssessment,
   deleteQuestion,
@@ -58,6 +62,7 @@ import type {
   AssessmentLockState,
   AssessmentQuestion,
   AssessmentQuestionDraft,
+  QuestionType,
 } from "@/features/assessments/adminAssessmentService";
 import { ARCHIVE_ADMIN_PATH, builderReturnOf } from "@/features/assessments/assessmentPaths";
 import { AssessmentResultsPanel } from "./AssessmentResultsPanel";
@@ -1016,11 +1021,15 @@ function newQuestionDraft(): AssessmentQuestionDraft {
 function questionFieldOf(field: string): string {
   if (/^choices\.\d+\.label$/.test(field)) return field;
   if (field === "choices" || field.startsWith("choices.")) return "choices";
+  // An accepted answer's error sits under that answer; the rest under the list.
+  if (/^accepted_answers\.\d+$/.test(field)) return field;
+  if (field.startsWith("accepted_answers")) return "accepted_answers";
 
   return field;
 }
 
-const QUESTION_FORM_FIELD = /^(prompt|points|time_limit_seconds|choices|choices\.\d+\.label)$/;
+const QUESTION_FORM_FIELD =
+  /^(prompt|points|time_limit_seconds|choices|choices\.\d+\.label|accepted_answers|accepted_answers\.\d+)$/;
 
 /** What a timer setting is called in the editor's list. */
 function timerOptionLabel(seconds: number | null): string {
@@ -1097,6 +1106,35 @@ function QuestionForm({
   // A true/false question is two choices, not a type of its own.
   const applyTrueFalse = () => setChoices(() => TRUE_FALSE_CHOICES.map((choice) => ({ ...choice })));
 
+  // Chosen on a new question only: an existing one keeps its type.
+  const setType = (type: QuestionType) => {
+    if (!isNew) return;
+
+    setDraft((current) => ({ ...current, type }));
+    setErrors({});
+  };
+
+  // The same reasoning as setChoices: a position-keyed error would move rows.
+  const setAcceptedAnswers = (next: (answers: string[]) => string[]) => {
+    setDraft((current) => ({ ...current, acceptedAnswers: next(current.acceptedAnswers) }));
+    setErrors((current) =>
+      Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith("accepted_answers"))),
+    );
+  };
+
+  const setAcceptedAnswer = (index: number, value: string) =>
+    setDraft((current) => ({
+      ...current,
+      acceptedAnswers: current.acceptedAnswers.map((answer, at) => (at === index ? value : answer)),
+    }));
+
+  const addAcceptedAnswer = () =>
+    setAcceptedAnswers((answers) => (answers.length >= ACCEPTED_ANSWER_MAX ? answers : [...answers, ""]));
+
+  // Never below one row.
+  const removeAcceptedAnswer = (index: number) =>
+    setAcceptedAnswers((answers) => (answers.length <= 1 ? answers : answers.filter((_, at) => at !== index)));
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -1165,6 +1203,32 @@ function QuestionForm({
       aria-label={isNew ? "Add question" : `Edit question ${number}`}
       className="rounded-md border border-brand-teal/30 bg-accent/60 p-4 space-y-4"
     >
+      {/* Chosen once: a question's type is fixed after it is created, so an
+          existing question shows its type without letting it change. */}
+      <fieldset className="space-y-1.5" disabled={!isNew}>
+        <legend className="text-sm font-medium text-gray-900">Question type</legend>
+        <div className="flex flex-wrap gap-4">
+          {(["multiple_choice", "fill_in_blank"] as const).map((type) => (
+            <label key={type} className="flex items-center gap-2 text-sm text-gray-800">
+              <input
+                type="radio"
+                name={`${prefix}-type`}
+                value={type}
+                checked={draft.type === type}
+                onChange={() => setType(type)}
+                className="h-4 w-4 accent-emerald-600"
+              />
+              {QUESTION_TYPE_LABELS[type]}
+            </label>
+          ))}
+        </div>
+        {!isNew && (
+          <p className="text-xs text-gray-600">
+            A question’s type cannot be changed. Delete it and add a new one instead.
+          </p>
+        )}
+      </fieldset>
+
       <div className="space-y-2">
         <Label htmlFor={`${prefix}-prompt`}>Prompt</Label>
         <Textarea
@@ -1230,6 +1294,67 @@ function QuestionForm({
         </div>
       </div>
 
+      {draft.type === "fill_in_blank" ? (
+        <fieldset className="space-y-2" aria-describedby={describedBy("accepted_answers")}>
+          <legend className="text-sm font-medium text-gray-900">Accepted answers</legend>
+          <p className="text-xs text-gray-600">
+            {ACCEPTED_ANSWER_MIN} to {ACCEPTED_ANSWER_MAX} answers. A student’s answer is right when it
+            matches one, ignoring capitals, extra spaces, hyphens and underscores. Other punctuation
+            counts.
+          </p>
+
+          {draft.acceptedAnswers.map((answer, index) => {
+            const key = `accepted_answers.${index}`;
+            const inputId = `${prefix}-accepted-${index}`;
+
+            return (
+              <div key={index} className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor={inputId} className="w-24 shrink-0">
+                    Answer {index + 1}
+                  </Label>
+                  <Input
+                    id={inputId}
+                    value={answer}
+                    maxLength={ACCEPTED_ANSWER_MAX_LENGTH}
+                    autoComplete="off"
+                    aria-invalid={errors[key] ? true : undefined}
+                    aria-describedby={describedBy(key)}
+                    onChange={(e) => setAcceptedAnswer(index, e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Remove answer ${index + 1}`}
+                    disabled={draft.acceptedAnswers.length <= 1}
+                    onClick={() => removeAcceptedAnswer(index)}
+                    className="shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                {errors[key] && <FieldError id={describedBy(key)!} message={errors[key]} />}
+              </div>
+            );
+          })}
+
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={draft.acceptedAnswers.length >= ACCEPTED_ANSWER_MAX}
+            onClick={addAcceptedAnswer}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add answer
+          </Button>
+
+          {errors.accepted_answers && (
+            <FieldError id={describedBy("accepted_answers")!} message={errors.accepted_answers} />
+          )}
+        </fieldset>
+      ) : (
       <fieldset className="space-y-2" aria-describedby={describedBy("choices")}>
         <legend className="text-sm font-medium text-gray-900">Choices</legend>
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1301,6 +1426,7 @@ function QuestionForm({
           <FieldError id={describedBy("choices")!} message={errors.choices} />
         )}
       </fieldset>
+      )}
 
       <div className="flex items-center gap-2">
         <Button type="submit" size="sm" disabled={saving}>
@@ -1357,6 +1483,23 @@ function QuestionCard({
         </div>
       </div>
 
+      {question.type === "fill_in_blank" ? (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-gray-600">
+            {QUESTION_TYPE_LABELS.fill_in_blank} · accepted answers
+          </p>
+          <ul aria-label={`Accepted answers for question ${number}`} className="flex flex-wrap gap-1.5">
+            {question.acceptedAnswers.map((answer, index) => (
+              <li
+                key={index}
+                className="rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-sm text-emerald-900"
+              >
+                {answer}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
       <ul aria-label={`Choices for question ${number}`} className="space-y-1.5">
         {choices.map((choice, index) => (
           <li
@@ -1382,6 +1525,7 @@ function QuestionCard({
           </li>
         ))}
       </ul>
+      )}
 
       {children}
     </article>

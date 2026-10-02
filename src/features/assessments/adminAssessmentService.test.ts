@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   EMPTY_ASSESSMENT_DRAFT,
+  ACCEPTED_ANSWER_MAX,
+  ACCEPTED_ANSWER_MIN,
   EMPTY_QUESTION_DRAFT,
   QUESTION_CHOICE_MAX,
   QUESTION_CHOICE_MIN,
@@ -28,6 +30,7 @@ import {
   updateAssessment,
   updateQuestion,
   validateAssessmentDraft,
+  foldAnswer,
   validateQuestionDraft,
   QUESTION_TIMER_PRESETS,
 } from "./adminAssessmentService";
@@ -127,6 +130,8 @@ function questionDraft(
   over: Partial<AssessmentQuestionDraft> = {},
 ): AssessmentQuestionDraft {
   return {
+    type: "multiple_choice",
+    acceptedAnswers: [""],
     prompt: "Which layer routes packets?",
     points: "2",
     timeLimitSeconds: null,
@@ -204,6 +209,8 @@ describe("reading assessments", () => {
       questions: [
         {
           id: 21,
+          type: "multiple_choice",
+          acceptedAnswers: [],
           prompt: "Which layer routes packets?",
           points: 2,
           timeLimitSeconds: null,
@@ -449,14 +456,15 @@ describe("writing questions", () => {
     ],
   };
 
-  it("creates on the assessment with prompt, points and all four choices", async () => {
+  it("creates on the assessment with its type, prompt, points and all four choices", async () => {
     vi.mocked(api.post).mockResolvedValue({ data: apiQuestion() });
 
     await createQuestion(11, questionDraft());
 
+    // The type goes on a create, where it is chosen.
     expect(api.post).toHaveBeenCalledWith(
       "/admin/assessments/11/questions",
-      expectedPayload,
+      { type: "multiple_choice", ...expectedPayload },
     );
 
     // A new question is appended; where it goes is not the client's to say.
@@ -472,6 +480,8 @@ describe("writing questions", () => {
 
     expect(question).toEqual<AssessmentQuestion>({
       id: 21,
+      type: "multiple_choice",
+      acceptedAnswers: [],
       prompt: "Which layer routes packets?",
       points: 2,
       timeLimitSeconds: null,
@@ -855,7 +865,16 @@ describe("the question timer", () => {
   });
 
   it("carries a stored question's timer into its draft", () => {
-    const question = { id: 21, prompt: "Q?", points: 1, timeLimitSeconds: 90, order: 0, choices: [] };
+    const question: AssessmentQuestion = {
+      id: 21,
+      type: "multiple_choice",
+      prompt: "Q?",
+      points: 1,
+      timeLimitSeconds: 90,
+      order: 0,
+      choices: [],
+      acceptedAnswers: [],
+    };
 
     expect(draftOfQuestion(question).timeLimitSeconds).toBe(90);
   });
@@ -1065,5 +1084,123 @@ describe("the archive", () => {
     );
 
     await expect(deleteAssessment(13, { expected: "archived" })).rejects.toMatchObject({ status: 409 });
+  });
+});
+
+describe("a fill-in-the-blank question", () => {
+  const fillInBlank = (acceptedAnswers: string[]): AssessmentQuestionDraft => ({
+    ...questionDraft(),
+    type: "fill_in_blank",
+    choices: [],
+    acceptedAnswers,
+  });
+
+  it("starts every new question with one empty accepted-answer row, ready if it is chosen", () => {
+    expect(EMPTY_QUESTION_DRAFT.type).toBe("multiple_choice");
+    expect(EMPTY_QUESTION_DRAFT.acceptedAnswers).toEqual([""]);
+  });
+
+  it("accepts one to ten accepted answers, and refuses none or eleven", () => {
+    for (let count = ACCEPTED_ANSWER_MIN; count <= ACCEPTED_ANSWER_MAX; count++) {
+      const answers = Array.from({ length: count }, (_, index) => `Answer ${index}`);
+      expect(validateQuestionDraft(fillInBlank(answers))).toEqual({});
+    }
+
+    for (const count of [0, 11]) {
+      const answers = Array.from({ length: count }, (_, index) => `Answer ${index}`);
+      expect(validateQuestionDraft(fillInBlank(answers)).accepted_answers).toBe(
+        "A question has between 1 and 10 accepted answers.",
+      );
+    }
+  });
+
+  it("refuses an accepted answer that folds to nothing, under that answer", () => {
+    for (const blank of ["", "   ", "-_", " - "]) {
+      const found = validateQuestionDraft(fillInBlank(["Router", blank]));
+
+      expect(found["accepted_answers.1"]).toMatch(/letters or numbers/);
+      expect(found["accepted_answers.0"]).toBeUndefined();
+    }
+  });
+
+  it("allows an accepted answer of 255 characters and refuses 256", () => {
+    expect(validateQuestionDraft(fillInBlank(["a".repeat(255)]))).toEqual({});
+    expect(validateQuestionDraft(fillInBlank(["a".repeat(256)]))["accepted_answers.0"]).toMatch(
+      /255 characters or fewer/,
+    );
+  });
+
+  it("does not ask for choices, or a correct one", () => {
+    expect(validateQuestionDraft(fillInBlank(["Router"])).choices).toBeUndefined();
+  });
+
+  it("folds an answer the way the server compares it", () => {
+    expect(foldAnswer("  Default-Gateway_ ")).toBe("default gateway");
+    expect(foldAnswer("ＲＯＵＴＥＲ")).toBe("router");
+    expect(foldAnswer("Router.")).toBe("router.");
+    expect(foldAnswer("-_ ")).toBe("");
+    expect(foldAnswer("s")).toBe("s");
+    expect(foldAnswer("router   gateway")).toBe("router gateway");
+  });
+
+  it("creates with its type and accepted answers, and no choices", async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: apiQuestion({ type: "fill_in_blank", choices: [], accepted_answers: ["Router", "gateway"] }),
+    });
+
+    const created = await createQuestion(11, fillInBlank([" Router ", "gateway"]));
+
+    expect(api.post).toHaveBeenCalledWith("/admin/assessments/11/questions", {
+      type: "fill_in_blank",
+      prompt: "Which layer routes packets?",
+      points: 2,
+      time_limit_seconds: null,
+      accepted_answers: ["Router", "gateway"],
+    });
+    expect(created.type).toBe("fill_in_blank");
+    expect(created.acceptedAnswers).toEqual(["Router", "gateway"]);
+  });
+
+  it("edits with the accepted answers and never a type", async () => {
+    vi.mocked(api.put).mockResolvedValue({
+      data: apiQuestion({ type: "fill_in_blank", choices: [], accepted_answers: ["switch"] }),
+    });
+
+    await updateQuestion(21, fillInBlank(["switch"]));
+
+    const [, payload] = vi.mocked(api.put).mock.calls[0];
+    expect(payload).toEqual({
+      prompt: "Which layer routes packets?",
+      points: 2,
+      time_limit_seconds: null,
+      accepted_answers: ["switch"],
+    });
+    expect(payload).not.toHaveProperty("type");
+    expect(payload).not.toHaveProperty("choices");
+  });
+
+  it("reads a stored question's type and accepted answers into its draft", () => {
+    const draft = draftOfQuestion({
+      id: 21,
+      type: "fill_in_blank",
+      prompt: "Which device forwards packets?",
+      points: 2,
+      timeLimitSeconds: null,
+      order: 0,
+      choices: [],
+      acceptedAnswers: ["Router", "gateway"],
+    });
+
+    expect(draft.type).toBe("fill_in_blank");
+    expect(draft.acceptedAnswers).toEqual(["Router", "gateway"]);
+  });
+
+  it("reads a question from before fill in the blank as multiple choice", async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: apiQuestion() });
+
+    const created = await createQuestion(11, questionDraft());
+
+    expect(created.type).toBe("multiple_choice");
+    expect(created.acceptedAnswers).toEqual([]);
   });
 });

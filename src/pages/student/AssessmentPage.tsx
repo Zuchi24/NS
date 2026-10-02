@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   EmptyState,
   ErrorState,
@@ -12,6 +13,7 @@ import {
 } from "@/components/common/AsyncStates";
 import {
   STUDENT_ASSESSMENT_TYPE_LABELS,
+  TYPED_ANSWER_MAX_LENGTH,
   answersFor,
   fetchOwnAttemptReview,
   fetchStudentAssessment,
@@ -560,16 +562,16 @@ function AnswerForm({
    * So a question is never answered twice, never skipped, and the last one
    * never submits twice.
    */
-  const settle = (questionId: number, choiceId: number | null) => {
+  const settle = (questionId: number, answer: number | string | null) => {
     const at = current.current;
 
     if (questions[at]?.id !== questionId || questionId in selections.current) return;
 
-    selections.current = { ...selections.current, [questionId]: choiceId };
+    selections.current = { ...selections.current, [questionId]: answer };
     current.current = at + 1;
     setIndex(at + 1);
 
-    if (choiceId === null) {
+    if (answer === null) {
       setTimedOut(at + 1);
       setAnnouncement(`Time's up. Question ${at + 1} was not answered.`);
     } else {
@@ -608,7 +610,7 @@ function AnswerForm({
           number={index + 1}
           total={total}
           timedOutBefore={timedOut !== null && timedOut === index ? timedOut : null}
-          onSettle={(choiceId) => settle(question.id, choiceId)}
+          onSettle={(answer) => settle(question.id, answer)}
           onWarn={(message) => setAnnouncement(message)}
         />
       ) : (
@@ -715,10 +717,16 @@ function QuestionStep({
   total: number;
   /** The previous question's number, when its time ran out. */
   timedOutBefore: number | null;
-  onSettle: (choiceId: number | null) => void;
+  /** The choice picked, the text typed, or null when the time ran out. */
+  onSettle: (answer: number | string | null) => void;
   onWarn: (message: string) => void;
 }) {
   const [picked, setPicked] = useState<number | null>(null);
+  // A fill-in-the-blank question's answer, as typed. Whether it is right is the
+  // server's to say: nothing on this page knows what it accepts.
+  const [typed, setTyped] = useState("");
+  const typedQuestion = question.type === "fill_in_blank";
+  const answered = typedQuestion ? typed.trim() !== "" : picked !== null;
   const remaining = useQuestionCountdown(question.timeLimitSeconds, () => onSettle(null));
 
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -820,6 +828,31 @@ function QuestionStep({
             </span>
           </legend>
 
+          {typedQuestion ? (
+            <div className="space-y-1.5">
+              <label htmlFor={`answer-${question.id}`} className="block text-sm font-medium text-gray-800">
+                Your answer
+              </label>
+              <Input
+                id={`answer-${question.id}`}
+                value={typed}
+                maxLength={TYPED_ANSWER_MAX_LENGTH}
+                autoComplete="off"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                onChange={(e) => setTyped(e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter is how a typed answer is usually handed in.
+                  if (e.key === "Enter" && answered) {
+                    e.preventDefault();
+                    onSettle(typed);
+                  }
+                }}
+                className="h-12 text-base"
+              />
+            </div>
+          ) : (
           <div className="grid gap-2.5">
             {choices.map((choice, slot) => {
               const checked = picked === choice.id;
@@ -856,13 +889,20 @@ function QuestionStep({
               );
             })}
           </div>
+          )}
         </fieldset>
 
         <div className="flex items-center justify-end gap-3">
-          {picked === null && (
-            <p className="text-xs text-gray-500">Pick an answer to continue.</p>
+          {!answered && (
+            <p className="text-xs text-gray-500">
+              {typedQuestion ? "Type an answer to continue." : "Pick an answer to continue."}
+            </p>
           )}
-          <Button type="button" disabled={picked === null} onClick={() => onSettle(picked)}>
+          <Button
+            type="button"
+            disabled={!answered}
+            onClick={() => onSettle(typedQuestion ? typed : picked)}
+          >
             {isLast ? "Finish" : "Next"}
           </Button>
         </div>

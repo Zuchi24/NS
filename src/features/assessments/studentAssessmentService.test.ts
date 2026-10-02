@@ -174,6 +174,7 @@ describe("reading an assessment", () => {
       questions: [
         {
           id: 21,
+          type: "multiple_choice",
           prompt: "What does a switch primarily do?",
           points: 2,
           timeLimitSeconds: null,
@@ -282,6 +283,7 @@ describe("reading the student's own review", () => {
       questions: [
         {
           id: 21,
+          type: "multiple_choice",
           prompt: "What does a switch primarily do?",
           points: 3,
           order: 1,
@@ -291,12 +293,14 @@ describe("reading the student's own review", () => {
             { id: 33, label: "Encrypt traffic", order: 3 },
           ],
           selectedChoiceId: 33,
+          responseText: null,
           correctChoiceId: 32,
           isCorrect: false,
           pointsAwarded: 0,
         },
         {
           id: 22,
+          type: "multiple_choice",
           prompt: "Which layer does a router work at?",
           points: 1,
           order: 2,
@@ -305,6 +309,7 @@ describe("reading the student's own review", () => {
             { id: 42, label: "Physical", order: 2 },
           ],
           selectedChoiceId: 41,
+          responseText: null,
           correctChoiceId: 41,
           isCorrect: true,
           pointsAwarded: 1,
@@ -572,6 +577,7 @@ describe("submitting", () => {
 describe("working out the answers", () => {
   const question = (id: number): StudentAssessmentQuestion => ({
     id,
+    type: "multiple_choice",
     prompt: `Question ${id}`,
     points: 1,
     timeLimitSeconds: null,
@@ -604,5 +610,78 @@ describe("working out the answers", () => {
       { questionId: 21, choiceId: 31 },
       { questionId: 23, choiceId: 53 },
     ]);
+  });
+
+  it("sends a typed answer with no choice, and a timed-out one as null text", () => {
+    const typed: StudentAssessmentQuestion = { ...question(24), type: "fill_in_blank" };
+    const timedOut: StudentAssessmentQuestion = { ...question(25), type: "fill_in_blank" };
+
+    expect(answersFor([question(21), typed, timedOut], { 21: 31, 24: "Router", 25: null })).toEqual([
+      { questionId: 21, choiceId: 31 },
+      { questionId: 24, choiceId: null, responseText: "Router" },
+      { questionId: 25, choiceId: null, responseText: null },
+    ]);
+  });
+});
+
+describe("a fill-in-the-blank question", () => {
+  it("reads its type, and nothing that could carry an answer key", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        id: 11,
+        topic_id: 4,
+        type: "pre_test",
+        version: 1,
+        title: "Routing",
+        description: null,
+        questions: [
+          {
+            id: 21,
+            type: "fill_in_blank",
+            prompt: "Which device forwards packets?",
+            points: 2,
+            time_limit_seconds: null,
+            order: 0,
+            choices: [],
+            // Never sent to a student; dropped here even if it were.
+            accepted_answers: ["router"],
+          },
+        ],
+      },
+    });
+
+    const assessment = await fetchStudentAssessment(11);
+    const [question] = assessment!.questions;
+
+    expect(question.type).toBe("fill_in_blank");
+    expect(Object.keys(question).sort()).toEqual([
+      "choices",
+      "id",
+      "order",
+      "points",
+      "prompt",
+      "timeLimitSeconds",
+      "type",
+    ]);
+    expect(JSON.stringify(assessment)).not.toContain("router");
+  });
+
+  it("submits the typed text as response_text, with no choice", async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { id: 1, assessment_id: 11, earned_points: 2, total_points: 3, percent: 66.67, submitted_at: null },
+    });
+
+    await submitAssessment(11, [
+      { questionId: 21, choiceId: null, responseText: "Router" },
+      { questionId: 22, choiceId: 41 },
+    ]);
+
+    expect(api.post).toHaveBeenCalledWith("/assessments/11/attempts", {
+      answers: [
+        { question_id: 21, choice_id: null, response_text: "Router" },
+        // A multiple-choice answer goes exactly as it always has.
+        { question_id: 22, choice_id: 41 },
+      ],
+    });
   });
 });
