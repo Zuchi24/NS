@@ -102,6 +102,7 @@ export function RoadmapTopicsPanel({
   roadmapTitle,
   topics,
   onChanged,
+  refreshing = false,
   initialExpandedTopicId = null,
 }: {
   roadmapId: number;
@@ -110,6 +111,12 @@ export function RoadmapTopicsPanel({
   topics: Topic[];
   /** Reloads the catalogue after a write, so the page and server agree. */
   onChanged: () => void;
+  /**
+   * True while that reload is under way. `topics` is then the list from before
+   * the write, so anything worked out from it — a move sends the whole order —
+   * waits for the fresh one, through the same lock a write in flight uses.
+   */
+  refreshing?: boolean;
   /**
    * The topic to open on arrival — the one an author was in when they left for
    * the assessment builder. Read once, on mount; the page keys this panel on
@@ -262,7 +269,7 @@ export function RoadmapTopicsPanel({
                   topic={topic}
                   roadmapId={roadmapId}
                   position={index + 1}
-                  busy={busy}
+                  busy={busy || refreshing}
                   // An open form is never folded away out from under the author
                   // mid-edit, whatever else is open — the topic's own, or one of
                   // its sections', which is drawn inside the open card.

@@ -39,6 +39,7 @@ vi.mock("@/features/content/topicService", async (importOriginal) => {
     updateTopic: vi.fn(),
     deleteTopic: vi.fn(),
     reorderTopics: vi.fn(),
+    reorderSubtopics: vi.fn(),
   };
 });
 
@@ -1723,5 +1724,111 @@ describe("a topic's assessments", () => {
     expect(screen.getByTestId("assessments-panel")).toHaveTextContent(
       "Assessments for 2",
     );
+  });
+});
+
+/*
+ * While the catalogue is refreshing
+ *
+ * After a write the page keeps the panel mounted and reloads underneath it, so
+ * for a moment `topics` is the list from before the write. A move sends the
+ * whole order worked out from that list, so moves and deletes wait for the
+ * fresh one — the same lock a write in flight already uses.
+ */
+describe("while the catalogue is refreshing", () => {
+  const sections = topic({
+    id: 1,
+    title: "Cabling",
+    order: 0,
+    subtopics: [
+      {
+        id: 101,
+        roadmapId: 4,
+        parentId: 1,
+        title: "Connectors",
+        description: null,
+        order: 0,
+        materials: [],
+      },
+      {
+        id: 102,
+        roadmapId: 4,
+        parentId: 1,
+        title: "Testers",
+        description: null,
+        order: 1,
+        materials: [],
+      },
+    ],
+  });
+  const routing = topic({ id: 2, title: "Routing", order: 1, subtopics: [] });
+
+  function panel(refreshing: boolean) {
+    return (
+      <RoadmapTopicsPanel
+        roadmapId={4}
+        roadmapTitle="Networking Essentials"
+        topics={[sections, routing]}
+        onChanged={onChanged}
+        refreshing={refreshing}
+        initialExpandedTopicId={1}
+      />
+    );
+  }
+
+  const structural = [
+    /^move cabling down$/i,
+    /^move routing up$/i,
+    /^delete cabling$/i,
+    /^delete routing$/i,
+    /^move connectors down$/i,
+    /^move testers up$/i,
+    /^delete connectors$/i,
+    /^delete testers$/i,
+  ];
+
+  it("locks topic and section moves and deletes", () => {
+    render(panel(true));
+
+    for (const name of structural) {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    }
+
+    // Still the open, mounted panel — only the stale-order actions wait.
+    expect(
+      screen.getByRole("button", { name: /^collapse cabling$/i }),
+    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^edit cabling$/i })).toBeEnabled();
+  });
+
+  it("unlocks them once the refresh ends, and they send the order again", async () => {
+    const user = userEvent.setup();
+    vi.mocked(service.reorderTopics).mockResolvedValueOnce([]);
+    vi.mocked(service.reorderSubtopics).mockResolvedValueOnce([]);
+
+    const { rerender } = render(panel(true));
+    rerender(panel(false));
+
+    for (const name of structural) {
+      expect(screen.getByRole("button", { name })).toBeEnabled();
+    }
+
+    await user.click(screen.getByRole("button", { name: /^move routing up$/i }));
+    await waitFor(() =>
+      expect(service.reorderTopics).toHaveBeenCalledWith(4, [2, 1]),
+    );
+
+    await user.click(screen.getByRole("button", { name: /^move connectors down$/i }));
+    await waitFor(() =>
+      expect(service.reorderSubtopics).toHaveBeenCalledWith(1, [102, 101]),
+    );
+  });
+
+  it("is unlocked when the page says nothing about refreshing", () => {
+    renderWith([sections, routing], { initialExpandedTopicId: 1 });
+
+    for (const name of structural) {
+      expect(screen.getByRole("button", { name })).toBeEnabled();
+    }
   });
 });

@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  act,
   cleanup,
   render,
   screen,
@@ -63,10 +64,21 @@ vi.mock("@/features/content/roadmapService", async (importOriginal) => {
   };
 });
 
+// A topic write is what reloads the catalogue in the tests about reloading;
+// only the move is stubbed, the rest of the service is the real one.
+vi.mock("@/features/content/topicService", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/features/content/topicService")
+  >();
+
+  return { ...actual, reorderTopics: vi.fn() };
+});
+
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const content = await import("@/features/content/contentService");
 const roadmapService = await import("@/features/content/roadmapService");
+const topicService = await import("@/features/content/topicService");
 
 function topic(over: Partial<Topic> = {}): Topic {
   return {
@@ -421,5 +433,143 @@ describe("RoadmapAdminPage on a narrow screen", () => {
 
     expect(title).toHaveClass("min-w-0", "flex-[1_1_10rem]");
     expect(title.parentElement).toHaveClass("flex-wrap");
+  });
+});
+
+/**
+ * Reloading the catalogue after a write.
+ *
+ * Only the first load takes the whole page. After that, a write's reload keeps
+ * the catalogue on screen — so the topics panel stays mounted, and with it
+ * whatever the author had open — while the moves and deletes that work from
+ * the old order wait for the new one. Each reload is held open by a promise the
+ * test releases, so nothing here depends on timing.
+ */
+describe("reloading after a write", () => {
+  function held<T>() {
+    let release: (value: T) => void = () => {};
+    let fail: (error: Error) => void = () => {};
+    const promise = new Promise<T>((resolve, reject) => {
+      release = resolve;
+      fail = reject;
+    });
+
+    return { promise, release, fail };
+  }
+
+  const cabling = topic({ id: 1, title: "Cabling", order: 0 });
+  const routing = topic({ id: 2, title: "Routing", order: 1 });
+  const before = roadmap({ topics: [cabling, routing] });
+  const after = roadmap({
+    topics: [
+      { ...routing, order: 0 },
+      { ...cabling, order: 1 },
+    ],
+  });
+
+  /** Opens Cabling, moves it down, and leaves the reload that follows pending. */
+  async function moveWhileReloadIsHeld(user: ReturnType<typeof userEvent.setup>) {
+    await renderWith([before]);
+
+    await user.click(screen.getByRole("button", { name: /^expand cabling$/i }));
+
+    const reload = held<Roadmap[]>();
+    vi.mocked(content.fetchRoadmaps).mockReturnValueOnce(reload.promise);
+    vi.mocked(topicService.reorderTopics).mockResolvedValueOnce(
+      [] as Awaited<ReturnType<typeof topicService.reorderTopics>>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^move cabling down$/i }));
+    await waitFor(() =>
+      expect(content.fetchRoadmaps).toHaveBeenCalledTimes(2),
+    );
+
+    return reload;
+  }
+
+  it("shows the loading state while the first load is pending", async () => {
+    const first = held<Roadmap[]>();
+    vi.mocked(content.fetchRoadmaps).mockReturnValueOnce(first.promise);
+    vi.mocked(content.fetchChallenges).mockResolvedValue([]);
+
+    render(
+      <RouterProvider
+        router={createMemoryRouter(
+          [{ path: "/admin/roadmap", element: <RoadmapAdminPage /> }],
+          { initialEntries: ["/admin/roadmap"] },
+        )}
+      />,
+    );
+
+    expect(screen.getByText(/loading catalogue/i)).toBeInTheDocument();
+
+    await act(async () => first.release([before]));
+
+    expect(screen.queryByText(/loading catalogue/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Cabling")).toBeInTheDocument();
+  });
+
+  it("keeps the catalogue on screen while a reload is pending", async () => {
+    const user = userEvent.setup();
+
+    await moveWhileReloadIsHeld(user);
+
+    expect(screen.queryByText(/loading catalogue/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Cabling")).toBeInTheDocument();
+    expect(screen.getByText("Routing")).toBeInTheDocument();
+    expect(screen.getByLabelText(/authoring/i)).toHaveValue("1");
+  });
+
+  it("keeps an open topic open through the reload, then shows the fresh order", async () => {
+    const user = userEvent.setup();
+
+    const reload = await moveWhileReloadIsHeld(user);
+
+    // Still the same mounted panel: the card the author opened is open.
+    expect(
+      screen.getByRole("button", { name: /^collapse cabling$/i }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("materials-panel")).toBeInTheDocument();
+
+    await act(async () => reload.release([after]));
+
+    // The fresh order has arrived, and Cabling is still the open card.
+    const titles = screen
+      .getAllByRole("button", { name: /^(expand|collapse) /i })
+      .map((button) => button.getAttribute("aria-label"));
+
+    expect(titles).toEqual(["Expand Routing", "Collapse Cabling"]);
+    expect(screen.getByTestId("materials-panel")).toBeInTheDocument();
+  });
+
+  it("still gives the page to the error when a reload fails", async () => {
+    const user = userEvent.setup();
+
+    const reload = await moveWhileReloadIsHeld(user);
+
+    await act(async () => reload.fail(new Error("Network down")));
+
+    expect(await screen.findByText("Network down")).toBeInTheDocument();
+    expect(screen.queryByText("Cabling")).not.toBeInTheDocument();
+  });
+
+  it("locks moves and deletes until the fresh order arrives", async () => {
+    const user = userEvent.setup();
+
+    const reload = await moveWhileReloadIsHeld(user);
+
+    // The order on screen is the one from before the move, so nothing worked
+    // out from it may be sent yet.
+    expect(screen.getByRole("button", { name: /^move cabling down$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^move routing up$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^delete cabling$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^delete routing$/i })).toBeDisabled();
+
+    await act(async () => reload.release([after]));
+
+    expect(screen.getByRole("button", { name: /^move routing down$/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^move cabling up$/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^delete cabling$/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^delete routing$/i })).toBeEnabled();
   });
 });

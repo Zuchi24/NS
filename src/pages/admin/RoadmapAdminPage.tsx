@@ -54,7 +54,12 @@ export function RoadmapAdminPage() {
       replace: true,
     });
 
-  if (loading) return <LoadingState label="Loading catalogue…" />;
+  // The whole page waits only for the first load. A reload after a write keeps
+  // the catalogue it has on screen — replacing it would unmount the topics
+  // panel and fold up everything the author had open — and the panel is told
+  // it is refreshing instead. A reload that fails still clears the data, so
+  // the error below still takes the page.
+  if (loading && data === null) return <LoadingState label="Loading catalogue…" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
 
   const roadmaps = data?.roadmaps ?? [];
@@ -99,6 +104,7 @@ export function RoadmapAdminPage() {
           roadmapTitle={roadmap.title}
           topics={roadmap.topics}
           onChanged={reload}
+          refreshing={loading}
           // Only on arrival: picking another roadmap writes an address with no
           // topic in it, so this does not follow the author into it.
           initialExpandedTopicId={arrivalTopicId}
