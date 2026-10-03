@@ -247,7 +247,7 @@ export function SignUpPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="user@gmail.com"
+                  placeholder="student@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 h-11 rounded-xl border-input bg-slate-50 focus:bg-white focus-visible:border-ring focus-visible:ring-ring/25"

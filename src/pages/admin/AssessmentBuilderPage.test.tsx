@@ -630,6 +630,83 @@ describe("adding a question", () => {
     expect(await screen.findByRole("note")).toHaveTextContent(/is published/);
     expect(questionWriteButtons()).toEqual([]);
   });
+
+  it("opens in a dialog over the list, which stays where it was", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ questions: [question(), second] }));
+
+    await user.click(screen.getByRole("button", { name: "Add question" }));
+
+    expect(screen.getByRole("dialog", { name: "Add question 3" })).toBeInTheDocument();
+    // Behind it, not replaced by it.
+    expect(screen.getByRole("article", { name: "Question 2", hidden: true })).toBeInTheDocument();
+  });
+
+  it("is offered again at the foot of the list", async () => {
+    const user = userEvent.setup();
+    await show(assessment({ questions: [question(), second] }));
+
+    await user.click(screen.getByRole("button", { name: "Add another question" }));
+
+    expect(questionForm("Add question").getByLabelText("Prompt")).toHaveValue("");
+  });
+
+  it("keeps what was typed when the dialog is closed, and throws it away on Cancel", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    await user.click(screen.getByRole("button", { name: "Add question" }));
+    await replace(user, questionForm("Add question").getByLabelText("Prompt"), "Kept");
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: "Continue question" })[0]);
+    expect(questionForm("Add question").getByLabelText("Prompt")).toHaveValue("Kept");
+
+    await user.click(questionForm("Add question").getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Add question" }));
+    expect(questionForm("Add question").getByLabelText("Prompt")).toHaveValue("");
+  });
+
+  it("closes on save and refreshes the list without folding the page up", async () => {
+    const user = userEvent.setup();
+    await show();
+
+    // The reload is held open, as a real one is for as long as the network
+    // takes; a mock that answers at once lets React skip the in-between state.
+    let land: (value: Assessment) => void = () => {};
+    vi.mocked(service.fetchAssessment).mockReturnValue(
+      new Promise<Assessment>((resolve) => {
+        land = resolve;
+      }),
+    );
+    vi.mocked(service.createQuestion).mockResolvedValue(second);
+
+    const first = screen.getByRole("article", { name: "Question 1" });
+
+    await user.click(screen.getByRole("button", { name: "Add question" }));
+    await fill(user, questionForm("Add question"));
+    await user.click(
+      questionForm("Add question").getByRole("button", { name: "Add question" }),
+    );
+
+    await waitFor(() => expect(service.fetchAssessment).toHaveBeenCalledTimes(2));
+
+    // While it reloads, the page stays: not swapped for a loading screen —
+    // which is what folded it up and threw an author back to the top — and
+    // nothing can be written against a list that is about to change.
+    expect(screen.queryByText("Loading assessment…")).not.toBeInTheDocument();
+    expect(first).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add question" })).toBeDisabled();
+
+    land(assessment({ questions: [question(), second] }));
+
+    expect(await screen.findByRole("article", { name: "Question 2" })).toBeInTheDocument();
+    expect(first).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add question" })).toBeEnabled();
+  });
 });
 
 describe("choosing how many choices a question has", () => {
@@ -703,20 +780,14 @@ describe("choosing how many choices a question has", () => {
     expect(service.createQuestion).not.toHaveBeenCalled();
   });
 
-  it("fills in True and False, with True marked correct, and sends just those two", async () => {
+  it("offers no True / False shortcut: the author types both answers like any other", async () => {
     const { user, form } = await openNew();
-    await fill(user, form, { labels: ["Router", "Switch", "Hub"] });
 
-    await user.click(form.getByRole("button", { name: "True / False" }));
+    expect(form.queryByRole("button", { name: "True / False" })).not.toBeInTheDocument();
+
+    await fill(user, form, { labels: ["True", "False"], correct: "B" });
 
     expect(choiceRadios(form)).toHaveLength(2);
-    expect(form.getByLabelText("Choice A")).toHaveValue("True");
-    expect(form.getByLabelText("Choice B")).toHaveValue("False");
-    expect(form.getByRole("radio", { name: "Choice A is correct" })).toBeChecked();
-    expect(form.getByRole("radio", { name: "Choice B is correct" })).not.toBeChecked();
-
-    // The other answer can be the right one instead.
-    await user.click(form.getByRole("radio", { name: "Choice B is correct" }));
 
     vi.mocked(service.createQuestion).mockResolvedValue(question({ id: 23 }));
     await user.click(form.getByRole("button", { name: "Add question" }));
@@ -896,11 +967,14 @@ describe("editing a question", () => {
 
     await user.click(screen.getByRole("button", { name: "Edit question 1" }));
 
-    // A reload under the form would throw the author's typing away.
-    expect(screen.getByRole("button", { name: "Add question" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Edit question 2" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Delete question 2" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Move question 2 up" })).toBeDisabled();
+    // A reload under the form would throw the author's typing away. The list
+    // is behind the dialog, so it is hidden from the accessibility tree while
+    // the dialog is open — which is why these are looked up with `hidden`.
+    const behind = { hidden: true } as const;
+    expect(screen.getByRole("button", { name: "Add question", ...behind })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Edit question 2", ...behind })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete question 2", ...behind })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Move question 2 up", ...behind })).toBeDisabled();
   });
 
   it.each(LOCKED)("is not offered when the assessment is %s", async (_, lock) => {
@@ -1496,13 +1570,15 @@ describe("publishing", () => {
       new ApiError(refusal, 422),
     );
 
-    // Work in progress elsewhere on the page must survive the refusal.
+    // Work in progress elsewhere on the page must survive the refusal. The
+    // question dialog is closed to reach Publish, which keeps its typing.
     await user.click(screen.getByRole("button", { name: "Add question" }));
     await replace(
       user,
       questionForm("Add question").getByLabelText("Prompt"),
       "Half-written question",
     );
+    await user.keyboard("{Escape}");
 
     await user.click(release().getByRole("button", { name: "Publish assessment" }));
 
@@ -1514,6 +1590,8 @@ describe("publishing", () => {
     expect(
       release().getByRole("button", { name: "Publish assessment" }),
     ).toBeEnabled();
+
+    await user.click(screen.getAllByRole("button", { name: "Continue question" })[0]);
     expect(questionForm("Add question").getByLabelText("Prompt")).toHaveValue(
       "Half-written question",
     );

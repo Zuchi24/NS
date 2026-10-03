@@ -9,7 +9,6 @@ import {
   Save,
   Trash2,
   ArrowLeft,
-  Download,
   ChevronDown,
   ChevronRight,
   X,
@@ -253,39 +252,6 @@ function WorkspaceCanvas() {
   const offeredEndDevices = paletteEndDevices();
 
   const currentTopology = () => toTopologyDocument(devices, connections);
-
-  /**
-   * Downloads the canvas as the same JSON document the grader reads.
-   *
-   * Nothing is sent anywhere and nothing is graded — it is the work already on
-   * screen, written to a file, which is all "Export" ever claimed to be.
-   */
-  const handleExport = () => {
-    if (devices.length === 0) {
-      toast.error("There is nothing on the canvas to export");
-      return;
-    }
-
-    const name = active
-      ? `netsim-attempt-${active.attempt.id}.json`
-      : "netsim-topology.json";
-
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(currentTopology(), null, 2)], {
-        type: "application/json",
-      }),
-    );
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = name;
-    link.click();
-
-    // Revoking immediately would race the download on some browsers.
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-    toast.success(`Exported ${name}`);
-  };
 
   const handleSaveProgress = async () => {
     if (attemptId === null) return;
@@ -1265,17 +1231,6 @@ function WorkspaceCanvas() {
                   {saving ? "Saving…" : "Save"}
                 </Button>
               )}
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExport}
-                disabled={devices.length === 0}
-              >
-                <Download className="w-4 h-4 mr-2" />
-
-                Export
-              </Button>
 
               <Button
                 variant="outline"

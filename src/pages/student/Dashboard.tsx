@@ -22,8 +22,6 @@ import type { ActivityStatus } from "@/features/content/types";
 import { timeAgo } from "@/services/time";
 import { useAsync } from "@/services/useAsync";
 
-/** How many of the student's most recently touched challenges the card lists. */
-const RECENT_LIMIT = 5;
 
 /**
  * How the two standings are coloured. The wording is the server's — this only
@@ -36,18 +34,34 @@ const STATUS_STYLE: Record<ActivityStatus, string> = {
   in_progress: "text-info",
 };
 
+/** The three places a student goes from here, in the order they were shown. */
+const QUICK_LINKS = [
+  { to: "/workspace", title: "Workspace", blurb: "Practice hands-on", icon: Wrench, iconClass: "bg-primary" },
+  { to: "/challenges", title: "Challenges", blurb: "Test your skills", icon: Target, iconClass: "bg-brand-orange" },
+  { to: "/roadmap", title: "Roadmap", blurb: "Track your journey", icon: Map, iconClass: "bg-brand-teal-dark" },
+];
+
 export function Dashboard() {
   const { user } = useAuth();
   const { data, error, loading, reload } = useAsync(fetchStudentProgress);
 
+  /*
+   * Laid out to fit a laptop screen rather than to stack.
+   *
+   * At 1366 × 768 the layout's header and gutter leave about 520px, and the
+   * page used to need nearly 800: five full-width bands with 24px between
+   * them. Now the summary is one compact row, ending in the learning progress,
+   * and below it the activity list shares a row with the shortcuts instead of
+   * sitting above them. Below `lg` they stack, shortcuts before the activity list.
+   */
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-5">
       {/* Welcome Section */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
           Welcome back, {user?.name ?? "Student"}!
         </h1>
-        <p className="text-gray-600">
+        <p className="mt-1 text-sm md:text-base text-gray-600">
           Here's your learning progress and upcoming tasks
         </p>
       </div>
@@ -58,18 +72,18 @@ export function Dashboard() {
       {data && (
         <>
           {/* TOP SECTION: Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Challenges passed */}
             <Card className="border-gray-200">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2">
+              <CardContent className="p-4 lg:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-1">
                     <p className="text-sm text-gray-600">Challenges Passed</p>
                     <p className="text-3xl font-bold text-green-600">
                       {data.challengesPassed}
                     </p>
                   </div>
-                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                  <div className="w-11 h-11 shrink-0 bg-green-100 rounded-xl flex items-center justify-center">
                     <CheckCircle2 className="w-6 h-6 text-green-600" />
                   </div>
                 </div>
@@ -78,31 +92,32 @@ export function Dashboard() {
 
             {/* Still open */}
             <Card className="border-gray-200">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2">
+              <CardContent className="p-4 lg:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-1">
                     <p className="text-sm text-gray-600">In Progress</p>
                     <p className="text-3xl font-bold text-info">
                       {data.challengesInProgress}
                     </p>
                   </div>
-                  <div className="w-12 h-12 bg-info/10 rounded-xl flex items-center justify-center">
+                  <div className="w-11 h-11 shrink-0 bg-info/10 rounded-xl flex items-center justify-center">
                     <Clock className="w-6 h-6 text-info" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Overall Progress — against the whole catalogue, not a total
-                assembled from the numbers beside it. */}
+            {/* Learning Progress — challenges passed against the whole
+                catalogue, not a total assembled from the numbers beside it. */}
             <Card className="border-gray-200">
-              <CardContent className="p-6">
+              <CardContent className="p-4 lg:p-5 h-full flex flex-col justify-center">
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-600">Overall Progress</p>
-                    <p className="text-2xl font-bold text-primary tabular-nums">
+                  <p className="text-sm font-semibold text-gray-900">Learning Progress</p>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Challenges Passed</span>
+                    <span className="text-lg font-bold text-primary tabular-nums">
                       {data.challengesPassed}/{data.challengesTotal}
-                    </p>
+                    </span>
                   </div>
                   <Progress
                     value={percentOf(
@@ -116,68 +131,47 @@ export function Dashboard() {
             </Card>
           </div>
 
-          {/* MIDDLE SECTION: Main Features - 3 Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Workspace */}
-            <Link to="/workspace">
-              <Card className="border-2 border-gray-200 hover:border-brand-teal/50 hover:shadow-lg transition-all cursor-pointer">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
-                      <Wrench className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Workspace</h3>
-                      <p className="text-sm text-gray-500">Practice hands-on</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+          {/* MAIN SECTION: the activity list beside the shortcuts on a wide
+              screen; stacked below that. */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+            {/* The side column: where to go next. First in the
+                markup so a phone, which stacks, reaches the shortcuts before a
+                long activity list; placed in the third column on a wide one. */}
+            <div className="space-y-4 lg:col-start-3 lg:row-start-1">
+              {/* Quick links — a row of three on a tablet, a column beside the
+                  activity list on a wide screen. */}
+              <nav
+                aria-label="Quick links"
+                className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-1 gap-3"
+              >
+                {QUICK_LINKS.map(({ to, title, blurb, icon: Icon, iconClass }) => (
+                  <Link
+                    key={to}
+                    to={to}
+                    className="group rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <Card className="border-2 border-gray-200 group-hover:border-brand-teal/50 group-hover:shadow-lg transition-all">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-11 h-11 shrink-0 rounded-xl flex items-center justify-center ${iconClass}`}
+                          >
+                            <Icon className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="min-w-0">
+                            <h2 className="font-semibold text-gray-900">{title}</h2>
+                            <p className="text-sm text-gray-500">{blurb}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </nav>
+            </div>
 
-            {/* Challenges */}
-            <Link to="/challenges">
-              <Card className="border-2 border-gray-200 hover:border-brand-teal/50 hover:shadow-lg transition-all cursor-pointer">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-brand-orange rounded-xl flex items-center justify-center">
-                      <Target className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">
-                        Challenges
-                      </h3>
-                      <p className="text-sm text-gray-500">Test your skills</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-
-            {/* Roadmap */}
-            <Link to="/roadmap">
-              <Card className="border-2 border-gray-200 hover:border-brand-teal/50 hover:shadow-lg transition-all cursor-pointer">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-brand-teal-dark rounded-xl flex items-center justify-center">
-                      <Map className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Roadmap</h3>
-                      <p className="text-sm text-gray-500">
-                        Track your journey
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          </div>
-
-          {/* BOTTOM SECTION: Recent Activities & Learning Progress */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Recent Activities */}
-            <Card className="border-gray-200">
+            <Card className="border-gray-200 gap-4 lg:col-span-2 lg:col-start-1 lg:row-start-1">
               <CardHeader>
                 <CardTitle className="text-lg">Recent Activities</CardTitle>
               </CardHeader>
@@ -188,11 +182,20 @@ export function Dashboard() {
                     description="Open a challenge and it will show up here."
                   />
                 ) : (
-                  <div className="space-y-4">
-                    {data.activity.slice(0, RECENT_LIMIT).map((activity) => (
+                  // Every challenge the student has touched, in a box about
+                  // five rows tall that scrolls, so a long history cannot make
+                  // the page itself long. Focusable so it scrolls from the
+                  // keyboard too.
+                  <div
+                    role="region"
+                    aria-label="Recent activities list"
+                    tabIndex={0}
+                    className="max-h-72 overflow-y-auto pr-2 space-y-3 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {data.activity.map((activity) => (
                       <div
                         key={activity.challengeId}
-                        className="flex items-start justify-between pb-4 border-b border-gray-100 last:border-0 last:pb-0"
+                        className="flex items-start justify-between pb-3 border-b border-gray-100 last:border-0 last:pb-0"
                       >
                         <div className="space-y-1 min-w-0">
                           <div className="font-semibold text-gray-900 truncate">
@@ -214,38 +217,6 @@ export function Dashboard() {
                     ))}
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* Learning Progress */}
-            <Card className="border-gray-200">
-              <CardHeader>
-                <CardTitle className="text-lg">Learning Progress</CardTitle>
-              </CardHeader>
-
-              <CardContent>
-                <div className="space-y-6">
-                  {/* Challenges Progress */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium text-gray-700">
-                        Challenges Passed
-                      </span>
-                      <span className="text-gray-900 font-semibold">
-                        {data.challengesPassed}/{data.challengesTotal}
-                      </span>
-                    </div>
-                    <Progress
-                      value={percentOf(
-                        data.challengesPassed,
-                        data.challengesTotal,
-                      )}
-                      className="h-2"
-                    />
-                  </div>
-
-                  {/* Roadmap Progress */}
-                </div>
               </CardContent>
             </Card>
           </div>

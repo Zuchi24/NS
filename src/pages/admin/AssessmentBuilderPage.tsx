@@ -18,6 +18,14 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -222,7 +230,12 @@ export function AssessmentBuilderPage() {
 
   let body: React.ReactNode;
 
-  if (loading) {
+  // The whole page waits only for an assessment it has not shown yet. A reload
+  // after a write keeps the one on screen — replacing it folded the page up and
+  // threw an author halfway down the questions back to the top — and the
+  // question list is told it is refreshing instead. A reload that fails still
+  // clears the data, so the error below still takes the page.
+  if (loading && (data === null || data.id !== id)) {
     body = <LoadingState label="Loading assessment…" />;
   } else if (error) {
     body = <ErrorState message={error} onRetry={reload} />;
@@ -255,7 +268,7 @@ export function AssessmentBuilderPage() {
           onDelete={() => void release(data, "delete")}
         />
         <LockNotice state={lockStateOf(data)} />
-        <QuestionList assessment={data} onChanged={reload} />
+        <QuestionList assessment={data} onChanged={reload} refreshing={loading} />
 
         {/* Below the questions, because an author writes an assessment before
             anyone has taken it: the results are what the page becomes about
@@ -737,9 +750,12 @@ type QuestionEditing = { mode: "new" } | { mode: "edit"; questionId: number };
 function QuestionList({
   assessment,
   onChanged,
+  refreshing,
 }: {
   assessment: Assessment;
   onChanged: () => void;
+  /** The assessment is being reloaded after a write; what is shown may be old. */
+  refreshing: boolean;
 }) {
   const ordered = [...(assessment.questions ?? [])].sort(
     (a, b) => a.order - b.order,
@@ -750,11 +766,46 @@ function QuestionList({
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
+  /*
+   * A new question closed without being saved or cancelled — the cross, Escape
+   * or a click beside the dialog — is kept here and comes back when Add
+   * question is opened again, so a slip of the mouse does not cost the typing.
+   * Cancel is the way to throw it away.
+   */
+  const [keptDraft, setKeptDraft] = useState<AssessmentQuestionDraft | null>(null);
+
   // The disabled buttons are what an author sees; this is what actually stops
   // a second reorder or delete going out before the next render.
   const inFlight = useRef(false);
 
   const formOpen = editing !== null;
+
+  // Every control waits for a reload to land: a reorder sends the whole order
+  // as the author sees it, and until then they may be seeing the old one.
+  const locked = busy || formOpen || refreshing;
+
+  const openNew = () => {
+    setConfirmingId(null);
+    setEditing({ mode: "new" });
+  };
+
+  const addLabel = keptDraft === null ? "Add question" : "Continue question";
+
+  const closeForm = () => setEditing(null);
+
+  // Saved, or refused as out of date: either way the dialog has nothing left
+  // to do, and the reload shows what is now stored.
+  const finishForm = () => {
+    setEditing(null);
+    onChanged();
+  };
+
+  const editingQuestion =
+    editing?.mode === "edit"
+      ? ordered.find((question) => question.id === editing.questionId) ?? null
+      : null;
+  const editingNumber =
+    editingQuestion === null ? 0 : ordered.indexOf(editingQuestion) + 1;
 
   /** One list-level write at a time, reloading on success or a stale refusal. */
   const write = async (action: () => Promise<void>, fallback: string) => {
@@ -804,22 +855,15 @@ function QuestionList({
         <CardTitle className="text-lg">Questions</CardTitle>
 
         {authoring && (
-          <Button
-            size="sm"
-            disabled={formOpen || busy}
-            onClick={() => {
-              setConfirmingId(null);
-              setEditing({ mode: "new" });
-            }}
-          >
+          <Button size="sm" disabled={locked} onClick={openNew}>
             <Plus className="w-4 h-4 mr-2" />
-            Add question
+            {addLabel}
           </Button>
         )}
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {ordered.length === 0 && !(authoring && editing?.mode === "new") && (
+        {ordered.length === 0 && (
           <EmptyState
             title="No questions yet."
             description={
@@ -837,47 +881,48 @@ function QuestionList({
 
               return (
                 <li key={question.id}>
-                  {authoring &&
-                  editing?.mode === "edit" &&
-                  editing.questionId === question.id ? (
-                    <QuestionForm
-                      key={question.id}
-                      assessmentId={assessment.id}
-                      question={question}
-                      number={number}
-                      onClose={() => setEditing(null)}
-                      onSaved={onChanged}
-                      onStale={onChanged}
-                    />
-                  ) : (
-                    <QuestionCard question={question} number={number}>
-                      {authoring && (
-                        <QuestionControls
-                          number={number}
-                          isFirst={index === 0}
-                          isLast={index === ordered.length - 1}
-                          // A reload under an open form would take the
-                          // author's unsaved typing with it.
-                          disabled={busy || formOpen}
-                          busy={busy}
-                          confirming={confirmingId === question.id}
-                          onUp={() => move(index, -1)}
-                          onDown={() => move(index, 1)}
-                          onEdit={() => {
-                            setConfirmingId(null);
-                            setEditing({ mode: "edit", questionId: question.id });
-                          }}
-                          onAskDelete={() => setConfirmingId(question.id)}
-                          onCancelDelete={() => setConfirmingId(null)}
-                          onDelete={() => remove(question, number)}
-                        />
-                      )}
-                    </QuestionCard>
-                  )}
+                  <QuestionCard question={question} number={number}>
+                    {authoring && (
+                      <QuestionControls
+                        number={number}
+                        isFirst={index === 0}
+                        isLast={index === ordered.length - 1}
+                        // A reload under an open form would take the
+                        // author's unsaved typing with it.
+                        disabled={locked}
+                        busy={busy}
+                        confirming={confirmingId === question.id}
+                        onUp={() => move(index, -1)}
+                        onDown={() => move(index, 1)}
+                        onEdit={() => {
+                          setConfirmingId(null);
+                          setEditing({ mode: "edit", questionId: question.id });
+                        }}
+                        onAskDelete={() => setConfirmingId(question.id)}
+                        onCancelDelete={() => setConfirmingId(null)}
+                        onDelete={() => remove(question, number)}
+                      />
+                    )}
+                  </QuestionCard>
                 </li>
               );
             })}
           </ol>
+        )}
+
+        {/* Again at the foot of the list, where an author who has just read
+            the last question is, so adding the next does not mean scrolling
+            back up for the button in the header. */}
+        {authoring && ordered.length > 0 && (
+          <Button
+            variant="outline"
+            className="w-full border-dashed"
+            disabled={locked}
+            onClick={openNew}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            {keptDraft === null ? "Add another question" : addLabel}
+          </Button>
         )}
 
         {authoring && editing?.mode === "new" && (
@@ -886,9 +931,32 @@ function QuestionList({
             assessmentId={assessment.id}
             question={null}
             number={ordered.length + 1}
-            onClose={() => setEditing(null)}
-            onSaved={onChanged}
-            onStale={onChanged}
+            initialDraft={keptDraft}
+            onClose={() => {
+              setKeptDraft(null);
+              closeForm();
+            }}
+            onDismiss={(draft) => {
+              setKeptDraft(draft);
+              closeForm();
+            }}
+            onSaved={() => {
+              setKeptDraft(null);
+              finishForm();
+            }}
+            onStale={finishForm}
+          />
+        )}
+
+        {authoring && editingQuestion !== null && (
+          <QuestionForm
+            key={editingQuestion.id}
+            assessmentId={assessment.id}
+            question={editingQuestion}
+            number={editingNumber}
+            onClose={closeForm}
+            onSaved={finishForm}
+            onStale={finishForm}
           />
         )}
       </CardContent>
@@ -994,12 +1062,6 @@ function QuestionControls({
 
 const CHOICE_LETTERS = ["A", "B", "C", "D", "E", "F"];
 
-/** The two choices of a true/false question, True marked correct to start from. */
-const TRUE_FALSE_CHOICES: AssessmentChoiceDraft[] = [
-  { label: "True", isCorrect: true },
-  { label: "False", isCorrect: false },
-];
-
 /** A blank question, with the first choice marked correct to start from. */
 function newQuestionDraft(): AssessmentQuestionDraft {
   return {
@@ -1036,19 +1098,29 @@ function timerOptionLabel(seconds: number | null): string {
   return seconds === null ? "No timer" : `${seconds} seconds`;
 }
 
-/** One question being written, new or existing. */
+/** One question being written, new or existing, in a dialog over the list. */
 function QuestionForm({
   assessmentId,
   question,
   number,
+  initialDraft = null,
   onClose,
+  onDismiss,
   onSaved,
   onStale,
 }: {
   assessmentId: number;
   question: AssessmentQuestion | null;
   number: number;
+  /** A new question's typing kept from the last time the dialog was closed. */
+  initialDraft?: AssessmentQuestionDraft | null;
+  /** Cancel: the typing is thrown away. */
   onClose: () => void;
+  /**
+   * The cross, Escape or a click outside, handed what was typed so it can be
+   * kept. Without it they mean the same as Cancel.
+   */
+  onDismiss?: (draft: AssessmentQuestionDraft) => void;
   onSaved: () => void;
   /** The server says the page is out of date — reload it. */
   onStale: () => void;
@@ -1057,7 +1129,7 @@ function QuestionForm({
   const prefix = isNew ? "question-new" : `question-${question.id}`;
 
   const [draft, setDraft] = useState<AssessmentQuestionDraft>(() =>
-    question === null ? newQuestionDraft() : draftOfQuestion(question),
+    question === null ? (initialDraft ?? newQuestionDraft()) : draftOfQuestion(question),
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -1102,9 +1174,6 @@ function QuestionForm({
   // author picks again, and Save refuses until they do.
   const removeChoice = (index: number) =>
     setChoices((choices) => (choices.length <= 1 ? choices : choices.filter((_, at) => at !== index)));
-
-  // A true/false question is two choices, not a type of its own.
-  const applyTrueFalse = () => setChoices(() => TRUE_FALSE_CHOICES.map((choice) => ({ ...choice })));
 
   // Chosen on a new question only: an existing one keeps its type.
   const setType = (type: QuestionType) => {
@@ -1196,253 +1265,278 @@ function QuestionForm({
   const describedBy = (key: string) =>
     errors[key] ? `${prefix}-${key.replace(/\./g, "-")}-error` : undefined;
 
+  const title = isNew ? `Add question ${number}` : `Edit question ${number}`;
+
   return (
-    <form
-      onSubmit={submit}
-      noValidate
-      aria-label={isNew ? "Add question" : `Edit question ${number}`}
-      className="rounded-md border border-brand-teal/30 bg-accent/60 p-4 space-y-4"
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        // A running save is seen through rather than walked away from: the
+        // question may already be stored.
+        if (next || saving) return;
+
+        if (onDismiss) onDismiss(draft);
+        else onClose();
+      }}
     >
-      {/* Chosen once: a question's type is fixed after it is created, so an
-          existing question shows its type without letting it change. */}
-      <fieldset className="space-y-1.5" disabled={!isNew}>
-        <legend className="text-sm font-medium text-gray-900">Question type</legend>
-        <div className="flex flex-wrap gap-4">
-          {(["multiple_choice", "fill_in_blank"] as const).map((type) => (
-            <label key={type} className="flex items-center gap-2 text-sm text-gray-800">
-              <input
-                type="radio"
-                name={`${prefix}-type`}
-                value={type}
-                checked={draft.type === type}
-                onChange={() => setType(type)}
-                className="h-4 w-4 accent-emerald-600"
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>
+            {isNew
+              ? "It joins the end of the list. Closing this keeps what you typed until you cancel."
+              : "Changes are kept only when you save."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          onSubmit={submit}
+          noValidate
+          aria-label={isNew ? "Add question" : `Edit question ${number}`}
+          className="space-y-4"
+        >
+          {/* The boxes scroll, the buttons do not — as in the Add Topic dialog,
+              whose reasoning is the same: a fixed, centred dialog taller than the
+              window could not reach its own Save. */}
+          <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+            {/* Chosen once: a question's type is fixed after it is created, so an
+                existing question shows its type without letting it change. */}
+            <fieldset className="space-y-1.5" disabled={!isNew}>
+              <legend className="text-sm font-medium text-gray-900">Question type</legend>
+              <div className="flex flex-wrap gap-4">
+                {(["multiple_choice", "fill_in_blank"] as const).map((type) => (
+                  <label key={type} className="flex items-center gap-2 text-sm text-gray-800">
+                    <input
+                      type="radio"
+                      name={`${prefix}-type`}
+                      value={type}
+                      checked={draft.type === type}
+                      onChange={() => setType(type)}
+                      className="h-4 w-4 accent-emerald-600"
+                    />
+                    {QUESTION_TYPE_LABELS[type]}
+                  </label>
+                ))}
+              </div>
+              {!isNew && (
+                <p className="text-xs text-gray-600">
+                  A question’s type cannot be changed. Delete it and add a new one instead.
+                </p>
+              )}
+            </fieldset>
+
+            <div className="space-y-2">
+              <Label htmlFor={`${prefix}-prompt`}>Prompt</Label>
+              <Textarea
+                id={`${prefix}-prompt`}
+                value={draft.prompt}
+                rows={3}
+                aria-invalid={errors.prompt ? true : undefined}
+                aria-describedby={describedBy("prompt")}
+                onChange={(e) => setDraft((current) => ({ ...current, prompt: e.target.value }))}
               />
-              {QUESTION_TYPE_LABELS[type]}
-            </label>
-          ))}
-        </div>
-        {!isNew && (
-          <p className="text-xs text-gray-600">
-            A question’s type cannot be changed. Delete it and add a new one instead.
-          </p>
-        )}
-      </fieldset>
-
-      <div className="space-y-2">
-        <Label htmlFor={`${prefix}-prompt`}>Prompt</Label>
-        <Textarea
-          id={`${prefix}-prompt`}
-          value={draft.prompt}
-          rows={3}
-          aria-invalid={errors.prompt ? true : undefined}
-          aria-describedby={describedBy("prompt")}
-          onChange={(e) => setDraft((current) => ({ ...current, prompt: e.target.value }))}
-        />
-        {errors.prompt && (
-          <FieldError id={describedBy("prompt")!} message={errors.prompt} />
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="space-y-2">
-          <Label htmlFor={`${prefix}-points`}>Points</Label>
-          <Input
-            id={`${prefix}-points`}
-            inputMode="numeric"
-            className="w-24"
-            value={draft.points}
-            aria-invalid={errors.points ? true : undefined}
-            aria-describedby={describedBy("points")}
-            onChange={(e) => setDraft((current) => ({ ...current, points: e.target.value }))}
-          />
-          {errors.points && (
-            <FieldError id={describedBy("points")!} message={errors.points} />
-          )}
-        </div>
-
-        {/* How long a student has once the question is shown. The countdown is
-            the student's browser's; running out leaves the question unanswered. */}
-        <div className="space-y-2">
-          <Label htmlFor={`${prefix}-timer`}>Timer</Label>
-          <select
-            id={`${prefix}-timer`}
-            value={draft.timeLimitSeconds ?? ""}
-            aria-invalid={errors.time_limit_seconds ? true : undefined}
-            aria-describedby={describedBy("time_limit_seconds")}
-            onChange={(e) =>
-              setDraft((current) => ({
-                ...current,
-                timeLimitSeconds: e.target.value === "" ? null : Number(e.target.value),
-              }))
-            }
-            className="h-10 w-40 rounded-md border border-input bg-white px-3 text-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="">{timerOptionLabel(null)}</option>
-            {QUESTION_TIMER_PRESETS.map((seconds) => (
-              <option key={seconds} value={seconds}>
-                {timerOptionLabel(seconds)}
-              </option>
-            ))}
-          </select>
-          {errors.time_limit_seconds && (
-            <FieldError
-              id={describedBy("time_limit_seconds")!}
-              message={errors.time_limit_seconds}
-            />
-          )}
-        </div>
-      </div>
-
-      {draft.type === "fill_in_blank" ? (
-        <fieldset className="space-y-2" aria-describedby={describedBy("accepted_answers")}>
-          <legend className="text-sm font-medium text-gray-900">Accepted answers</legend>
-          <p className="text-xs text-gray-600">
-            {ACCEPTED_ANSWER_MIN} to {ACCEPTED_ANSWER_MAX} answers. A student’s answer is right when it
-            matches one, ignoring capitals, extra spaces, hyphens and underscores. Other punctuation
-            counts.
-          </p>
-
-          {draft.acceptedAnswers.map((answer, index) => {
-            const key = `accepted_answers.${index}`;
-            const inputId = `${prefix}-accepted-${index}`;
-
-            return (
-              <div key={index} className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor={inputId} className="w-24 shrink-0">
-                    Answer {index + 1}
-                  </Label>
-                  <Input
-                    id={inputId}
-                    value={answer}
-                    maxLength={ACCEPTED_ANSWER_MAX_LENGTH}
-                    autoComplete="off"
-                    aria-invalid={errors[key] ? true : undefined}
-                    aria-describedby={describedBy(key)}
-                    onChange={(e) => setAcceptedAnswer(index, e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label={`Remove answer ${index + 1}`}
-                    disabled={draft.acceptedAnswers.length <= 1}
-                    onClick={() => removeAcceptedAnswer(index)}
-                    className="shrink-0"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                {errors[key] && <FieldError id={describedBy(key)!} message={errors[key]} />}
-              </div>
-            );
-          })}
-
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={draft.acceptedAnswers.length >= ACCEPTED_ANSWER_MAX}
-            onClick={addAcceptedAnswer}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add answer
-          </Button>
-
-          {errors.accepted_answers && (
-            <FieldError id={describedBy("accepted_answers")!} message={errors.accepted_answers} />
-          )}
-        </fieldset>
-      ) : (
-      <fieldset className="space-y-2" aria-describedby={describedBy("choices")}>
-        <legend className="text-sm font-medium text-gray-900">Choices</legend>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-gray-600">
-            {QUESTION_CHOICE_MIN} to {QUESTION_CHOICE_MAX} choices. Select the one that is correct.
-          </p>
-          <Button type="button" size="sm" variant="outline" onClick={applyTrueFalse}>
-            True / False
-          </Button>
-        </div>
-
-        {draft.choices.map((choice, index) => {
-          const letter = CHOICE_LETTERS[index] ?? String(index + 1);
-          const labelKey = `choices.${index}.label`;
-          const inputId = `${prefix}-choice-${index}`;
-
-          return (
-            <div key={index} className="space-y-1">
-              <div className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name={`${prefix}-correct`}
-                  checked={choice.isCorrect}
-                  onChange={() => markCorrect(index)}
-                  aria-label={`Choice ${letter} is correct`}
-                  className="h-4 w-4 shrink-0 accent-emerald-600"
-                />
-                <Label htmlFor={inputId} className="w-16 shrink-0">
-                  Choice {letter}
-                </Label>
-                <Input
-                  id={inputId}
-                  value={choice.label}
-                  aria-invalid={errors[labelKey] ? true : undefined}
-                  aria-describedby={describedBy(labelKey)}
-                  onChange={(e) => setChoice(index, { label: e.target.value })}
-                />
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  aria-label={`Remove choice ${letter}`}
-                  disabled={draft.choices.length <= 1}
-                  onClick={() => removeChoice(index)}
-                  className="shrink-0"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-              {errors[labelKey] && (
-                <FieldError id={describedBy(labelKey)!} message={errors[labelKey]} />
+              {errors.prompt && (
+                <FieldError id={describedBy("prompt")!} message={errors.prompt} />
               )}
             </div>
-          );
-        })}
 
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={draft.choices.length >= QUESTION_CHOICE_MAX}
-          onClick={addChoice}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add choice
-        </Button>
+            <div className="flex flex-wrap items-start gap-4">
+              <div className="space-y-2">
+                <Label htmlFor={`${prefix}-points`}>Points</Label>
+                <Input
+                  id={`${prefix}-points`}
+                  inputMode="numeric"
+                  className="w-24"
+                  value={draft.points}
+                  aria-invalid={errors.points ? true : undefined}
+                  aria-describedby={describedBy("points")}
+                  onChange={(e) => setDraft((current) => ({ ...current, points: e.target.value }))}
+                />
+                {errors.points && (
+                  <FieldError id={describedBy("points")!} message={errors.points} />
+                )}
+              </div>
 
-        {errors.choices && (
-          <FieldError id={describedBy("choices")!} message={errors.choices} />
-        )}
-      </fieldset>
-      )}
+              {/* How long a student has once the question is shown. The countdown is
+                  the student's browser's; running out leaves the question unanswered. */}
+              <div className="space-y-2">
+                <Label htmlFor={`${prefix}-timer`}>Timer</Label>
+                <select
+                  id={`${prefix}-timer`}
+                  value={draft.timeLimitSeconds ?? ""}
+                  aria-invalid={errors.time_limit_seconds ? true : undefined}
+                  aria-describedby={describedBy("time_limit_seconds")}
+                  onChange={(e) =>
+                    setDraft((current) => ({
+                      ...current,
+                      timeLimitSeconds: e.target.value === "" ? null : Number(e.target.value),
+                    }))
+                  }
+                  className="h-10 w-40 rounded-md border border-input bg-white px-3 text-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="">{timerOptionLabel(null)}</option>
+                  {QUESTION_TIMER_PRESETS.map((seconds) => (
+                    <option key={seconds} value={seconds}>
+                      {timerOptionLabel(seconds)}
+                    </option>
+                  ))}
+                </select>
+                {errors.time_limit_seconds && (
+                  <FieldError
+                    id={describedBy("time_limit_seconds")!}
+                    message={errors.time_limit_seconds}
+                  />
+                )}
+              </div>
+            </div>
 
-      <div className="flex items-center gap-2">
-        <Button type="submit" size="sm" disabled={saving}>
-          {saving ? "Saving…" : isNew ? "Add question" : "Save question"}
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={saving}
-          onClick={onClose}
-        >
-          Cancel
-        </Button>
-      </div>
-    </form>
+            {draft.type === "fill_in_blank" ? (
+              <fieldset className="space-y-2" aria-describedby={describedBy("accepted_answers")}>
+                <legend className="text-sm font-medium text-gray-900">Accepted answers</legend>
+                <p className="text-xs text-gray-600">
+                  {ACCEPTED_ANSWER_MIN} to {ACCEPTED_ANSWER_MAX} answers. A student’s answer is right when it
+                  matches one, ignoring capitals, extra spaces, hyphens and underscores. Other punctuation
+                  counts.
+                </p>
+
+                {draft.acceptedAnswers.map((answer, index) => {
+                  const key = `accepted_answers.${index}`;
+                  const inputId = `${prefix}-accepted-${index}`;
+
+                  return (
+                    <div key={index} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor={inputId} className="w-24 shrink-0">
+                          Answer {index + 1}
+                        </Label>
+                        <Input
+                          id={inputId}
+                          value={answer}
+                          maxLength={ACCEPTED_ANSWER_MAX_LENGTH}
+                          autoComplete="off"
+                          aria-invalid={errors[key] ? true : undefined}
+                          aria-describedby={describedBy(key)}
+                          onChange={(e) => setAcceptedAnswer(index, e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          aria-label={`Remove answer ${index + 1}`}
+                          disabled={draft.acceptedAnswers.length <= 1}
+                          onClick={() => removeAcceptedAnswer(index)}
+                          className="shrink-0"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      {errors[key] && <FieldError id={describedBy(key)!} message={errors[key]} />}
+                    </div>
+                  );
+                })}
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={draft.acceptedAnswers.length >= ACCEPTED_ANSWER_MAX}
+                  onClick={addAcceptedAnswer}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add answer
+                </Button>
+
+                {errors.accepted_answers && (
+                  <FieldError id={describedBy("accepted_answers")!} message={errors.accepted_answers} />
+                )}
+              </fieldset>
+            ) : (
+            <fieldset className="space-y-2" aria-describedby={describedBy("choices")}>
+              <legend className="text-sm font-medium text-gray-900">Choices</legend>
+              <p className="text-xs text-gray-600">
+                {QUESTION_CHOICE_MIN} to {QUESTION_CHOICE_MAX} choices. Select the one that is correct.
+              </p>
+
+              {draft.choices.map((choice, index) => {
+                const letter = CHOICE_LETTERS[index] ?? String(index + 1);
+                const labelKey = `choices.${index}.label`;
+                const inputId = `${prefix}-choice-${index}`;
+
+                return (
+                  <div key={index} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name={`${prefix}-correct`}
+                        checked={choice.isCorrect}
+                        onChange={() => markCorrect(index)}
+                        aria-label={`Choice ${letter} is correct`}
+                        className="h-4 w-4 shrink-0 accent-emerald-600"
+                      />
+                      <Label htmlFor={inputId} className="w-16 shrink-0">
+                        Choice {letter}
+                      </Label>
+                      <Input
+                        id={inputId}
+                        value={choice.label}
+                        aria-invalid={errors[labelKey] ? true : undefined}
+                        aria-describedby={describedBy(labelKey)}
+                        onChange={(e) => setChoice(index, { label: e.target.value })}
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`Remove choice ${letter}`}
+                        disabled={draft.choices.length <= 1}
+                        onClick={() => removeChoice(index)}
+                        className="shrink-0"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    {errors[labelKey] && (
+                      <FieldError id={describedBy(labelKey)!} message={errors[labelKey]} />
+                    )}
+                  </div>
+                );
+              })}
+
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={draft.choices.length >= QUESTION_CHOICE_MAX}
+                onClick={addChoice}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add choice
+              </Button>
+
+              {errors.choices && (
+                <FieldError id={describedBy("choices")!} message={errors.choices} />
+              )}
+            </fieldset>
+            )}
+          </div>
+
+          <DialogFooter className="mt-6 gap-2">
+            <Button type="submit" disabled={saving} className="flex-1">
+              {saving ? "Saving…" : isNew ? "Add question" : "Save question"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={saving}
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
