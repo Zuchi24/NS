@@ -5,8 +5,12 @@ import {
   CheckCircle,
   Cpu,
   Map,
+  Monitor,
+  Network,
+  Router,
   Target,
   Wrench,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,13 +18,46 @@ import { BrandLogo } from "@/components/common/BrandLogo";
 import { fetchPublicSummary } from "@/features/content/publicSummary";
 import { useAsync } from "@/services/useAsync";
 
-/** Stages of the PC-assembly activity, shown as a progression in the hero. */
-const buildStages = [
-  { src: "/pc-case.webp", label: "Empty case" },
-  { src: "/build-state-0.webp", label: "Motherboard" },
-  { src: "/build-state-3.webp", label: "Memory" },
-  { src: "/build-state-7.webp", label: "Complete" },
-];
+const topologyNodeVariants = {
+  primary: "bg-primary text-primary-foreground",
+  teal: "bg-brand-teal-light text-brand-teal-dark",
+  muted: "bg-muted text-foreground/80",
+} as const;
+
+function TopologyNode({
+  icon: Icon,
+  variant,
+  label,
+  name,
+  meta,
+}: {
+  icon: LucideIcon;
+  variant: keyof typeof topologyNodeVariants;
+  label: string;
+  name: string;
+  meta: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-white p-3 shadow-sm">
+      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-2 flex items-center gap-2.5">
+        <div
+          className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${topologyNodeVariants[variant]}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-foreground">
+            {name}
+          </div>
+          <div className="truncate text-[11px] text-muted-foreground">{meta}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /** The beginner path, in the order a student meets it. */
 const learningPath = [
@@ -145,8 +182,11 @@ export function LandingPage() {
           className="scroll-mt-14 bg-gradient-to-b from-accent to-white py-10 md:py-16"
         >
           <div className="max-w-8xl mx-auto px-6 md:px-10">
-            <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
-              <div className="space-y-5 md:space-y-6 max-w-2xl">
+            {/* Top-aligned beside the illustration: centred, the text sat
+                halfway down a column the illustration makes taller than a
+                laptop screen, leaving an empty band above the headline. */}
+            <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-start">
+              <div className="space-y-5 md:space-y-6 max-w-2xl lg:pt-6">
                 <div className="inline-block px-4 py-2 bg-brand-teal-light text-brand-teal-dark rounded-full text-sm font-semibold">
                   Networking Simulation Platform for IT Students
                 </div>
@@ -191,48 +231,98 @@ export function LandingPage() {
                 aria-hidden="true"
                 className="relative mx-auto w-full max-w-[34rem] lg:max-w-none"
               >
-                <div className="relative overflow-hidden rounded-3xl border border-border bg-white p-4 shadow-sm shadow-slate-900/5 sm:p-6">
+                <div className="relative overflow-hidden rounded-3xl border border-border bg-white p-4 shadow-sm shadow-slate-900/5 sm:p-6 xl:p-7">
                   <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-teal via-transparent to-brand-orange opacity-60" />
 
-                  <div className="relative space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-muted-foreground">
-                        Build &amp; Connect
-                      </span>
-                      <span className="rounded-full bg-brand-orange-light px-2.5 py-1 text-xs font-semibold text-brand-orange-dark">
-                        PC assembly
+                  <div className="relative space-y-5">
+                    {/* An example layout, not live state: no status lights,
+                        counters or features (VLANs, servers) the workspace
+                        does not have. Devices are the ones its palette offers. */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">
+                          Interactive Network Simulation
+                        </div>
+                        <div className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
+                          Practice connecting devices and understanding basic
+                          network layouts.
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-brand-orange-light px-2.5 py-1 text-xs font-semibold text-brand-orange-dark">
+                        Example
                       </span>
                     </div>
 
-                    <div className="overflow-hidden rounded-2xl bg-muted ring-1 ring-border">
-                      <img
-                        src="/build-state-7.webp"
-                        alt=""
-                        width={1408}
-                        height={768}
-                        className="aspect-[16/10] w-full object-cover"
-                      />
+                    <div className="rounded-2xl bg-muted/60 p-4 ring-1 ring-border sm:p-5">
+                      <div className="relative">
+                        <svg
+                          className="pointer-events-none absolute inset-0 h-full w-full text-brand-teal/40"
+                          viewBox="0 0 100 100"
+                          preserveAspectRatio="none"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M50 15 L50 50 M50 50 L25 85 M50 50 L75 85"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        </svg>
+
+                        <div className="relative grid grid-cols-2 gap-x-6 gap-y-6 sm:gap-x-10">
+                          <div className="col-span-2 flex justify-center">
+                            <div className="w-[calc(50%-0.75rem)] sm:w-[calc(50%-1.25rem)]">
+                              <TopologyNode
+                                icon={Router}
+                                variant="primary"
+                                label="Router"
+                                name="R1"
+                                meta="192.168.1.1"
+                              />
+                            </div>
+                          </div>
+                          <div className="col-span-2 flex justify-center">
+                            <div className="w-[calc(50%-0.75rem)] sm:w-[calc(50%-1.25rem)]">
+                              <TopologyNode
+                                icon={Network}
+                                variant="teal"
+                                label="Switch"
+                                name="SW1"
+                                meta="24 ports"
+                              />
+                            </div>
+                          </div>
+                          <TopologyNode
+                            icon={Monitor}
+                            variant="muted"
+                            label="PC"
+                            name="PC1"
+                            meta="192.168.1.10"
+                          />
+                          <TopologyNode
+                            icon={Monitor}
+                            variant="muted"
+                            label="PC"
+                            name="PC2"
+                            meta="192.168.1.11"
+                          />
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-4 gap-2 sm:gap-3">
-                      {buildStages.map((stage, index) => (
-                        <div key={stage.src} className="space-y-1.5">
-                          <div className="overflow-hidden rounded-lg bg-muted ring-1 ring-border">
-                            <img
-                              src={stage.src}
-                              alt=""
-                              width={1408}
-                              height={768}
-                              loading="lazy"
-                              className="aspect-[4/3] w-full object-cover"
-                            />
-                          </div>
-                          <div className="text-[11px] leading-tight text-muted-foreground sm:text-xs">
-                            <span className="font-semibold text-primary">
-                              {index + 1}.
-                            </span>{" "}
-                            {stage.label}
-                          </div>
+                    <div className="grid gap-2.5 rounded-xl bg-muted/60 p-4 sm:grid-cols-3">
+                      {[
+                        "Drag and drop devices",
+                        "Connect cables between devices",
+                        "Set IP addresses and subnet masks",
+                      ].map((item) => (
+                        <div
+                          key={item}
+                          className="flex items-center gap-2 text-sm text-foreground/80"
+                        >
+                          <CheckCircle className="h-4 w-4 shrink-0 text-primary" />
+                          <span>{item}</span>
                         </div>
                       ))}
                     </div>

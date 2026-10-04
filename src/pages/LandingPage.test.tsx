@@ -59,7 +59,28 @@ it("keeps the fictional network dashboard and old claims out", async () => {
   const { container } = renderPage();
   await screen.findByText(/5 topics/);
 
-  for (const gone of ["Wi-Fi", "2.4 GHz", "Clients connected", "VLAN", "Active devices", "Master Networking"]) {
+  for (const gone of [
+    "Wi-Fi",
+    "2.4 GHz",
+    "Clients connected",
+    "VLAN",
+    "Active devices",
+    "Live topology",
+    "Online",
+    "Stable",
+    "Server",
+    "Master Networking",
+  ]) {
     expect(container.textContent).not.toContain(gone);
   }
+});
+
+it("labels the network illustration as an example", async () => {
+  vi.mocked(service.fetchPublicSummary).mockResolvedValue({ topics: 5, challenges: 22 });
+
+  const { container } = renderPage();
+  await screen.findByText(/5 topics/);
+
+  expect(container.textContent).toContain("Interactive Network Simulation");
+  expect(container.textContent).toContain("Example");
 });
