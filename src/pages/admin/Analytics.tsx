@@ -157,15 +157,17 @@ export function Analytics() {
                       <span className="font-semibold text-primary">
                         {challenge.submissions === 0
                           ? "No submissions"
-                          : `${challenge.passRate}% of submissions`}
+                          : `${challenge.passRate}% of submissions passed`}
                       </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Progress value={challenge.passRate} className="h-2 flex-1" />
-                    <span className="text-sm text-gray-600 w-28 text-right">
+                    {/* Submissions that passed, not students who submitted: the
+                        row above already counts students, out of everyone. */}
+                    <span className="text-sm text-gray-600 w-48 shrink-0 text-right">
                       {challenge.passedSubmissions}/{challenge.submissions}{" "}
-                      submitted
+                      submissions passed
                     </span>
                   </div>
                 </div>

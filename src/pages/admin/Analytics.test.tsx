@@ -125,3 +125,33 @@ it("shows students passed out of every registered student, not those who attempt
 
   expect(screen.getByText(/2 \/ 25 students\s+passed/)).toBeTruthy();
 });
+
+it("says a pass rate is of submissions that passed, not of students who submitted", async () => {
+  // Half the cohort has passed, and every submission made so far passed: the
+  // two students who have not passed have not submitted at all. "2/2 submitted"
+  // read as two of two students submitting, beside a row that says 2 of 4.
+  vi.mocked(service.fetchAnalytics).mockResolvedValue({
+    totalStudents: 4,
+    challenges: [
+      challenge({
+        id: 1,
+        title: "Assemble a working PC",
+        submissions: 2,
+        passedSubmissions: 2,
+        passRate: 100,
+        studentsAttempted: 2,
+        studentsPassed: 2,
+        studentPassRate: 100,
+      }),
+    ],
+  });
+
+  const { container } = render(<Analytics />);
+
+  await screen.findByText("Challenge performance");
+
+  expect(screen.getByText(/2 \/ 4 students\s+passed/)).toBeTruthy();
+  expect(screen.getByText("100% of submissions passed")).toBeTruthy();
+  expect(screen.getByText(/2\/2\s+submissions passed/)).toBeTruthy();
+  expect(container.textContent).not.toMatch(/2\/2\s+submitted/);
+});
