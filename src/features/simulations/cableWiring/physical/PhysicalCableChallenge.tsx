@@ -391,9 +391,8 @@ export function PhysicalCableChallenge({
             className="grid content-start gap-2 md:grid-cols-2 lg:max-h-[calc(100vh-5rem)] lg:grid-cols-1 lg:overflow-y-auto"
             aria-label="Readouts"
           >
-            <TesterPanel cable={cable} scenario={scenario} beginner={beginner} reading={bench.test} onTest={bench.runTest} />
-            <InspectionPanel cable={cable} />
-            <MeasurementsPanel cable={cable} scenario={scenario} />
+            {/* First, so it sits at the top right beside the bench rather than
+                below every readout, where it had to be scrolled to. */}
             <HandInPanel
               cable={cable}
               scenario={scenario}
@@ -403,6 +402,9 @@ export function PhysicalCableChallenge({
               submitting={handIn?.submitting ?? false}
               submitted={handIn?.submitted ?? false}
             />
+            <TesterPanel cable={cable} scenario={scenario} beginner={beginner} reading={bench.test} onTest={bench.runTest} />
+            <InspectionPanel cable={cable} />
+            <MeasurementsPanel cable={cable} scenario={scenario} />
           </aside>
         </div>
       </div>

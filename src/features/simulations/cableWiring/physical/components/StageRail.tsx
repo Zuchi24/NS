@@ -34,6 +34,10 @@ export function StageRail({ cable, selectedEnd, onSelectEnd, instruction, instru
         {END_IDS.map((id) => {
           const end = cable.ends[id];
           const done = terminated(end);
+          // The model counts a half crimp as terminated, but it makes no
+          // contact, so only a full crimp gets the finished-looking pill. The
+          // row's own text still says "half-crimped".
+          const crimped = end.plug?.crimp === "full";
           const active = selectedEnd === id;
 
           return (
@@ -50,7 +54,7 @@ export function StageRail({ cable, selectedEnd, onSelectEnd, instruction, instru
               >
                 <span className="text-sm font-semibold text-slate-900">{endLabel(id)}</span>
                 <span className="text-sm text-slate-600">{describeEnd(end)}</span>
-                {done && (
+                {crimped && (
                   <span className="ml-auto rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
                     terminated
                   </span>

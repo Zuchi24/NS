@@ -828,3 +828,16 @@ describe("P2 review fixes", () => {
     expect(within(toolbar()).getByRole("button", { name: "Untwist (suggested)" })).toBeInTheDocument();
   });
 });
+
+describe("the readouts beside the bench", () => {
+  it("puts Hand in first, above the tester, the inspection and the measurements", () => {
+    render(<PhysicalCableChallenge {...PRACTICE_BENCH} />);
+
+    const readouts = screen.getByRole("complementary", { name: "Readouts", hidden: true });
+    const headings = within(readouts)
+      .getAllByRole("heading", { level: 2, hidden: true })
+      .map((heading) => heading.textContent?.trim());
+
+    expect(headings).toEqual(["Hand in", "Cable tester", "Inspection", "Measurements"]);
+  });
+});
