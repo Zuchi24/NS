@@ -152,7 +152,7 @@ it("shows the network workspace as an example card among the activities", async 
   await heroStats(container);
 
   const card = within(container.querySelector<HTMLElement>("#features")!)
-    .getByRole("heading", { level: 3, name: "Network Simulation" })
+    .getByRole("heading", { level: 4, name: "Network Simulation" })
     .closest("li")!;
   expect(card.textContent).toContain("Example");
   expect(container.querySelector("#home")!.textContent).not.toContain("Network Simulation");
@@ -205,7 +205,7 @@ it("shows each activity with the artwork the activity itself uses", async () => 
 
   const features = within(container.querySelector<HTMLElement>("#features")!);
   for (const title of ["PC Assembly", "Motherboard Identification", "RJ45 Cable Wiring", "Network Simulation"]) {
-    expect(features.getByRole("heading", { level: 3, name: title })).toBeTruthy();
+    expect(features.getByRole("heading", { level: 4, name: title })).toBeTruthy();
   }
 
   const sources = [...container.querySelectorAll("#features img")].map((img) => img.getAttribute("src"));
@@ -258,4 +258,79 @@ it("says who NetSim is for: BASC's IT students, with the college named in full",
   expect(container.querySelector("footer")!.textContent).toContain(
     "Networking simulation platform for BASC IT students",
   );
+});
+
+it("keeps the learning path a list of its five steps, with its line beside it", async () => {
+  vi.mocked(service.fetchPublicSummary).mockResolvedValue({ topics: 5, challenges: 22 });
+
+  const { container } = renderPage();
+  await heroStats(container);
+
+  const path = container.querySelector("#features ol")!;
+  expect([...path.children].map((child) => child.tagName)).toEqual(["LI", "LI", "LI", "LI", "LI"]);
+  expect(within(path as HTMLElement).getAllByRole("listitem")).toHaveLength(5);
+});
+
+it("heads the activity cards one level below the section that holds them", async () => {
+  vi.mocked(service.fetchPublicSummary).mockResolvedValue({ topics: 5, challenges: 22 });
+
+  const { container } = renderPage();
+  await heroStats(container);
+
+  const levels = [...container.querySelectorAll("#features :is(h2, h3, h4)")].map((heading) => [
+    heading.tagName,
+    heading.textContent,
+  ]);
+  expect(levels).toEqual([
+    ["H2", "Learn the Basics by Doing Them"],
+    ["H3", "See It in Action"],
+    ["H4", "PC Assembly"],
+    ["H4", "Motherboard Identification"],
+    ["H4", "RJ45 Cable Wiring"],
+    ["H4", "Network Simulation"],
+  ]);
+});
+
+it("tells a screen reader, once, that the network picture is an example", async () => {
+  vi.mocked(service.fetchPublicSummary).mockResolvedValue({ topics: 5, challenges: 22 });
+
+  const { container } = renderPage();
+  await heroStats(container);
+
+  const card = within(container.querySelector<HTMLElement>("#features")!)
+    .getByRole("heading", { level: 4, name: "Network Simulation" })
+    .closest("li")!;
+  const hidden = (element: Element) => element.closest('[aria-hidden="true"]') !== null;
+  const mentions = [...card.querySelectorAll("*")].filter(
+    (element) => element.children.length === 0 && /example/i.test(element.textContent ?? ""),
+  );
+
+  // The badge is part of the picture, hidden with it; the note is the one a
+  // screen reader hears.
+  expect(mentions.filter(hidden).map((element) => element.textContent)).toEqual(["Example"]);
+  expect(mentions.filter((element) => !hidden(element)).map((element) => element.textContent)).toEqual([
+    "The picture is an example network layout, not a screenshot of the workspace.",
+  ]);
+});
+
+it("gives each PC-assembly stage name the thumbnail's full width, its number on the picture", async () => {
+  vi.mocked(service.fetchPublicSummary).mockResolvedValue({ topics: 5, challenges: 22 });
+
+  const { container } = renderPage();
+  await heroStats(container);
+
+  // On a 320-360px phone "2. Motherboard" did not fit under its thumbnail;
+  // the number now sits on the thumbnail, so the label is the name alone.
+  expect(screen.getAllByTestId("stage-label").map((label) => label.textContent)).toEqual([
+    "Case",
+    "Motherboard",
+    "Memory",
+    "Complete",
+  ]);
+  expect(screen.getAllByTestId("stage-number").map((number) => number.textContent)).toEqual([
+    "1",
+    "2",
+    "3",
+    "4",
+  ]);
 });

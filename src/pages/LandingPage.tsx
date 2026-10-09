@@ -44,37 +44,41 @@ export function LandingPage() {
             </div>
 
             {/* The path as one connected line: down the left edge on a
-                phone, across the page from md up. */}
-            <ol className="relative max-w-6xl mx-auto grid grid-cols-1 gap-6 md:grid-cols-5 md:gap-4">
+                phone, across the page from md up. The line sits beside the
+                list rather than in it, since a list holds only its items;
+                the wrapper is the list's own box, so it lands where it did. */}
+            <div className="relative max-w-6xl mx-auto">
               <div
                 aria-hidden="true"
                 className="absolute left-6 top-6 bottom-6 w-0.5 bg-brand-teal-light md:left-[10%] md:right-[10%] md:top-6 md:bottom-auto md:h-0.5 md:w-auto"
               />
-              {learningPath.map((step, index) => {
-                const Icon = step.icon;
-                return (
-                  <li
-                    key={step.title}
-                    className="relative flex items-start gap-4 md:flex-col md:items-center md:gap-3 md:text-center"
-                  >
-                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-md ring-4 ring-white">
-                      <Icon className="h-5 w-5" aria-hidden="true" />
-                    </div>
-                    <div className="pt-1 md:pt-0">
-                      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-orange-dark">
-                        Step {index + 1}
+              <ol className="grid grid-cols-1 gap-6 md:grid-cols-5 md:gap-4">
+                {learningPath.map((step, index) => {
+                  const Icon = step.icon;
+                  return (
+                    <li
+                      key={step.title}
+                      className="relative flex items-start gap-4 md:flex-col md:items-center md:gap-3 md:text-center"
+                    >
+                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-md ring-4 ring-white">
+                        <Icon className="h-5 w-5" aria-hidden="true" />
                       </div>
-                      <div className="font-semibold text-foreground">
-                        {step.title}
+                      <div className="pt-1 md:pt-0">
+                        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-orange-dark">
+                          Step {index + 1}
+                        </div>
+                        <div className="font-semibold text-foreground">
+                          {step.title}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {step.text}
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {step.text}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
 
             <div className="mt-14 md:mt-16">
               <h3 className="mb-6 text-center text-2xl font-bold text-foreground md:mb-8">

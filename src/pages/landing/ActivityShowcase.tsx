@@ -26,12 +26,19 @@ function ShowcaseCard({
   step,
   title,
   description,
+  visualNote,
   visualClassName,
   children,
 }: {
   step: string;
   title: string;
   description: string;
+  /**
+   * What a screen reader should know about the picture, which is hidden from
+   * it as decoration: said once, in words, rather than through the picture's
+   * own badge.
+   */
+  visualNote?: string;
   visualClassName: string;
   children: ReactNode;
 }) {
@@ -44,8 +51,10 @@ function ShowcaseCard({
         <span className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-orange-dark">
           {step}
         </span>
-        <h3 className="text-xl font-bold text-foreground">{title}</h3>
+        {/* h4: these sit under the section's "See It in Action" h3. */}
+        <h4 className="text-xl font-bold text-foreground">{title}</h4>
         <p className="text-muted-foreground leading-relaxed">{description}</p>
+        {visualNote && <p className="sr-only">{visualNote}</p>}
       </div>
     </li>
   );
@@ -99,22 +108,36 @@ export function ActivityShowcase() {
           loading="lazy"
           className="min-h-0 w-full flex-1 object-cover"
         />
-        <div className="grid grid-cols-4 gap-1.5 border-t border-border bg-white p-2">
-          {/* The stage names go in the four-across row, where they were cut
-              to "2. Moth…"; the thumbnails alone still read as a
-              progression there. */}
+        {/* Each stage's number sits on its thumbnail, so the name below has
+            the thumbnail's whole width: "2. Motherboard" was cut on a
+            320-360px phone, and a little less spacing below sm gives the name
+            alone room there. The numbers and names go in the four-across row,
+            where they were cut to "2. Moth…"; the thumbnails alone still read
+            as a progression there. */}
+        <div className="grid grid-cols-4 gap-1 border-t border-border bg-white p-1.5 sm:gap-1.5 sm:p-2">
           {buildStages.map((stage, index) => (
             <div key={stage.src} className="min-w-0">
-              <img
-                src={stage.src}
-                alt=""
-                width={1408}
-                height={768}
-                loading="lazy"
-                className="aspect-[4/3] w-full rounded-md bg-slate-50 object-cover ring-1 ring-border"
-              />
-              <div className="mt-1 truncate text-[10px] leading-tight text-muted-foreground xl:hidden">
-                <span className="font-semibold text-primary">{index + 1}.</span> {stage.label}
+              <div className="relative">
+                <img
+                  src={stage.src}
+                  alt=""
+                  width={1408}
+                  height={768}
+                  loading="lazy"
+                  className="aspect-[4/3] w-full rounded-md bg-slate-50 object-cover ring-1 ring-border"
+                />
+                <span
+                  data-testid="stage-number"
+                  className="absolute top-0.5 left-0.5 grid h-4 min-w-4 place-items-center rounded bg-white/90 px-0.5 text-[9px] font-semibold leading-none text-primary ring-1 ring-border xl:hidden"
+                >
+                  {index + 1}
+                </span>
+              </div>
+              <div
+                data-testid="stage-label"
+                className="mt-1 truncate text-[10px] leading-tight text-muted-foreground xl:hidden"
+              >
+                {stage.label}
               </div>
             </div>
           ))}
@@ -159,8 +182,10 @@ export function ActivityShowcase() {
         step="Connect"
         title="Network Simulation"
         description="Drag devices onto a workspace, connect them with cables, and set their IP addresses and subnet masks."
+        visualNote="The picture is an example network layout, not a screenshot of the workspace."
         visualClassName="bg-muted/60 p-4 pt-10"
       >
+        {/* Seen, not read: the card's visualNote says it to a screen reader. */}
         <span className="absolute top-3 right-3 rounded-full bg-brand-orange-light px-2.5 py-0.5 text-[11px] font-semibold text-brand-orange-dark">
           Example
         </span>

@@ -127,7 +127,7 @@ export function LandingHero({
             </dl>
           )}
           {/* On a phone the counts alone fill the strip: the highlights
-              would double its height and are said again further down. */}
+              would double its height, so they wait for sm. */}
           <ul
             className={`grid-cols-2 gap-x-4 gap-y-2 py-4 sm:grid-cols-3 lg:gap-0 lg:py-0 ${
               showStats ? "hidden sm:grid lg:col-span-3" : "grid lg:col-span-5"
