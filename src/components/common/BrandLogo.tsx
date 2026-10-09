@@ -11,13 +11,18 @@ import { cn } from "@/components/ui/utils";
  * - `wordmark`: the mark and "NetSim", for light surfaces. The lockup with the
  *   tagline is not offered: at any navigation size its tagline is a few pixels
  *   tall and unreadable.
- * - `dark`: the same for dark surfaces. It is the pack's only dark horizontal
- *   lockup, so it carries the tagline; use it large enough to hold it.
+ * - `wordmarkDark`: `wordmark` for dark surfaces, at navigation size. The pack
+ *   has no dark lockup without the tagline, so this one is assembled from its
+ *   own parts rather than redrawn: the dark lockup's mark, and the `wordmark`
+ *   file's lettering in the dark lockup's colours (#F8FAFC "Net", #FB923C "Sim").
+ * - `dark`: the pack's dark horizontal lockup, which carries the tagline; use
+ *   it large enough to hold it.
  */
 const PACK = "/NetSim_Logo/NetSim_Logo/SVG";
 
 const LOGOS = {
   wordmark: { src: `${PACK}/netsim_lockup_horizontal_notag.svg`, width: 952, height: 270 },
+  wordmarkDark: { src: `${PACK}/netsim_lockup_horizontal_notag_dark.svg`, width: 952, height: 270 },
   dark: { src: `${PACK}/netsim_lockup_horizontal_dark.svg`, width: 878, height: 270 },
 } as const;
 
